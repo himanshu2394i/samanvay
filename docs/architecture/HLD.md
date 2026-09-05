@@ -251,6 +251,14 @@ its callers.
 
 ### 3.3 Modules
 
+Each module is a Spring Modulith module: its own package, its own tables, its own owner,
+communicating only through interfaces and events.
+
+> **Each module has a charter document in [`hld/`](hld/README.md)** covering its
+> responsibilities, public interface, owned data, events, key decisions, failure modes and
+> acceptance criteria. Those documents defer to this one: if a module charter contradicts
+> the combined HLD on principles, flows or technology, the combined HLD wins.
+
 | Module | Owns | Plane |
 |---|---|---|
 | `identity` | Citizen master record, department links, provenance, matching engine, review queue | Control |
@@ -1204,7 +1212,7 @@ write path in the system.
 | Owner | Modules | Note |
 |---|---|---|
 | **Technical lead** | Access grant, `consent`, `audit` — the security spine | Critical path; reviews every PR crossing a module boundary |
-| B | `identity` — linking, resolution, review queue | Hardest domain logic, most independent |
+| B | `identity` — linking, resolution, review queue — and `registry` | Hardest domain logic, most independent. Both modules answer "who and what exists" |
 | C | `connector` runtime + REST & SOAP adapters + those two mocks | Critical path |
 | D | `catalog` + onboarding wizard + SFTP & JDBC adapters + those two mocks | Owns the Phase 4 importer |
 | E | `orchestration` (Flowable port, BPMN) + `tracking` + `notifications` | Owns the Flowable risk |
