@@ -3,7 +3,7 @@ package com.samanvay.connector.internal.service;
 import com.samanvay.connector.api.BatchIngestCompleted;
 import com.samanvay.connector.api.BatchIngestor;
 import com.samanvay.connector.api.BatchResult;
-import com.samanvay.connector.api.BatchRowRejected;
+import com.samanvay.shared.BatchRowRejected;
 import com.samanvay.connector.internal.protocol.MockSftpStore;
 import java.sql.Timestamp;
 import java.time.Instant;

@@ -1,6 +1,6 @@
 package com.samanvay.notifications.internal.service;
 
-import com.samanvay.connector.api.BatchRowRejected;
+import com.samanvay.shared.BatchRowRejected;
 import com.samanvay.consent.api.ConsentGranted;
 import com.samanvay.consent.api.ConsentRequested;
 import com.samanvay.consent.api.ConsentRevoked;
