@@ -4,6 +4,7 @@
             "identity :: api",
             "orchestration :: api",
             "registry :: api",
+            "shared",
             "tracking :: api"
         })
 package com.samanvay.notifications;

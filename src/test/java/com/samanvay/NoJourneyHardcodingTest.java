@@ -1,5 +1,6 @@
 package com.samanvay;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,7 +37,8 @@ class NoJourneyHardcodingTest {
     @Test
     void hardcoding_rule_fails_on_named_journey_equals() {
         var imported = new ClassFileImporter().importClasses(NamedJourneySwitch.class);
-        assertThatThrownBy(() -> no_journey_code_literals.check(imported))
+        ArchRule againstFixture = classes().should(new NoHardcodedJourneyCodes());
+        assertThatThrownBy(() -> againstFixture.check(imported))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("POST_MATRIC_SCHOLARSHIP");
     }
