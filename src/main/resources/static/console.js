@@ -28,7 +28,7 @@ function esc(v) {
 }
 
 function when(v) {
-  return v ? new Date(v).toISOString().replace("T", " ").replace(/\..+/, "Z") : "—";
+  return v ? new Date(v).toISOString().replace("T", " ").replace(/\..+/, "Z") : "-";
 }
 
 function tone(status) {
@@ -44,9 +44,9 @@ function qs(name) {
 }
 
 function unwrap(v) {
-  if (v == null) return "—";
+  if (v == null) return "-";
   if (typeof v === "object") {
-    if (v.empty) return "—";
+    if (v.empty) return "-";
     if (Object.prototype.hasOwnProperty.call(v, "value")) return unwrap(v.value);
   }
   return String(v);
@@ -62,7 +62,7 @@ function friendlyError(e, hint) {
     return "Cannot reach the control plane. Confirm the Spring app is running and open http://localhost:8080/.";
   }
   if (e && looksLikeHtml(e.body)) {
-    return "The control plane API did not answer. Start the Spring app and open http://localhost:8080/ — these pages only read /api/*.";
+    return "The control plane API did not answer. Start the Spring app and open http://localhost:8080/. These pages only read /api/*.";
   }
   if (e && e.status === 404 && hint === "demo") {
     return "This action is available only with the demo profile. Restart with --spring.profiles.active=demo. Default boot correctly returns 404.";
@@ -103,6 +103,42 @@ function setBusy(el, busy, label) {
 
 function loading(msg) {
   return `<p class="loading">${esc(msg || "Loading live telemetry…")}</p>`;
+}
+
+function skeletonTiles(n) {
+  return Array.from({ length: n }, () =>
+    `<li class="tile" aria-hidden="true"><div class="skel skel-label"></div><div class="skel skel-metric"></div><div class="skel skel-sub"></div></li>`
+  ).join("");
+}
+
+function skeletonRows(cols, rows) {
+  const head = cols.map((h) => `<th scope="col">${esc(h)}</th>`).join("");
+  const body = Array.from({ length: rows || 3 }, () =>
+    `<tr>${cols.map(() => `<td><span class="skel skel-cell"></span></td>`).join("")}</tr>`
+  ).join("");
+  return `<div class="table-wrap"><table><caption class="loading">Loading live rows</caption><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function skeletonTimeline(n) {
+  return Array.from({ length: n || 4 }, (_, i) =>
+    `<li><span class="stage-num" aria-hidden="true">${i + 1}</span><div><div class="skel skel-label"></div><div class="skel skel-line"></div></div></li>`
+  ).join("");
+}
+
+function planeHealth(el, kind, title, detail) {
+  if (!el) return;
+  el.className = "health " + (kind || "");
+  el.innerHTML = `<strong>${esc(title)}</strong><span>${esc(detail)}</span>`;
+}
+
+function setSpine(root, states) {
+  if (!root) return;
+  root.querySelectorAll("[data-beat]").forEach((li) => {
+    const k = states[li.dataset.beat] || "idle";
+    li.className = k;
+    if (k === "now" || k === "warn" || k === "bad") li.setAttribute("aria-current", "step");
+    else li.removeAttribute("aria-current");
+  });
 }
 
 function emptyBox(title, whyHtml) {

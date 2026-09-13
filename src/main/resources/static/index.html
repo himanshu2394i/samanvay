@@ -4,6 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Command Center | Samanvay</title>
+  <link rel="preload" href="/fonts/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/console.css"/>
 </head>
 <body>
@@ -12,7 +13,7 @@
   <div class="shell">
     <header class="mast">
       <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">Control plane</span></div>
-      <p class="tag">Government interoperability infrastructure — live catalog, tracking, and ledger. Not a citizen service portal.</p>
+      <p class="tag">Government interoperability infrastructure. Live catalog, tracking, and ledger. Not a citizen service portal.</p>
     </header>
     <nav class="bar" aria-label="Console">
       <ul class="nav-primary" role="list">
@@ -31,27 +32,35 @@
     </nav>
     <main id="content" tabindex="-1">
       <h1 class="page-title">Command Center</h1>
-      <p class="lede">Ops telemetry from catalog, tracking, orchestration, identity, and audit. Journey codes in the catalog are evidence the interoperability layer is generic — this is not a benefit-application screen.</p>
+      <p class="lede">Ops telemetry from catalog, tracking, orchestration, identity, and audit. Journey codes in the catalog are evidence the interoperability layer is generic. This is not a benefit-application screen.</p>
+      <p id="plane" class="health" role="status"><span class="loading">Composing plane health…</span></p>
       <div class="stack">
-        <div class="grid" id="kpis"><p class="loading">Loading live telemetry…</p></div>
-        <section class="card">
+        <section>
+          <h2>Live telemetry</h2>
+          <ul class="telemetry" id="kpis" role="list"></ul>
+        </section>
+        <section>
           <h2>Registered journeys</h2>
-          <div id="journeys"><p class="loading">Loading catalog…</p></div>
+          <div id="journeys"></div>
         </section>
-        <section class="card">
+        <section>
           <h2>Department health</h2>
-          <p class="note">Catalog status plus live step outcomes and open exceptions. Seeded connector <code>health_status</code> is not shown — it is not updated at runtime.</p>
-          <div id="depts"><p class="loading">Loading department telemetry…</p></div>
+          <p class="note">Catalog status plus live step outcomes and open exceptions. Seeded connector <code>health_status</code> is not shown. It is not updated at runtime.</p>
+          <div id="depts"></div>
         </section>
-        <section class="card">
+        <section>
           <h2>Tracked applications</h2>
-          <div id="apps"><p class="loading">Loading tracking…</p></div>
+          <div id="apps"></div>
         </section>
       </div>
     </main>
   </div>
   <script src="/console.js"></script>
   <script>
+    document.getElementById("kpis").innerHTML = skeletonTiles(6);
+    document.getElementById("journeys").innerHTML = skeletonRows(["Code", "Name", "Status", "In flight"], 3);
+    document.getElementById("depts").innerHTML = skeletonRows(["Department", "Catalog", "Live", "Steps"], 4);
+    document.getElementById("apps").innerHTML = skeletonRows(["Reference", "Journey", "Status", "SLA"], 3);
     async function load() {
       const kpis = document.getElementById("kpis");
       const journeysEl = document.getElementById("journeys");
@@ -72,19 +81,25 @@
         const slaBreach = apps.filter(a => a.slaDueAt && Date.parse(a.slaDueAt) < now).length;
         const byStatus = {};
         apps.forEach(a => { byStatus[a.status] = (byStatus[a.status] || 0) + 1; });
+        const reviewN = review.totalElements ?? (review.content || []).length;
+        let hk = "ok", ht = "NOMINAL", hd = "Catalog, tracking, and ledger answered.";
+        if (!verify.valid) { hk = "bad"; ht = "CRITICAL"; hd = "Audit chain failed verification."; }
+        else if (slaBreach) { hk = "bad"; ht = "DEGRADED"; hd = slaBreach + " SLA breach(es) on listed applications."; }
+        else if (exceptions.length) { hk = "warn"; ht = "DEGRADED"; hd = exceptions.length + " open orchestration exception(s)."; }
+        planeHealth(document.getElementById("plane"), hk, ht, hd);
         kpis.innerHTML = `
-          <div class="card"><p class="kicker">Ledger integrity</p><div class="metric ${verify.valid ? "ok" : "bad"}">${verify.valid ? "VALID" : "BROKEN"}<small>head seq ${esc(head.seq)} · ${esc(verify.fromSeq)}–${esc(verify.toSeq)}</small></div></div>
-          <div class="card"><p class="kicker">Open exceptions</p><div class="metric ${exceptions.length ? "warn" : "ok"}">${exceptions.length}<small>orchestration queue</small></div></div>
-          <div class="card"><p class="kicker">Tracked applications</p><div class="metric">${apps.length}<small>${esc(Object.entries(byStatus).map(([k,v]) => k + " " + v).join(" · ") || "none in flight")}</small></div></div>
-          <div class="card"><p class="kicker">SLA breaches</p><div class="metric ${slaBreach ? "bad" : "ok"}">${slaBreach}<small>breached of ${apps.length} listed</small></div></div>
-          <div class="card"><p class="kicker">Identity review queue</p><div class="metric">${esc(review.totalElements ?? (review.content || []).length)}<small>pending candidates</small></div></div>
-          <div class="card"><p class="kicker">Federated departments</p><div class="metric">${departments.length}<small>${esc(departments.filter(d => d.status === "ACTIVE").length)} ACTIVE in catalog</small></div></div>`;
+          <li class="tile"><p class="tile-label">Ledger integrity</p><p class="metric ${verify.valid ? "ok" : "bad"}">${verify.valid ? "VALID" : "BROKEN"}</p><p class="tile-sub">head seq ${esc(head.seq)} · ${esc(verify.fromSeq)}-${esc(verify.toSeq)}</p></li>
+          <li class="tile"><p class="tile-label">Open exceptions</p><p class="metric ${exceptions.length ? "warn" : "ok"}">${exceptions.length}</p><p class="tile-sub">orchestration queue</p></li>
+          <li class="tile"><p class="tile-label">Tracked applications</p><p class="metric">${apps.length}</p><p class="tile-sub">${esc(Object.entries(byStatus).map(([k,v]) => k + " " + v).join(" · ") || "none in flight")}</p></li>
+          <li class="tile"><p class="tile-label">SLA breaches</p><p class="metric ${slaBreach ? "bad" : "ok"}">${slaBreach}</p><p class="tile-sub">breached of ${apps.length} listed</p></li>
+          <li class="tile"><p class="tile-label">Identity review queue</p><p class="metric">${esc(reviewN)}</p><p class="tile-sub">pending candidates</p></li>
+          <li class="tile"><p class="tile-label">Federated departments</p><p class="metric">${departments.length}</p><p class="tile-sub">${esc(departments.filter(d => d.status === "ACTIVE").length)} ACTIVE in catalog</p></li>`;
 
         journeysEl.innerHTML = journeys.length
           ? tableHtml("Catalog journeys with in-flight counts from tracking", ["Code", "Name", "Status", "In flight"],
               journeys.map(j => {
                 const n = apps.filter(a => a.journeyCode === j.code).length;
-                return `<tr><td class="mono">${esc(j.code)}</td><td>${esc(j.name)}</td><td class="${tone(j.status)}">${esc(j.status)}</td><td>${n}</td></tr>`;
+                return `<tr><td class="mono">${esc(j.code)}</td><td>${esc(j.name)}</td><td class="${tone(j.status)}">${esc(j.status)}</td><td class="tnum">${n}</td></tr>`;
               }).join(""))
           : emptyBox("No journeys registered", "Catalog journeys appear here once they are published. Codes prove the interoperability layer is generic.");
 
@@ -112,7 +127,7 @@
                 if (live.failed || live.exc) { health = "DEGRADED"; cls = "bad"; }
                 else if (live.pending) { health = "PENDING"; cls = "warn"; }
                 else if (live.done) { health = "FLOWING"; cls = "ok"; }
-                return `<tr><td>${esc(d.name)} <span class="mono">${esc(d.code)}</span></td><td class="${tone(d.status)}">${esc(d.status)}</td><td class="${cls}">${health}</td><td class="mono">${live.done} ok / ${live.pending} pending / ${live.failed} failed / ${live.exc} exc</td></tr>`;
+                return `<tr><td>${esc(d.name)} <span class="mono">${esc(d.code)}</span></td><td class="${tone(d.status)}">${esc(d.status)}</td><td class="${cls}">${health}</td><td class="mono tnum">${live.done} ok / ${live.pending} pending / ${live.failed} failed / ${live.exc} exc</td></tr>`;
               }).join(""))
           : emptyBox("No departments in catalog", "Federated department rows appear after catalog seed or onboarding. Live stays QUIET until tracked steps exist.");
 
@@ -120,14 +135,15 @@
           ? tableHtml("Tracked applications and SLA vs now", ["Reference", "Journey", "Status", "SLA"],
               apps.map(a => {
                 const breach = a.slaDueAt && Date.parse(a.slaDueAt) < now;
-                return `<tr><td><a href="/journey.html?ref=${encodeURIComponent(a.referenceNo)}">${esc(a.referenceNo)}</a></td><td class="mono">${esc(a.journeyCode)}</td><td class="${tone(a.status)}">${esc(a.status)}</td><td class="${breach ? "bad" : ""}">${breach ? "BREACH" : esc(a.slaDueAt || "—")}</td></tr>`;
+                return `<tr><td><a href="/journey.html?ref=${encodeURIComponent(a.referenceNo)}">${esc(a.referenceNo)}</a></td><td class="mono">${esc(a.journeyCode)}</td><td class="${tone(a.status)}">${esc(a.status)}</td><td class="${breach ? "bad" : ""}">${breach ? "BREACH" : esc(a.slaDueAt || "-")}</td></tr>`;
               }).join(""))
           : emptyBox("No tracked applications", 'This plane lists federated cases after an external caller starts a catalog journey. It is not a citizen intake form. Use the <a href="/caller.html">caller demo</a> to start one.');
         announce("Command Center telemetry loaded.");
       } catch (e) {
-        showErr(kpis, e);
-        const quiet = `<p class="empty">Telemetry unavailable — see the error above.</p>`;
-        journeysEl.innerHTML = quiet;
+        planeHealth(document.getElementById("plane"), "bad", "UNREACHABLE", "Control plane APIs did not answer.");
+        kpis.innerHTML = "";
+        showErr(journeysEl, e);
+        const quiet = `<p class="empty">Telemetry unavailable. See the error above.</p>`;
         deptsEl.innerHTML = quiet;
         appsEl.innerHTML = quiet;
         announce("Command Center failed to load telemetry.");

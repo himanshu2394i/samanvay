@@ -4,6 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Journey | Samanvay</title>
+  <link rel="preload" href="/fonts/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/console.css"/>
 </head>
 <body>
@@ -12,7 +13,7 @@
   <div class="shell">
     <header class="mast">
       <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">Control plane</span></div>
-      <p class="tag">Government interoperability infrastructure — one application reference, federated department steps.</p>
+      <p class="tag">Government interoperability infrastructure. One application reference, federated department steps.</p>
     </header>
     <nav class="bar" aria-label="Console">
       <ul class="nav-primary" role="list">
@@ -31,18 +32,18 @@
     </nav>
     <main id="content" tabindex="-1">
       <h1 class="page-title">Journey timeline</h1>
-      <p class="lede">Identity → Consent → department fetches → degraded/recovery. Numbers and steps come from tracking and catalog, not a hardcoded script.</p>
-      <ol class="beat-strip" aria-label="Timeline stages">
-        <li>1 Identity</li>
-        <li>2 Consent</li>
-        <li>3 Departments</li>
-        <li>4 Recovery</li>
+      <p class="lede">Identity, consent, cross-department orchestration, then failure or recovery. Numbers and steps come from tracking and catalog, not a hardcoded script.</p>
+      <ol class="spine" id="beats" aria-label="Timeline stages">
+        <li data-beat="identity">Identity</li>
+        <li data-beat="consent">Consent</li>
+        <li data-beat="depts">Orchestration</li>
+        <li data-beat="recovery">Recovery</li>
       </ol>
       <label for="ref">Application reference</label>
-      <input id="ref" placeholder="MH-…"/>
+      <input id="ref" name="ref" placeholder="MH-…" autocomplete="off" spellcheck="false"/>
       <div class="row">
         <button type="button" class="primary" id="loadBtn">Load timeline</button>
-        <button type="button" id="retryBtn">Retry pending</button>
+        <button type="button" class="secondary" id="retryBtn">Retry pending</button>
       </div>
       <p id="status" class="status" aria-live="polite"></p>
       <div id="meta"></div>
@@ -53,6 +54,7 @@
   <script>
     const refEl = document.getElementById("ref");
     const statusEl = document.getElementById("status");
+    const beats = document.getElementById("beats");
     refEl.value = qs("ref") || "";
     document.getElementById("loadBtn").onclick = load;
     document.getElementById("retryBtn").onclick = retry;
@@ -91,6 +93,7 @@
           tl.innerHTML = "";
           meta.innerHTML = emptyBox("No application reference yet", 'The timeline appears when an external caller starts a catalog journey. Use the <a href="/caller.html">caller demo</a>.');
           setStatus(statusEl, "", "");
+          setSpine(beats, {});
         } catch (e) {
           showErr(meta, e);
           setStatus(statusEl, "bad", friendlyError(e));
@@ -102,7 +105,7 @@
       history.replaceState(null, "", "/journey.html?ref=" + encodeURIComponent(ref));
       setBusy(btn, true, "Loading…");
       meta.innerHTML = loading("Loading application…");
-      tl.innerHTML = `<li><span class="stage-num">…</span><div class="loading">Loading federated timeline…</div></li>`;
+      tl.innerHTML = skeletonTimeline(5);
       try {
         const app = await api("/api/applications/" + encodeURIComponent(ref));
         const steps = await api("/api/applications/" + encodeURIComponent(ref) + "/steps");
@@ -115,14 +118,15 @@
           api("/api/journeys/exceptions"),
         ]);
         const mine = exceptions.filter(x => x.instanceId === app.instanceId);
-        meta.innerHTML = `<div class="card"><strong class="mono">${esc(app.referenceNo)}</strong>
+        meta.innerHTML = `<p class="ref-line"><strong class="mono">${esc(app.referenceNo)}</strong>
           · journey <span class="mono">${esc(app.journeyCode)}</span>
           · status <span class="${tone(app.status)}">${esc(app.status)}</span>
-          · instance <span class="mono">${esc(app.instanceId || "—")}</span>
-          · submitted ${esc(when(app.submittedAt))}</div>`;
+          · instance <span class="mono">${esc(app.instanceId || "-")}</span>
+          · submitted ${esc(when(app.submittedAt))}</p>`;
         const items = [];
         items.push({
           cls: profile ? "ok" : "warn",
+          kind: "identity",
           title: "Identity",
           body: profile
             ? `${esc(profile.nameLatin)} · ${esc(profile.citizenId)} · ${links.length} department link(s): ${esc(links.map(l => l.departmentCode + ":" + l.localIdType).join(", ") || "none")}`
@@ -132,6 +136,7 @@
         const revoked = (consents || []).filter(c => c.status === "REVOKED");
         items.push({
           cls: revoked.length && !granted.length ? "bad" : (consents.length ? "ok" : "warn"),
+          kind: "consent",
           title: "Consent",
           body: consents.length
             ? `${consents.length} artifact(s). Granted/active ${granted.length}. Revoked ${revoked.length}. ${esc((consents[0] && consents[0].purposeCode) || "")}`
@@ -145,6 +150,7 @@
           const st = s ? s.status : "NOT_STARTED";
           items.push({
             cls: tone(st) || (s ? "" : "warn"),
+            kind: "dept",
             title: `Department · ${dept} · ${cat}`,
             body: s
               ? `${esc(st)} · source ${esc(s.source)} · ${esc(unwrap(s.outcome))} · ${esc(when(s.completedAt || s.startedAt))}`
@@ -154,19 +160,30 @@
         const degraded = app.status === "PARTIALLY_VERIFIED" || steps.some(s => s.status === "PENDING_SOURCE" || s.status === "FAILED") || mine.length;
         items.push({
           cls: degraded ? "warn" : "ok",
+          kind: "recovery",
           title: degraded ? "Degraded / recovery" : "Recovery",
           body: degraded
-            ? `Orchestration ${esc(state && state.status || app.status)}. Open exceptions: ${mine.length || 0}. ${mine.map(x => esc(x.stepCode) + " — " + esc(x.reason)).join("; ") || "Pending source or failed step. Use Incident to kill/revive (demo profile) then Retry."}`
+            ? `Orchestration ${esc(state && state.status || app.status)}. Open exceptions: ${mine.length || 0}. ${mine.map(x => esc(x.stepCode) + ": " + esc(x.reason)).join("; ") || "Pending source or failed step. Use Incident to kill/revive (demo profile) then Retry."}`
             : `No open degradation. Journey state ${esc(state && state.status || app.status)}.`,
         });
         tl.innerHTML = items.map((i, n) =>
-          `<li class="${i.cls}"><span class="stage-num">${n + 1}</span><div><strong>${i.title}</strong><div>${i.body}</div></div></li>`
+          `<li class="${i.cls} kind-${i.kind}"><span class="stage-num" aria-hidden="true">${n + 1}</span><div><strong>${i.title}</strong><p class="stage-body">${i.body}</p></div></li>`
         ).join("");
+        const deptItems = items.filter(i => i.kind === "dept");
+        const deptBad = deptItems.some(i => i.cls === "bad");
+        const deptWarn = deptItems.some(i => i.cls === "warn");
+        setSpine(beats, {
+          identity: items[0].cls || "idle",
+          consent: items[1].cls || "idle",
+          depts: deptBad ? "bad" : (deptWarn ? "warn" : (deptItems.length ? "ok" : "idle")),
+          recovery: degraded ? "now" : "ok",
+        });
         setStatus(statusEl, "", "");
         announce("Journey timeline loaded for " + ref);
       } catch (e) {
         showErr(meta, e);
         tl.innerHTML = "";
+        setSpine(beats, {});
         setStatus(statusEl, "bad", friendlyError(e));
       } finally {
         setBusy(btn, false);

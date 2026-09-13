@@ -51,12 +51,36 @@ class PhaseUiStaticPagesTest {
         assertThat(css).contains(":focus-visible");
         assertThat(css).contains("prefers-reduced-motion");
         assertThat(css).contains("table-wrap");
+        assertThat(css).contains("--color-primary");
+        assertThat(css).contains("--color-danger");
+        assertThat(css).contains("--color-secondary");
+        assertThat(css).contains("@font-face");
+        assertThat(css).contains("IBM Plex Sans");
+        assertThat(css).contains("IBM Plex Mono");
+        assertThat(css).contains("tabular-nums");
+        assertThat(css).contains("scrollbar-color");
+        assertThat(css).contains("::selection");
+        assertThat(css).contains("font-size-adjust");
         assertThat(js).contains("async function api(");
         assertThat(js).contains("function confirmDanger(");
         assertThat(js).contains("function friendlyError(");
         assertThat(js).contains("function setBusy(");
         assertThat(js).contains("function tableHtml(");
+        assertThat(js).contains("function skeletonTiles(");
+        assertThat(js).contains("function setSpine(");
         assertThat(js).contains("The control plane API did not answer");
+        assertThat(command).contains("Live telemetry");
+        assertThat(command).contains("id=\"plane\"");
+        assertThat(journey).contains("id=\"beats\"");
+        assertThat(incident).contains("id=\"incidentSpine\"");
+        assertThat(audit).contains("TAMPER DETECTED");
+        assertThat(audit).contains("CHAIN INTACT");
+        assertThat(PhaseUiStaticPagesTest.class.getResource("/static/fonts/plex-sans-latin.woff2"))
+                .as("IBM Plex Sans latin")
+                .isNotNull();
+        assertThat(PhaseUiStaticPagesTest.class.getResource("/static/fonts/plex-mono-400.woff2"))
+                .as("IBM Plex Mono")
+                .isNotNull();
     }
 
     private static String page(String name) {

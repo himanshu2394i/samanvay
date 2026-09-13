@@ -4,6 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Audit ledger | Samanvay</title>
+  <link rel="preload" href="/fonts/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/console.css"/>
 </head>
 <body>
@@ -12,7 +13,7 @@
   <div class="shell">
     <header class="mast">
       <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">Control plane</span></div>
-      <p class="tag">Government interoperability infrastructure — hash-chained audit ledger.</p>
+      <p class="tag">Government interoperability infrastructure. Hash-chained audit ledger.</p>
     </header>
     <nav class="bar" aria-label="Console">
       <ul class="nav-primary" role="list">
@@ -32,27 +33,29 @@
     <main id="content" tabindex="-1">
       <h1 class="page-title">Audit ledger</h1>
       <p class="lede">Verify the chain from live <code>/api/audit/*</code>. Tamper POST exists only on the demo profile; the app role still cannot UPDATE <code>audit.audit_entry</code>.</p>
-      <div class="callout">Tamper beat: boot with <code>--spring.profiles.active=demo</code>. Default boot 404s <code>POST /api/audit/demo/tamper/{seq}</code>. Tamper asks for confirmation, then the next verify should fail spectacularly.</div>
+      <div class="callout">Tamper beat: boot with <code>--spring.profiles.active=demo</code>. Default boot 404s <code>POST /api/audit/demo/tamper/{seq}</code>. Tamper asks for confirmation, then the next verify should fail.</div>
       <div class="stack">
-        <div class="grid">
-          <div class="card"><p class="kicker">Head seq</p><div class="metric mono" id="head">—</div></div>
-          <div class="card"><p class="kicker">Checkpoint</p><div class="metric" id="ckpt">—<small id="ckptSub"></small></div></div>
-        </div>
-        <div class="row">
-          <label for="from">From <input id="from" type="number" min="1" value="1"/></label>
-          <label for="to">To <input id="to" type="number" min="1"/></label>
+        <p id="chainHealth" class="health" role="status"><span class="loading">Reading ledger head…</span></p>
+        <ul class="telemetry" role="list">
+          <li class="tile"><p class="tile-label">Head seq</p><p class="metric mono" id="head">-</p></li>
+          <li class="tile"><p class="tile-label">Checkpoint</p><p class="metric" id="ckpt">-<small id="ckptSub"></small></p></li>
+        </ul>
+        <div class="field-row">
+          <label for="from">From <input id="from" type="number" min="1" value="1" inputmode="numeric"/></label>
+          <label for="to">To <input id="to" type="number" min="1" inputmode="numeric"/></label>
         </div>
         <div class="row">
           <button type="button" class="primary" id="verifyBtn">Verify range</button>
           <button type="button" class="danger" id="tamperBtn">Tamper head (demo)</button>
-          <button type="button" id="entriesBtn">Load entries</button>
+          <button type="button" class="secondary" id="entriesBtn">Load entries</button>
         </div>
         <p id="status" class="status" aria-live="polite"></p>
-        <div id="okBanner" class="banner ok"><strong class="ok">CHAIN INTACT</strong> <span id="okText"></span></div>
-        <div id="failBanner" class="banner fail">
+        <div id="okBanner" class="banner ok" role="status"><strong class="ok">CHAIN INTACT</strong> <span id="okText"></span></div>
+        <div id="failBanner" class="banner fail" role="alert">
           <h2>TAMPER DETECTED</h2>
           <p id="failText"></p>
-          <div class="chain" id="chain"></div>
+          <p class="note">Hash predecessor no longer matches. Every later sequence is untrusted until this range verifies.</p>
+          <div class="chain" id="chain" role="img" aria-label="Sequence beads for the verified range"></div>
         </div>
         <div id="entries"></div>
         <details class="tech">
@@ -66,13 +69,15 @@
   <script>
     const out = document.getElementById("out");
     const statusEl = document.getElementById("status");
+    let lastFail = null;
     const log = (x) => { out.textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2); };
     async function head() {
       const [h, ck] = await Promise.all([api("/api/audit/head"), api("/api/audit/checkpoint")]);
       document.getElementById("head").textContent = h.seq;
       if (!document.getElementById("to").value) document.getElementById("to").value = h.seq;
       if (ck) {
-        document.getElementById("ckpt").innerHTML = esc(ck.uptoEntrySeq) + `<small>signed ${esc(when(ck.signedAt))}</small>`;
+        const hash = typeof ck.rootHash === "string" ? ck.rootHash.slice(0, 10) : "";
+        document.getElementById("ckpt").innerHTML = esc(ck.uptoEntrySeq) + `<small>signed ${esc(when(ck.signedAt))}${hash ? " · " + esc(hash) : ""}</small>`;
       } else {
         document.getElementById("ckpt").textContent = "none";
       }
@@ -92,10 +97,12 @@
         beads.push(`<span class="bead ${brk ? "brk" : (r.valid ? "ok" : "")}">${seq}</span>`);
       }
       document.getElementById("chain").innerHTML = beads.join("");
+      lastFail = r.valid ? null : r.failedAtSeq;
       if (r.valid) {
         fail.classList.remove("show");
         ok.classList.add("show");
-        document.getElementById("okText").textContent = `seq ${r.fromSeq}–${r.toSeq}`;
+        document.getElementById("okText").textContent = `seq ${r.fromSeq}-${r.toSeq}`;
+        planeHealth(document.getElementById("chainHealth"), "ok", "CHAIN INTACT", "Hash chain closed for seq " + r.fromSeq + "-" + r.toSeq + ".");
         setStatus(statusEl, "ok", "Chain verified intact.");
         announce("Audit chain intact");
       } else {
@@ -103,8 +110,16 @@
         fail.classList.add("show");
         document.getElementById("failText").textContent =
           `Verification failed at seq ${r.failedAtSeq}. ${r.reason || "entry was modified"}. The hash chain no longer closes.`;
+        planeHealth(document.getElementById("chainHealth"), "bad", "TAMPER DETECTED", "Break at seq " + r.failedAtSeq + ".");
         setStatus(statusEl, "bad", "Tamper detected at seq " + r.failedAtSeq);
         announce("Tamper detected");
+      }
+      const box = document.getElementById("entries");
+      if (box && lastFail != null) {
+        box.querySelectorAll("tbody tr").forEach((tr) => {
+          const cell = tr.querySelector("td");
+          tr.classList.toggle("row-break", cell && Number(cell.textContent) === lastFail);
+        });
       }
     }
     async function verify() {
@@ -115,9 +130,10 @@
         const to = document.getElementById("to").value;
         const r = await api("/api/audit/verify?from=" + from + "&to=" + to);
         paint(r);
-        log("verify " + (r.valid ? "intact" : "failed") + " seq " + r.fromSeq + "–" + r.toSeq);
+        log("verify " + (r.valid ? "intact" : "failed") + " seq " + r.fromSeq + "-" + r.toSeq);
       } catch (e) {
         const msg = friendlyError(e);
+        planeHealth(document.getElementById("chainHealth"), "bad", "VERIFY FAILED", msg);
         setStatus(statusEl, "bad", msg);
         log(msg);
       } finally {
@@ -140,9 +156,9 @@
         log("tamper requested at seq " + seq);
       } catch (e) {
         document.getElementById("okBanner").classList.remove("show");
-        document.getElementById("failBanner").classList.add("show");
+        document.getElementById("failBanner").classList.remove("show");
         const msg = friendlyError(e, "demo");
-        document.getElementById("failText").textContent = msg;
+        planeHealth(document.getElementById("chainHealth"), "bad", "TAMPER BLOCKED", msg);
         setStatus(statusEl, "bad", msg);
         log(msg);
       } finally {
@@ -153,12 +169,12 @@
       const btn = document.getElementById("entriesBtn");
       const box = document.getElementById("entries");
       setBusy(btn, true, "Loading…");
-      box.innerHTML = loading("Loading ledger entries…");
+      box.innerHTML = skeletonRows(["Seq", "Action", "Subject", "Outcome", "Reason"], 5);
       try {
         const rows = await api("/api/audit/entries?size=40");
         box.innerHTML = rows.length
           ? tableHtml("Recent audit entries", ["Seq", "Action", "Subject", "Outcome", "Reason"],
-              rows.map(r => `<tr><td>${esc(r.seq)}</td><td>${esc(r.action)}</td><td class="mono">${esc(r.subjectId)}</td><td>${esc(r.outcome)}</td><td>${esc(r.reason)}</td></tr>`).join(""))
+              rows.map(r => `<tr class="${lastFail != null && r.seq === lastFail ? "row-break" : ""}"><td class="tnum">${esc(r.seq)}</td><td>${esc(r.action)}</td><td class="mono">${esc(r.subjectId)}</td><td>${esc(r.outcome)}</td><td>${esc(r.reason)}</td></tr>`).join(""))
           : emptyBox("No ledger entries yet", "Entries appear as identity, consent, and journey events are recorded.");
         setStatus(statusEl, "ok", rows.length + " entries loaded.");
         log(rows.length + " entries");
@@ -173,7 +189,10 @@
     document.getElementById("verifyBtn").onclick = verify;
     document.getElementById("tamperBtn").onclick = tamper;
     document.getElementById("entriesBtn").onclick = loadEntries;
-    head().then(verify).catch(e => setStatus(statusEl, "bad", friendlyError(e)));
+    head().then(verify).catch(e => {
+      planeHealth(document.getElementById("chainHealth"), "bad", "UNREACHABLE", friendlyError(e));
+      setStatus(statusEl, "bad", friendlyError(e));
+    });
   </script>
 </body>
 </html>
