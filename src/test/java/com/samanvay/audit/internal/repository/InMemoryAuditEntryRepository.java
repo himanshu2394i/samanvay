@@ -11,31 +11,31 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-class InMemoryAuditEntryRepository extends AuditEntryRepository {
+public class InMemoryAuditEntryRepository extends AuditEntryRepository {
 
-    final List<AuditEntryRow> rows = new ArrayList<>();
+    public final List<AuditEntryRow> rows = new ArrayList<>();
 
-    InMemoryAuditEntryRepository() {
+    public InMemoryAuditEntryRepository() {
         super(null, new CanonicalJson());
     }
 
     @Override
-    Optional<byte[]> findLatestHash() {
+    public Optional<byte[]> findLatestHash() {
         return rows.stream().max(Comparator.comparingLong(AuditEntryRow::seq)).map(AuditEntryRow::hash);
     }
 
     @Override
-    Optional<byte[]> findHashAt(long seq) {
+    public Optional<byte[]> findHashAt(long seq) {
         return rows.stream().filter(r -> r.seq() == seq).findFirst().map(AuditEntryRow::hash);
     }
 
     @Override
-    long currentMaxSeq() {
+    public long currentMaxSeq() {
         return rows.stream().mapToLong(AuditEntryRow::seq).max().orElse(0);
     }
 
     @Override
-    long insert(AuditEntry entry, byte[] prevHash, byte[] hash, String canonical) {
+    public long insert(AuditEntry entry, byte[] prevHash, byte[] hash, String canonical) {
         long seq = currentMaxSeq() + 1;
         rows.add(new AuditEntryRow(
                 seq,
@@ -57,7 +57,7 @@ class InMemoryAuditEntryRepository extends AuditEntryRepository {
     }
 
     @Override
-    List<AuditEntryRow> findRange(long fromSeqInclusive, long toSeqInclusive) {
+    public List<AuditEntryRow> findRange(long fromSeqInclusive, long toSeqInclusive) {
         return rows.stream()
                 .filter(r -> r.seq() >= fromSeqInclusive && r.seq() <= toSeqInclusive)
                 .sorted(Comparator.comparingLong(AuditEntryRow::seq))
@@ -65,11 +65,11 @@ class InMemoryAuditEntryRepository extends AuditEntryRepository {
     }
 
     @Override
-    Page<AuditEntryRow> search(AuditQuery query, Pageable page) {
+    public Page<AuditEntryRow> search(AuditQuery query, Pageable page) {
         throw new UnsupportedOperationException();
     }
 
-    void replace(int index, AuditEntryRow row) {
+    public void replace(int index, AuditEntryRow row) {
         rows.set(index, row);
     }
 }

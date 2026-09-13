@@ -7,7 +7,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository
-class CheckpointRepository {
+public class CheckpointRepository {
 
     private final JdbcTemplate jdbc;
     private final RowMapper<Checkpoint> mapper = (rs, rowNum) -> new Checkpoint(
@@ -22,7 +22,7 @@ class CheckpointRepository {
         this.jdbc = jdbc;
     }
 
-    void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature) {
+    public void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature) {
         jdbc.update(
                 """
                 INSERT INTO audit.audit_checkpoint (upto_entry_seq, root_hash, signature)
@@ -33,7 +33,7 @@ class CheckpointRepository {
                 signature);
     }
 
-    Optional<Checkpoint> findLatest() {
+    public Optional<Checkpoint> findLatest() {
         return jdbc.query(
                 """
                 SELECT seq, upto_entry_seq, root_hash, signed_at, signature, published_ref

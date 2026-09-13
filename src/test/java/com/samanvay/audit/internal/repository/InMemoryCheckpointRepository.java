@@ -6,21 +6,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-class InMemoryCheckpointRepository extends CheckpointRepository {
+public class InMemoryCheckpointRepository extends CheckpointRepository {
 
     final List<Checkpoint> rows = new ArrayList<>();
 
-    InMemoryCheckpointRepository() {
+    public InMemoryCheckpointRepository() {
         super(null);
     }
 
     @Override
-    void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature) {
+    public void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature) {
         rows.add(new Checkpoint(rows.size() + 1L, uptoEntrySeq, rootHash, Instant.now(), signature, null));
     }
 
     @Override
-    Optional<Checkpoint> findLatest() {
+    public Optional<Checkpoint> findLatest() {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getLast());
     }
 }

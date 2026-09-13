@@ -2,19 +2,20 @@ package com.samanvay.shared.test;
 
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-@Testcontainers
 public abstract class PostgresIntegrationTest {
 
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16")
+    // Started once per JVM so Spring's cached context keeps a live JDBC URL.
+    // @Container would stop the instance between IT classes and break the cache.
+    public static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16")
             .withDatabaseName("samanvay")
             .withUsername("samanvay_migrate")
-            .withPassword("samanvay_migrate")
-            .withReuse(true);
+            .withPassword("samanvay_migrate");
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void datasourceProperties(DynamicPropertyRegistry registry) {

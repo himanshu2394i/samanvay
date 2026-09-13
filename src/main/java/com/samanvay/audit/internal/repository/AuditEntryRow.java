@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-record AuditEntryRow(
+public record AuditEntryRow(
         long seq,
         Instant ts,
         ActorType actorType,
@@ -25,7 +25,7 @@ record AuditEntryRow(
         byte[] hash
 ) {
 
-    AuditEntry toEntry() {
+    public AuditEntry toEntry() {
         return new AuditEntry(
                 actorType,
                 actorId,

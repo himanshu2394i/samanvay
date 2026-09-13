@@ -1,7 +1,7 @@
 package com.samanvay.audit.internal.repository;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.samanvay.audit.api.ActorType;
 import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditQuery;
@@ -10,7 +10,6 @@ import com.samanvay.shared.CanonicalJson;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +24,7 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 @Repository
-class AuditEntryRepository {
+public class AuditEntryRepository {
 
     private static final TypeReference<Map<String, Object>> META_TYPE = new TypeReference<>() {};
 
@@ -39,25 +38,25 @@ class AuditEntryRepository {
         this.canonicalJson = canonicalJson;
     }
 
-    Optional<byte[]> findLatestHash() {
+    public Optional<byte[]> findLatestHash() {
         return jdbc.query(
                 "SELECT hash FROM audit.audit_entry ORDER BY seq DESC LIMIT 1",
                 rs -> rs.next() ? Optional.of(rs.getBytes("hash")) : Optional.empty());
     }
 
-    Optional<byte[]> findHashAt(long seq) {
+    public Optional<byte[]> findHashAt(long seq) {
         return jdbc.query(
                 "SELECT hash FROM audit.audit_entry WHERE seq = ?",
                 rs -> rs.next() ? Optional.of(rs.getBytes("hash")) : Optional.empty(),
                 seq);
     }
 
-    long currentMaxSeq() {
+    public long currentMaxSeq() {
         Long max = jdbc.queryForObject("SELECT COALESCE(MAX(seq), 0) FROM audit.audit_entry", Long.class);
         return max == null ? 0 : max;
     }
 
-    long insert(AuditEntry entry, byte[] prevHash, byte[] hash, String canonical) {
+    public long insert(AuditEntry entry, byte[] prevHash, byte[] hash, String canonical) {
         var keyHolder = new GeneratedKeyHolder();
         jdbc.update(
                 con -> {
@@ -88,7 +87,7 @@ class AuditEntryRepository {
         return keyHolder.getKey().longValue();
     }
 
-    List<AuditEntryRow> findRange(long fromSeqInclusive, long toSeqInclusive) {
+    public List<AuditEntryRow> findRange(long fromSeqInclusive, long toSeqInclusive) {
         return jdbc.query(
                 """
                 SELECT seq, ts, actor_type, actor_id, action, subject_id, resource, department_id,
@@ -102,7 +101,7 @@ class AuditEntryRepository {
                 toSeqInclusive);
     }
 
-    Page<AuditEntryRow> search(AuditQuery query, Pageable page) {
+    public Page<AuditEntryRow> search(AuditQuery query, Pageable page) {
         var sql = new StringBuilder(
                 """
                 SELECT seq, ts, actor_type, actor_id, action, subject_id, resource, department_id,
