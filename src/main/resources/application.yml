@@ -8,6 +8,10 @@ spring:
     url: jdbc:postgresql://localhost:5432/samanvay
     username: samanvay_app
     password: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
+    hikari:
+      # samanvay_app is created by V1; the pool must not fail the context
+      # before Flyway has run against samanvay_migrate.
+      initialization-fail-timeout: -1
   jpa:
     hibernate:
       ddl-auto: validate

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="https://samanvay.dev/bpmn">
+  <process id="business-noc" name="Business licence / NOC" isExecutable="true">
+    <startEvent id="start"/>
+    <parallelGateway id="fanout"/>
+    <serviceTask id="fetchProperty" name="Fetch property"/>
+    <serviceTask id="fetchFire" name="Fetch fire NOC"/>
+    <serviceTask id="fetchPollution" name="Fetch pollution clearance"/>
+    <serviceTask id="fetchLand" name="Fetch land record"/>
+    <parallelGateway id="join"/>
+    <endEvent id="end"/>
+    <sequenceFlow sourceRef="start" targetRef="fanout"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchProperty"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchFire"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchPollution"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchLand"/>
+    <sequenceFlow sourceRef="fetchProperty" targetRef="join"/>
+    <sequenceFlow sourceRef="fetchFire" targetRef="join"/>
+    <sequenceFlow sourceRef="fetchPollution" targetRef="join"/>
+    <sequenceFlow sourceRef="fetchLand" targetRef="join"/>
+    <sequenceFlow sourceRef="join" targetRef="end"/>
+  </process>
+</definitions>
