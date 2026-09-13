@@ -84,7 +84,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "SCHOLARSHIP",
                 "SCHOLARSHIP_ELIGIBILITY",
                 List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"),
-                List.of(
+                List.<String[]>of(
                         new String[] {"REVENUE", "RATION", "RC-4471-88"},
                         new String[] {"EDUCATION", "STUDENT", "STU-1001"},
                         new String[] {"DBT", "DBT", "DBT-55"}));
@@ -93,7 +93,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "INDUSTRY",
                 "BUSINESS_NOC",
                 List.of("PROPERTY", "FIRE_NOC", "POLLUTION_CLEARANCE", "LAND_RECORD"),
-                List.of(
+                List.<String[]>of(
                         new String[] {"MUNICIPAL", "PROPERTY", "PROP-1"},
                         new String[] {"FIRE", "PREMISE", "FIRE-1"},
                         new String[] {"POLLUTION", "PREMISE", "PCB-1"},
@@ -103,7 +103,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "AGRICULTURE",
                 "FARMER_SUBSIDY",
                 List.of("LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT"),
-                List.of(
+                List.<String[]>of(
                         new String[] {"REVENUE", "RATION", "RC-712-1"},
                         new String[] {"AGRICULTURE", "FARMER", "AGR-1"},
                         new String[] {"DBT", "DBT", "DBT-712"}));
@@ -115,7 +115,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "SCHOLARSHIP",
                 "SCHOLARSHIP_ELIGIBILITY",
                 List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"),
-                List.of(
+                List.<String[]>of(
                         new String[] {"REVENUE", "RATION", "RC-4471-88"},
                         new String[] {"EDUCATION", "STUDENT", "STU-1001"},
                         new String[] {"DBT", "DBT", "DBT-55"}));
@@ -130,7 +130,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "SCHOLARSHIP",
                 "SCHOLARSHIP_ELIGIBILITY",
                 List.of("INCOME_CERTIFICATE"),
-                List.of(new String[] {"REVENUE", "RATION", "RC-4471-88"}));
+                List.<String[]>of(new String[] {"REVENUE", "RATION", "RC-4471-88"}));
         var artifact = consents.forCitizen(revokeCitizen).getFirst();
         AccessRequest req = new AccessRequest(
                 new SubjectRef(revokeCitizen),
