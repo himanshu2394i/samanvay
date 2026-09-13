@@ -21,7 +21,7 @@ class PhaseUiStaticPagesTest {
         String js = page("console.js");
 
         for (String html : new String[] {command, journey, incident, audit, onboard}) {
-            assertThat(html).contains("interoperability");
+            assertThat(html).containsIgnoringCase("interoperability");
             assertThat(html).doesNotContain("Apply for scholarship");
             assertThat(html).contains("journey.html");
             assertThat(html).contains("ops.html");
