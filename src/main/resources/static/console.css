@@ -353,7 +353,7 @@ nav.bar a.side[aria-current="page"] {
   border-radius: 0;
   padding: 0.95rem 0 0.15rem;
 }
-.card h2 {
+.card h2, .card h3 {
   margin: 0 0 0.5rem;
   font-size: 1.02rem;
   color: var(--color-ink);
@@ -395,16 +395,17 @@ button, .btn {
   border-radius: var(--radius-md);
   cursor: pointer;
   font: inherit;
+  text-decoration: none;
 }
-button:hover, .btn:hover { border-color: var(--color-primary); }
+button:hover, .btn:hover { border-color: var(--color-primary); text-decoration: none; }
 button:disabled, .btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
-button.primary {
+button.primary, .btn.primary {
   background: var(--color-primary);
   color: var(--color-primary-ink);
   border-color: var(--color-primary);
   font-weight: var(--weight-semibold);
 }
-button.primary:hover { filter: brightness(1.06); }
+button.primary:hover, .btn.primary:hover { filter: brightness(1.06); }
 button.secondary {
   background: transparent;
   color: var(--color-ink);
