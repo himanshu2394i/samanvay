@@ -35,6 +35,9 @@ class ChainCheckpointScheduler {
     @Scheduled(cron = "0 0 * * * *")
     void createCheckpoint() {
         long uptoSeq = entries.currentMaxSeq();
+        if (uptoSeq == 0) {
+            return;
+        }
         byte[] rootHash = entries.findHashAt(uptoSeq).orElseThrow();
         byte[] signature = sign(rootHash, uptoSeq, secretStore.resolve(SIGNING_KEY_NAME));
         checkpoints.insert(uptoSeq, rootHash, signature);

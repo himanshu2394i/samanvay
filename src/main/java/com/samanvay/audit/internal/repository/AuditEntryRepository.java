@@ -56,7 +56,7 @@ public class AuditEntryRepository {
         return max == null ? 0 : max;
     }
 
-    public long insert(AuditEntry entry, byte[] prevHash, byte[] hash, String canonical) {
+    public long insert(AuditEntry entry, byte[] prevHash, byte[] hash) {
         var keyHolder = new GeneratedKeyHolder();
         jdbc.update(
                 con -> {

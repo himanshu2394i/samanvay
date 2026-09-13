@@ -35,7 +35,7 @@ public class InMemoryAuditEntryRepository extends AuditEntryRepository {
     }
 
     @Override
-    public long insert(AuditEntry entry, byte[] prevHash, byte[] hash, String canonical) {
+    public long insert(AuditEntry entry, byte[] prevHash, byte[] hash) {
         long seq = currentMaxSeq() + 1;
         rows.add(new AuditEntryRow(
                 seq,

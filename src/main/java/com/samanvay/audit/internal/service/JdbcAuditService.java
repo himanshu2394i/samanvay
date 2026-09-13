@@ -60,7 +60,7 @@ class JdbcAuditService implements AuditService {
         String canonical = canonicalJson.serialize(entry);
         byte[] hash = sha256(concat(prevHash, canonical.getBytes(StandardCharsets.UTF_8)));
 
-        long seq = entries.insert(entry, prevHash, hash, canonical);
+        long seq = entries.insert(entry, prevHash, hash);
         return new AuditRef(seq, hash);
     }
 

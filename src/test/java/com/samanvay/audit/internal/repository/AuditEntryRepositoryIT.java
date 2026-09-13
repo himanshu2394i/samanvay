@@ -38,6 +38,29 @@ class AuditEntryRepositoryIT extends PostgresIntegrationTest {
         assertThat(result.toSeq()).isEqualTo(last);
     }
 
+    @Test
+    void nestedMetaSurvivesJsonbRoundtripAndVerifies() {
+        var ref = auditService.record(new AuditEntry(
+                ActorType.SYSTEM,
+                "repo-it",
+                "PING",
+                "nested-meta",
+                null,
+                null,
+                null,
+                null,
+                Outcome.ALLOWED,
+                null,
+                Map.of(
+                        "count",
+                        3,
+                        "nested",
+                        Map.of("b", 1, "a", 2, "label", "x"))));
+
+        VerificationResult result = auditService.verify(ref.seq(), ref.seq());
+        assertThat(result.valid()).isTrue();
+    }
+
     private static AuditEntry entry(String subject) {
         return new AuditEntry(
                 ActorType.SYSTEM,

@@ -53,4 +53,17 @@ class ChainCheckpointSchedulerTest {
                         tampered, checkpoint.uptoEntrySeq(), checkpoint.signature(), pair.getPublic().getEncoded()))
                 .isFalse();
     }
+
+    @Test
+    void createCheckpoint_isNoOpWhenChainIsEmpty() {
+        InMemoryAuditEntryRepository entries = new InMemoryAuditEntryRepository();
+        InMemoryCheckpointRepository checkpoints = new InMemoryCheckpointRepository();
+        ChainCheckpointScheduler scheduler = new ChainCheckpointScheduler(entries, checkpoints, key -> {
+            throw new AssertionError("must not resolve a key on an empty chain");
+        });
+
+        scheduler.createCheckpoint();
+
+        assertThat(checkpoints.findLatest()).isEmpty();
+    }
 }
