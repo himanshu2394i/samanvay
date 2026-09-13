@@ -59,7 +59,7 @@ class ChaosRevenueIT extends PostgresIntegrationTest {
         chaos.kill("revenue-rest-mock");
         JourneyInstance instance = journeys.start(
                 "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode());
-        ApplicationView down = awaitProjected(citizen);
+        ApplicationView down = awaitStatus(citizen, "PARTIALLY_VERIFIED");
         assertThat(down.status()).isEqualTo("PARTIALLY_VERIFIED");
         assertThat(journeys.openExceptions()).extracting(JourneyExceptionView::instanceId).contains(instance.id());
 
