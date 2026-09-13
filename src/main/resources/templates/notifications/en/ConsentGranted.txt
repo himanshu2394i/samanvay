@@ -1,0 +1,1 @@
+Consent granted to {{requester}} for {{purpose}}.

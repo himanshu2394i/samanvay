@@ -5,7 +5,9 @@ import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.audit.api.Outcome;
 import com.samanvay.identity.api.AuthProof;
+import com.samanvay.identity.api.Candidate;
 import com.samanvay.identity.api.CandidateNotFoundException;
+import com.samanvay.identity.api.CandidateRaised;
 import com.samanvay.identity.api.CandidateRef;
 import com.samanvay.identity.api.CitizenProfiles;
 import com.samanvay.identity.api.DuplicateLocalIdException;
@@ -17,6 +19,7 @@ import com.samanvay.identity.api.LinkProofInvalidException;
 import com.samanvay.identity.api.LinkRevoked;
 import com.samanvay.identity.api.Profile;
 import com.samanvay.identity.api.ProfileDraft;
+import com.samanvay.identity.api.ReviewFilter;
 import com.samanvay.identity.api.ReviewerRequiredException;
 import com.samanvay.identity.internal.domain.CandidateMatchEntity;
 import com.samanvay.identity.internal.domain.CitizenEntity;
@@ -32,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -42,6 +47,7 @@ import tools.jackson.databind.JsonNode;
 class IdentityServices implements IdentityLinking, IdentityResolution, CitizenProfiles {
 
     static final double NOISE_FLOOR = 0.60;
+    static final double HIGH_CONFIDENCE = 0.90;
 
     private final CitizenRepository citizens;
     private final ProfileRepository profiles;
@@ -159,17 +165,29 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
             if (score < NOISE_FLOOR) {
                 continue;
             }
-            CandidateMatchEntity row = new CandidateMatchEntity();
-            row.setId(UUID.randomUUID());
-            row.setCitizenId(profile.getCitizenId());
-            row.setDepartmentCode(departmentCode);
+            CandidateMatchEntity row = candidates
+                    .findByCitizenIdAndDepartmentCode(profile.getCitizenId(), departmentCode)
+                    .orElseGet(CandidateMatchEntity::new);
+            if (row.getId() == null) {
+                row.setId(UUID.randomUUID());
+                row.setCitizenId(profile.getCitizenId());
+                row.setDepartmentCode(departmentCode);
+                row.setCreatedAt(Instant.now());
+            }
             row.setScore(BigDecimal.valueOf(score));
             row.setFeatures("{\"score\":" + score + "}");
             row.setStatus("PENDING");
-            row.setCreatedAt(Instant.now());
             candidates.save(row);
+            events.publishEvent(new CandidateRaised(row.getId(), profile.getCitizenId(), departmentCode, score));
         }
         return CandidateRef.queued();
+    }
+
+    @Override
+    public Page<Candidate> reviewQueue(ReviewFilter filter, Pageable pageable) {
+        String status = filter == null || filter.status() == null ? "PENDING" : filter.status();
+        return candidates.findByStatus(status, pageable).map(c -> new Candidate(
+                c.getId(), c.getCitizenId(), c.getDepartmentCode(), c.getScore().doubleValue(), c.getStatus()));
     }
 
     @Override

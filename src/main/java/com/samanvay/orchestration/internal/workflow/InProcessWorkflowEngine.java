@@ -10,7 +10,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Flowable is the intended engine (HLD §15). This in-process port implementation
- * runs Journey 1 without a Flowable Boot 4 starter. Swap the bean; JourneyService stays.
+ * records process identity only. Parallel fan-out is executed by JourneyService
+ * (virtual threads) until a Flowable Boot 4 starter exists. Swap the bean; JourneyService stays.
  */
 @Component
 class InProcessWorkflowEngine implements WorkflowEngine {

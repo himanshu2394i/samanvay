@@ -1,6 +1,7 @@
 package com.samanvay.catalog.internal.service;
 
 import com.samanvay.catalog.api.Capability;
+import com.samanvay.catalog.api.CatalogOnboarding;
 import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
@@ -16,7 +17,9 @@ import com.samanvay.catalog.api.DepartmentCatalog;
 import com.samanvay.catalog.api.DepartmentDraft;
 import com.samanvay.catalog.api.DepartmentRegistered;
 import com.samanvay.catalog.api.IllegalConnectorStateException;
+import com.samanvay.catalog.api.MappingCatalog;
 import com.samanvay.catalog.api.MappingDefinition;
+import com.samanvay.catalog.api.MappingDraft;
 import com.samanvay.catalog.api.SchemaCatalog;
 import com.samanvay.catalog.api.ValidationResult;
 import com.samanvay.catalog.internal.domain.ConnectorEntity;
@@ -43,7 +46,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
-class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCatalog {
+class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCatalog, CatalogOnboarding {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -52,6 +55,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
     private final ConnectorRepository connectors;
     private final MappingRepository mappings;
     private final SchemaRepository schemas;
+    private final MappingCatalog mappingCatalog;
     private final ApplicationEventPublisher events;
     private final DataSourceHostPolicy hosts;
 
@@ -63,8 +67,9 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             MappingRepository mappings,
             JourneyRepository journeys,
             SchemaRepository schemas,
+            MappingCatalog mappingCatalog,
             ApplicationEventPublisher events) {
-        this(departments, dataSources, connectors, mappings, journeys, schemas, events, CatalogServices::resolveHost);
+        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events, CatalogServices::resolveHost);
     }
 
     CatalogServices(
@@ -74,6 +79,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             MappingRepository mappings,
             JourneyRepository journeys,
             SchemaRepository schemas,
+            MappingCatalog mappingCatalog,
             ApplicationEventPublisher events,
             Function<String, InetAddress> resolver) {
         this.departments = departments;
@@ -81,6 +87,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         this.connectors = connectors;
         this.mappings = mappings;
         this.schemas = schemas;
+        this.mappingCatalog = mappingCatalog;
         this.events = events;
         this.hosts = new DataSourceHostPolicy(resolver);
     }
@@ -99,6 +106,33 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
 
     @Override
     @Transactional
+    public Department registerDepartment(DepartmentDraft draft) {
+        return register(draft);
+    }
+
+    @Override
+    @Transactional
+    public MappingDefinition saveMapping(MappingDraft draft) {
+        return mappingCatalog.save(draft);
+    }
+
+    @Override
+    public ConnectorTestReport test(String connectorRef) {
+        ConnectorDefinition connector = byRef(connectorRef);
+        dataSourceFor(connector);
+        JsonNode caps = JSON.readTree(connector.capabilitiesJson());
+        if (caps == null || caps.isNull()) {
+            return new ConnectorTestReport(false, List.of("missing capabilities"));
+        }
+        JsonNode fetch = caps.get("FETCH");
+        if (fetch != null && fetch.get("mapping_ref") != null) {
+            mapping(fetch.get("mapping_ref").asString());
+        }
+        return new ConnectorTestReport(true, List.of());
+    }
+
+    @Override
+    @Transactional
     public Department register(DepartmentDraft draft) {
         DepartmentEntity e = new DepartmentEntity();
         e.setCode(draft.code());
@@ -113,6 +147,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         return new Department(e.getCode(), e.getName(), e.getStatus());
     }
 
+    @Override
     @Transactional
     public DataSourceDefinition registerDataSource(DataSourceDraft draft) {
         hosts.assertAllowed(draft.baseHost());

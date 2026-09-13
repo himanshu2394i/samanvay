@@ -20,4 +20,6 @@ public interface DiscoveryRegistry {
     void allowDiscovery(UUID subjectId, String requesterId, String category, UUID consentId);
 
     void revokeDiscovery(UUID consentId);
+
+    boolean hasClearance(RequesterRef requester, Sensitivity sensitivity);
 }

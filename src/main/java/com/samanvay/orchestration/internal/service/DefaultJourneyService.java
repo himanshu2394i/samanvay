@@ -4,11 +4,13 @@ import com.samanvay.catalog.api.Capability;
 import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.JourneyCatalog;
 import com.samanvay.catalog.api.JourneyDefinition;
+import com.samanvay.catalog.api.JourneyPolicy;
 import com.samanvay.consent.api.AccessRequest;
 import com.samanvay.consent.api.ConsentRevoked;
 import com.samanvay.connector.api.ConnectorResult;
 import com.samanvay.connector.api.ExecutionInputs;
 import com.samanvay.identity.api.IdentityLinking;
+import com.samanvay.identity.api.IdentityResolution;
 import com.samanvay.identity.api.Link;
 import com.samanvay.orchestration.api.ApplicationStateChanged;
 import com.samanvay.orchestration.api.InstanceNotFoundException;
@@ -16,6 +18,7 @@ import com.samanvay.orchestration.api.JourneyInstance;
 import com.samanvay.orchestration.api.JourneyService;
 import com.samanvay.orchestration.api.JourneyStarted;
 import com.samanvay.orchestration.api.JourneyState;
+import com.samanvay.orchestration.api.ManualUploadRequested;
 import com.samanvay.orchestration.api.StepCompleted;
 import com.samanvay.orchestration.api.StepFailed;
 import com.samanvay.orchestration.api.StepPendingSource;
@@ -31,24 +34,35 @@ import com.samanvay.shared.RequesterRef;
 import com.samanvay.shared.SubjectRef;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
 class DefaultJourneyService implements JourneyService {
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final ExecutorService FANOUT = Executors.newVirtualThreadPerTaskExecutor();
 
     private final JourneyCatalog journeys;
     private final ConnectorCatalog connectors;
     private final WorkflowEngine engine;
     private final FetchDataDelegate fetch;
     private final IdentityLinking linking;
+    private final IdentityResolution resolution;
     private final InstanceRepository instances;
     private final StepStateRepository steps;
+    private final JdbcTemplate jdbc;
     private final ApplicationEventPublisher events;
 
     DefaultJourneyService(
@@ -57,79 +71,117 @@ class DefaultJourneyService implements JourneyService {
             WorkflowEngine engine,
             FetchDataDelegate fetch,
             IdentityLinking linking,
+            IdentityResolution resolution,
             InstanceRepository instances,
             StepStateRepository steps,
+            JdbcTemplate jdbc,
             ApplicationEventPublisher events) {
         this.journeys = journeys;
         this.connectors = connectors;
         this.engine = engine;
         this.fetch = fetch;
         this.linking = linking;
+        this.resolution = resolution;
         this.instances = instances;
         this.steps = steps;
+        this.jdbc = jdbc;
         this.events = events;
     }
 
     @Override
-    @Transactional
     public JourneyInstance start(String journeyCode, UUID citizenId, JsonNode submission) {
         JourneyDefinition journey = journeys.byCode(journeyCode);
+        JourneyInstance started = persistStart(journey, citizenId);
+        List<CategoryFetch> fetches = journey.requiredCategories().stream()
+                .map(category -> CompletableFuture.supplyAsync(
+                        () -> fetchCategory(journey, started.processInstanceId(), citizenId, category), FANOUT))
+                .map(CompletableFuture::join)
+                .toList();
+        applyFetches(started.id(), fetches);
+        return started;
+    }
+
+    @Transactional
+    JourneyInstance persistStart(JourneyDefinition journey, UUID citizenId) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("citizenId", citizenId.toString());
-        vars.put("journeyCode", journeyCode);
+        vars.put("journeyCode", journey.code());
         String processId = engine.start(journey.bpmnRef(), vars);
         UUID id = UUID.randomUUID();
         InstanceEntity e = new InstanceEntity();
         e.setId(id);
-        e.setJourneyCode(journeyCode);
+        e.setJourneyCode(journey.code());
         e.setCitizenId(citizenId);
         e.setProcessInstanceId(processId);
         e.setPinnedConnectorVersions(pinVersions(journey));
         e.setCreatedAt(Instant.now());
         instances.save(e);
-        events.publishEvent(new JourneyStarted(id, journeyCode, citizenId, processId, Instant.now().plusSeconds(journey.policy().slaHours() * 3600L)));
+        events.publishEvent(new JourneyStarted(
+                id,
+                journey.code(),
+                citizenId,
+                processId,
+                Instant.now().plusSeconds(journey.policy().slaHours() * 3600L),
+                journey.policy().referencePrefix()));
+        return new JourneyInstance(id, processId, journey.code(), citizenId);
+    }
+
+    private CategoryFetch fetchCategory(JourneyDefinition journey, String processId, UUID citizenId, String category) {
+        JourneyPolicy policy = journey.policy();
+        String dept = policy.sourceDepartment(category);
+        var connector = connectors.resolve(dept, DataCategory.of(category), Capability.FETCH).orElseThrow();
+        Link link = linking.activeLink(citizenId, dept).orElse(null);
+        var request = new AccessRequest(
+                new SubjectRef(citizenId),
+                new RequesterRef(policy.requester()),
+                DataCategory.of(category),
+                dept,
+                connector.ref(),
+                PurposeCode.of(policy.purpose()),
+                journey.code());
+        var inputs = new ExecutionInputs(
+                DataCategory.of(category),
+                processId,
+                link == null ? Map.of() : Map.of("localIdToken", link.localIdToken()),
+                Map.of(),
+                Map.of());
+        ConnectorResult result = fetch.executeForResult(request, inputs);
+        if (result instanceof ConnectorResult.Success && link != null) {
+            resolution.submitCandidate(dept, JSON.readTree("{\"localId\":\"" + link.localIdToken() + "\"}"));
+        }
+        String protocol = connectors.dataSourceFor(connector).protocol();
+        String source = "SFTP_CSV".equals(protocol) || "JDBC".equals(protocol) ? "BATCH" : "API";
+        return new CategoryFetch(category, dept, source, result);
+    }
+
+    @Transactional
+    void applyFetches(UUID instanceId, List<CategoryFetch> fetches) {
         boolean pending = false;
         boolean failed = false;
-        for (String category : journey.requiredCategories()) {
-            String dept = departmentFor(category);
-            var connector = connectors.resolve(dept, DataCategory.of(category), Capability.FETCH).orElseThrow();
-            Link link = linking.activeLink(citizenId, dept).orElse(null);
-            var request = new AccessRequest(
-                    new SubjectRef(citizenId),
-                    new RequesterRef("SCHOLARSHIP"),
-                    DataCategory.of(category),
-                    dept,
-                    connector.ref(),
-                    PurposeCode.SCHOLARSHIP_ELIGIBILITY,
-                    journeyCode);
-            var inputs = new ExecutionInputs(
-                    DataCategory.of(category),
-                    processId,
-                    link == null ? Map.of() : Map.of("localIdToken", link.localIdToken()),
-                    Map.of(),
-                    Map.of());
-            ConnectorResult result = fetch.executeForResult(request, inputs);
-            String outcome = switch (result) {
+        for (CategoryFetch f : fetches) {
+            String outcome = switch (f.result()) {
                 case ConnectorResult.Success s -> "COMPLETED";
                 case ConnectorResult.Unavailable u when u.retryable() -> "PENDING_SOURCE";
                 case ConnectorResult.NotFound nf -> "NOT_FOUND";
                 case ConnectorResult.Invalid inv -> "INVALID";
                 default -> "FAILED";
             };
-            saveStep(id, category, outcome);
+            saveStep(instanceId, f.category(), outcome);
             if ("COMPLETED".equals(outcome)) {
-                events.publishEvent(new StepCompleted(id, category, outcome, null));
+                events.publishEvent(new StepCompleted(instanceId, f.category(), outcome, null, f.department(), f.source()));
             } else if ("PENDING_SOURCE".equals(outcome)) {
                 pending = true;
-                events.publishEvent(new StepPendingSource(id, category, 1, Instant.now().plusSeconds(30)));
+                events.publishEvent(new StepPendingSource(instanceId, f.category(), 1, Instant.now().plusSeconds(30), f.department()));
+                events.publishEvent(new ManualUploadRequested(instanceId, f.category(), f.department()));
+                openException(instanceId, f.category(), outcome);
             } else {
                 failed = true;
-                events.publishEvent(new StepFailed(id, category, outcome));
+                events.publishEvent(new StepFailed(instanceId, f.category(), outcome, f.department()));
+                openException(instanceId, f.category(), outcome);
             }
         }
         String status = pending ? "PARTIALLY_VERIFIED" : failed ? "REJECTED" : "VERIFIED";
-        events.publishEvent(new ApplicationStateChanged(id, status));
-        return new JourneyInstance(id, processId, journeyCode, citizenId);
+        events.publishEvent(new ApplicationStateChanged(instanceId, status));
     }
 
     @Override
@@ -154,7 +206,7 @@ class DefaultJourneyService implements JourneyService {
 
     @ApplicationModuleListener
     void onConsentRevoked(ConsentRevoked event) {
-        // in-flight steps would be marked AUTHORIZATION_WITHDRAWN; Journey 1 happy-path has no long-lived grant
+        // in-flight steps would be marked AUTHORIZATION_WITHDRAWN
     }
 
     private void saveStep(UUID instanceId, String stepCode, String outcome) {
@@ -168,11 +220,23 @@ class DefaultJourneyService implements JourneyService {
         steps.save(s);
     }
 
+    private void openException(UUID instanceId, String stepCode, String reason) {
+        jdbc.update(
+                """
+                INSERT INTO orchestration_exception (id, instance_id, step_code, reason, status)
+                VALUES (?, ?, ?, ?, 'OPEN')
+                """,
+                UUID.randomUUID(),
+                instanceId,
+                stepCode,
+                reason);
+    }
+
     private String pinVersions(JourneyDefinition journey) {
         StringBuilder sb = new StringBuilder("{");
         boolean first = true;
         for (String cat : journey.requiredCategories()) {
-            var c = connectors.resolve(departmentFor(cat), DataCategory.of(cat), Capability.FETCH);
+            var c = connectors.resolve(journey.policy().sourceDepartment(cat), DataCategory.of(cat), Capability.FETCH);
             if (c.isEmpty()) {
                 continue;
             }
@@ -185,11 +249,5 @@ class DefaultJourneyService implements JourneyService {
         return sb.append('}').toString();
     }
 
-    static String departmentFor(String category) {
-        return switch (category) {
-            case "MARKS" -> "EDUCATION";
-            case "BANK_ACCOUNT" -> "DBT";
-            default -> "REVENUE";
-        };
-    }
+    private record CategoryFetch(String category, String department, String source, ConnectorResult result) {}
 }

@@ -1,5 +1,6 @@
 package com.samanvay.registry.internal.service;
 
+import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.identity.api.LinkAsserted;
 import com.samanvay.audit.api.ActorType;
 import com.samanvay.audit.api.AuditEntry;
@@ -10,6 +11,7 @@ import com.samanvay.registry.api.DiscoveryRegistry;
 import com.samanvay.registry.api.FreshnessMode;
 import com.samanvay.registry.api.Pointer;
 import com.samanvay.registry.api.PointerUpsert;
+import com.samanvay.registry.api.PointerUpserted;
 import com.samanvay.registry.api.Sensitivity;
 import com.samanvay.registry.internal.domain.CategoryPolicyEntity;
 import com.samanvay.registry.internal.domain.DiscoveryGrantEntity;
@@ -28,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,19 +42,25 @@ class DiscoveryRegistryService implements DiscoveryRegistry {
     private final CategoryPolicyRepository policies;
     private final ClearanceRepository clearances;
     private final DiscoveryGrantRepository discoveryGrants;
+    private final ConnectorCatalog connectors;
     private final AuditService audit;
+    private final ApplicationEventPublisher events;
 
     DiscoveryRegistryService(
             PointerRepository pointers,
             CategoryPolicyRepository policies,
             ClearanceRepository clearances,
             DiscoveryGrantRepository discoveryGrants,
-            AuditService audit) {
+            ConnectorCatalog connectors,
+            AuditService audit,
+            ApplicationEventPublisher events) {
         this.pointers = pointers;
         this.policies = policies;
         this.clearances = clearances;
         this.discoveryGrants = discoveryGrants;
+        this.connectors = connectors;
         this.audit = audit;
+        this.events = events;
     }
 
     @Override
@@ -136,31 +145,35 @@ class DiscoveryRegistryService implements DiscoveryRegistry {
         e.setFreshnessMode(p.freshnessMode().name());
         e.setStatus("AVAILABLE");
         pointers.save(e);
+        events.publishEvent(new PointerUpserted(e.getId(), e.getSubjectId(), e.getDepartmentCode(), e.getDataCategory()));
     }
 
     @ApplicationModuleListener
     void onLinkAsserted(LinkAsserted event) {
-        for (String category : categoriesFor(event.departmentCode())) {
-            upsert(new PointerUpsert(
-                    new SubjectRef(event.citizenId()),
-                    "PERSON",
-                    event.departmentCode(),
-                    DataCategory.of(category),
-                    "{\"endpoint\":\"fetch\",\"key\":\"linked\"}",
-                    java.time.LocalDate.now(),
-                    java.time.LocalDate.now().plusYears(2),
-                    Instant.now(),
-                    FreshnessMode.REALTIME));
-        }
+        connectors.published().stream()
+                .filter(c -> connectors.dataSourceFor(c).departmentCode().equals(event.departmentCode()))
+                .forEach(c -> {
+                    String protocol = connectors.dataSourceFor(c).protocol();
+                    FreshnessMode mode = "SFTP_CSV".equals(protocol) || "JDBC".equals(protocol)
+                            ? FreshnessMode.BATCH
+                            : FreshnessMode.REALTIME;
+                    Instant asOf = mode == FreshnessMode.BATCH ? Instant.now().minusSeconds(3600) : Instant.now();
+                    upsert(new PointerUpsert(
+                            new SubjectRef(event.citizenId()),
+                            "PERSON",
+                            event.departmentCode(),
+                            c.category(),
+                            "{\"endpoint\":\"fetch\",\"key\":\"linked\"}",
+                            java.time.LocalDate.now(),
+                            java.time.LocalDate.now().plusYears(2),
+                            asOf,
+                            mode));
+                });
     }
 
-    private static List<String> categoriesFor(String department) {
-        return switch (department) {
-            case "REVENUE" -> List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE");
-            case "EDUCATION" -> List.of("MARKS");
-            case "DBT" -> List.of("BANK_ACCOUNT");
-            default -> List.of();
-        };
+    @Override
+    public boolean hasClearance(RequesterRef requester, Sensitivity sensitivity) {
+        return clearances.existsByRequesterIdAndSensitivity(requester.id(), sensitivity.name());
     }
 
     @Override

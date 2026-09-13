@@ -33,7 +33,7 @@ class TrackingProjectionOrderingTest {
         when(steps.save(any(StepEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         TrackingServices tracking = new TrackingServices(apps, steps, jdbc, ev -> {});
-        tracking.on(new StepCompleted(id, "INCOME_CERTIFICATE", "VERIFIED", 9L));
+        tracking.on(new StepCompleted(id, "INCOME_CERTIFICATE", "VERIFIED", 9L, "REVENUE", "API"));
 
         verify(jdbc).update(contains("ON CONFLICT (id) DO NOTHING"), any(), any(), any());
         ArgumentCaptor<StepEntity> step = ArgumentCaptor.forClass(StepEntity.class);
@@ -41,7 +41,7 @@ class TrackingProjectionOrderingTest {
         assertThat(step.getValue().getApplicationId()).isEqualTo(id);
 
         UUID citizen = UUID.randomUUID();
-        tracking.on(new JourneyStarted(id, "POST_MATRIC_SCHOLARSHIP", citizen, "proc-1", Instant.now()));
+        tracking.on(new JourneyStarted(id, "POST_MATRIC_SCHOLARSHIP", citizen, "proc-1", Instant.now(), "SCH"));
         verify(jdbc).update(contains("ON CONFLICT (id) DO UPDATE"), any(), any(), any(), any(), any(), any());
     }
 }
