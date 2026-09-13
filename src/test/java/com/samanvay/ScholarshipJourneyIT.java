@@ -45,7 +45,7 @@ class ScholarshipJourneyIT extends PostgresIntegrationTest {
     JdbcTemplate jdbc;
 
     @Test
-    void scholarshipHappyPathDoesNotPersistDepartmentPayload() {
+    void scholarshipHappyPathDoesNotPersistDepartmentPayload() throws InterruptedException {
         UUID citizen = profiles.register(new ProfileDraft(
                 "Ramesh Kumar",
                 "रमेश",
