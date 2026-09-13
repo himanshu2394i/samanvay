@@ -41,6 +41,8 @@ class PhaseUiStaticPagesTest {
 
         assertThat(demo).contains("Start demo (external caller)");
         assertThat(demo).contains("interoperability middle layer");
+        assertThat(demo).contains("AUTH STUBBED");
+        assertThat(demo).contains("not live Keycloak");
         assertThat(demo).doesNotContain("/api/");
         assertThat(demo).doesNotContain("<script");
         assertThat(command).contains("Command");
@@ -59,6 +61,9 @@ class PhaseUiStaticPagesTest {
         assertThat(caller).doesNotContain("Apply for scholarship");
         assertThat(caller).contains("nav-tools");
         assertThat(caller).contains("Now open Journey / Incident / Audit to see what happened inside");
+        assertThat(caller).contains("AUTH STUBBED");
+        assertThat(caller).contains("not live Keycloak");
+        assertThat(caller).contains("X-Auth-Jti");
         assertThat(caller).doesNotContain("location.href");
         assertThat(css).contains(":focus-visible");
         assertThat(css).contains("prefers-reduced-motion");
