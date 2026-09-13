@@ -39,7 +39,7 @@ class PhaseUiStaticPagesTest {
         assertThat(caller).contains("external caller");
         assertThat(caller).doesNotContain("Apply for scholarship");
         assertThat(css).isNotBlank();
-        assertThat(js).contains("/api/");
+        assertThat(js).contains("async function api(");
     }
 
     private static String page(String name) {

@@ -1,28 +1,3 @@
-const NAV = [
-  ["/", "Command", false],
-  ["/journey.html", "Journey", false],
-  ["/ops.html", "Incident", false],
-  ["/audit.html", "Audit", false],
-  ["/onboard.html", "Onboard", true],
-  ["/caller.html", "Caller", true],
-];
-
-function mountShell(active) {
-  const root = document.getElementById("shell");
-  const here = active || location.pathname;
-  root.insertAdjacentHTML(
-    "afterbegin",
-    `<header class="mast">
-      <div class="brand"><em>समन्वय</em> SAMANVAY</div>
-      <div class="tag">Interoperability infrastructure — control plane console. Not a citizen service portal.</div>
-    </header>
-    <nav class="bar">${NAV.map(([href, label, side]) => {
-      const on = here === href || (href !== "/" && here.endsWith(href));
-      return `<a href="${href}" class="${on ? "active" : ""} ${side ? "side" : ""}">${label}${side ? " · tool" : ""}</a>`;
-    }).join("")}</nav>`
-  );
-}
-
 async function api(path, opts) {
   const res = await fetch(path, opts);
   const text = await res.text();
