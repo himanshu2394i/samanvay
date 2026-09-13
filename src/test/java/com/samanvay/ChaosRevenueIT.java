@@ -79,9 +79,10 @@ class ChaosRevenueIT extends PostgresIntegrationTest {
                 "DAY",
                 "M",
                 "99****21"));
-        linking.assertLink(citizen, "REVENUE", "RATION", "RC-4471-88", new com.samanvay.identity.api.AuthProof("idp"));
-        linking.assertLink(citizen, "EDUCATION", "STUDENT", "STU-1001", new com.samanvay.identity.api.AuthProof("idp"));
-        linking.assertLink(citizen, "DBT", "DBT", "DBT-55", new com.samanvay.identity.api.AuthProof("idp"));
+        String suffix = Long.toHexString(System.nanoTime());
+        linking.assertLink(citizen, "REVENUE", "RATION", "RC-ch-" + suffix, new com.samanvay.identity.api.AuthProof("idp"));
+        linking.assertLink(citizen, "EDUCATION", "STUDENT", "STU-ch-" + suffix, new com.samanvay.identity.api.AuthProof("idp"));
+        linking.assertLink(citizen, "DBT", "DBT", "DBT-ch-" + suffix, new com.samanvay.identity.api.AuthProof("idp"));
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "SCHOLARSHIP",

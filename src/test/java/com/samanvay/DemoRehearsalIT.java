@@ -84,29 +84,27 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "SCHOLARSHIP",
                 "SCHOLARSHIP_ELIGIBILITY",
                 List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"),
-                List.<String[]>of(
-                        new String[] {"REVENUE", "RATION", "RC-4471-88"},
-                        new String[] {"EDUCATION", "STUDENT", "STU-1001"},
-                        new String[] {"DBT", "DBT", "DBT-55"}));
+                links("REVENUE", "RATION", "EDUCATION", "STUDENT", "DBT", "DBT"));
         ApplicationView noc = startJourney(
                 "BUSINESS_NOC",
                 "INDUSTRY",
                 "BUSINESS_NOC",
                 List.of("PROPERTY", "FIRE_NOC", "POLLUTION_CLEARANCE", "LAND_RECORD"),
-                List.<String[]>of(
-                        new String[] {"MUNICIPAL", "PROPERTY", "PROP-1"},
-                        new String[] {"FIRE", "PREMISE", "FIRE-1"},
-                        new String[] {"POLLUTION", "PREMISE", "PCB-1"},
-                        new String[] {"REVENUE", "RATION", "RC-NOC-1"}));
+                links(
+                        "MUNICIPAL",
+                        "PROPERTY",
+                        "FIRE",
+                        "PREMISE",
+                        "POLLUTION",
+                        "PREMISE",
+                        "REVENUE",
+                        "RATION"));
         ApplicationView farmer = startJourney(
                 "FARMER_SUBSIDY",
                 "AGRICULTURE",
                 "FARMER_SUBSIDY",
                 List.of("LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT"),
-                List.<String[]>of(
-                        new String[] {"REVENUE", "RATION", "RC-712-1"},
-                        new String[] {"AGRICULTURE", "FARMER", "AGR-1"},
-                        new String[] {"DBT", "DBT", "DBT-712"}));
+                links("REVENUE", "RATION", "AGRICULTURE", "FARMER", "DBT", "DBT"));
         assertThat(List.of(scholarship.status(), noc.status(), farmer.status()))
                 .allMatch(s -> List.of("VERIFIED", "SUBMITTED", "PARTIALLY_VERIFIED").contains(s));
 
@@ -115,10 +113,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "SCHOLARSHIP",
                 "SCHOLARSHIP_ELIGIBILITY",
                 List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"),
-                List.<String[]>of(
-                        new String[] {"REVENUE", "RATION", "RC-4471-88"},
-                        new String[] {"EDUCATION", "STUDENT", "STU-1001"},
-                        new String[] {"DBT", "DBT", "DBT-55"}));
+                links("REVENUE", "RATION", "EDUCATION", "STUDENT", "DBT", "DBT"));
         JourneyInstance down = journeys.start(
                 "POST_MATRIC_SCHOLARSHIP", chaosCitizen, JsonMapper.builder().build().createObjectNode());
         assertThat(awaitProjected(chaosCitizen).status()).isEqualTo("PARTIALLY_VERIFIED");
@@ -130,7 +125,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "SCHOLARSHIP",
                 "SCHOLARSHIP_ELIGIBILITY",
                 List.of("INCOME_CERTIFICATE"),
-                List.<String[]>of(new String[] {"REVENUE", "RATION", "RC-4471-88"}));
+                links("REVENUE", "RATION"));
         var artifact = consents.forCitizen(revokeCitizen).getFirst();
         AccessRequest req = new AccessRequest(
                 new SubjectRef(revokeCitizen),
@@ -159,6 +154,15 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "Credential/IncomeCertificate@1");
         assertThat(preview.suggestions()).isNotEmpty();
         assertThat(preview.suggestions()).allMatch(s -> !s.approved());
+    }
+
+    private static List<String[]> links(String... deptAndType) {
+        String suffix = Long.toHexString(System.nanoTime());
+        java.util.ArrayList<String[]> out = new java.util.ArrayList<>();
+        for (int i = 0; i < deptAndType.length; i += 2) {
+            out.add(new String[] {deptAndType[i], deptAndType[i + 1], "ID-" + suffix + "-" + i});
+        }
+        return List.copyOf(out);
     }
 
     private ApplicationView startJourney(
