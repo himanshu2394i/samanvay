@@ -311,7 +311,7 @@ Samanvay owns six things. Everything else it merely knows the address of.
 
 | Decision | Choice | Rationale | Rejected |
 |---|---|---|---|
-| Backend | Java 21 + Spring Boot 3 | Government-standard stack; Spring Modulith enforces boundaries at build time | Node, Python, Go |
+| Backend | Java 21 + Spring Boot 4 (Spring Framework 7) | Government-standard stack; Spring Modulith enforces boundaries at build time. Boot 4 required because Modulith 2.x and Flowable 8.x both target it — Modulith 1.4.x/Flowable 7.x are Boot-3-only and mutually exclusive with each other's requirements | Node, Python, Go; pinning to Boot 3 (blocks Modulith 2.x / Flowable 8.x) |
 | Module enforcement | Spring Modulith | Build-time verification + transactional outbox for free | Convention + code review |
 | Database | PostgreSQL 16 | JSONB for schemas/mappings, `FOR UPDATE SKIP LOCKED` for queues, one dependency | Separate document store |
 | Messaging | Modulith Event Publication Registry | Durable, transactional, zero extra infrastructure | Kafka, RabbitMQ |

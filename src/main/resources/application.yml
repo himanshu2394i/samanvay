@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: samanvay-core
+  datasource:
+    url: jdbc:postgresql://localhost:5432/samanvay
+    username: samanvay
+    password: samanvay
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  modulith:
+    events:
+      # Spring Modulith's own internal event_publication table (the
+      # transactional outbox). This is framework plumbing, not our domain
+      # schema - our own tables stay entirely Flyway-owned. Letting
+      # Modulith initialize its own table avoids hand-transcribing DDL
+      # that has to match its JPA entity exactly across versions.
+      jdbc-schema-initialization:
+        enabled: true
