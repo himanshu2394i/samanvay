@@ -3,51 +3,77 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Samanvay — Incident</title>
+  <title>Incident | Samanvay</title>
   <link rel="stylesheet" href="/console.css"/>
 </head>
 <body>
-  <div class="shell" id="shell">
+  <a class="skip-link visually-hidden" href="#content">Skip to content</a>
+  <p id="live" class="visually-hidden" aria-live="polite"></p>
+  <div class="shell">
     <header class="mast">
-      <div class="brand"><em>समन्वय</em> SAMANVAY</div>
-      <div class="tag">Interoperability infrastructure — incident and recovery.</div>
+      <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">Control plane</span></div>
+      <p class="tag">Government interoperability infrastructure — incident, recovery, and demo chaos.</p>
     </header>
-    <nav class="bar">
-      <a href="/">Command</a>
-      <a href="/journey.html">Journey</a>
-      <a href="/ops.html" class="active">Incident</a>
-      <a href="/audit.html">Audit</a>
-      <a href="/onboard.html" class="side">Onboard · tool</a>
-      <a href="/caller.html" class="side">Caller · tool</a>
+    <nav class="bar" aria-label="Console">
+      <ul class="nav-primary" role="list">
+        <li><a href="/">Command</a></li>
+        <li><a href="/journey.html">Journey</a></li>
+        <li><a href="/ops.html" class="active" aria-current="page">Incident</a></li>
+        <li><a href="/audit.html">Audit</a></li>
+      </ul>
+      <div class="nav-tools">
+        <span class="nav-tools-label">Tools</span>
+        <ul role="list">
+          <li><a href="/onboard.html" class="side">Onboard</a></li>
+          <li><a href="/caller.html" class="side">Caller demo</a></li>
+        </ul>
+      </div>
     </nav>
-    <p class="lede">Kill/revive is a <strong>demo profile</strong> switch on a data-source code. Default boot 404s those POSTs. Recovery: revive → retry pending → tracking leaves <code>PARTIALLY_VERIFIED</code>.</p>
-    <div class="callout">Boot with <code>--spring.profiles.active=demo</code> for chaos beats. Without it, kill/revive stay unregistered.</div>
-    <div class="card">
-      <h2>Chaos (demo only)</h2>
-      <div id="chaos"></div>
-    </div>
-    <div class="card" style="margin-top:0.85rem">
-      <h2>Open exceptions</h2>
-      <label>Retry instance <input id="retryId"/></label>
-      <div class="row"><button type="button" id="retryBtn">Retry pending</button></div>
-      <div id="exceptions"></div>
-    </div>
-    <div class="card" style="margin-top:0.85rem">
-      <h2>Applications / SLA</h2>
-      <div id="apps"></div>
-    </div>
-    <div class="card" style="margin-top:0.85rem">
-      <h2>Consent denials (GRANT_DENIED)</h2>
-      <div id="denials"></div>
-    </div>
-    <div class="card" style="margin-top:0.85rem">
-      <h2>Recovery narrative</h2>
-      <p class="note" id="narrative">Load the queues to compose the story from live rows.</p>
-    </div>
-    <pre id="log"></pre>
+    <main id="content" tabindex="-1">
+      <h1 class="page-title">Incident / ops</h1>
+      <p class="lede">Kill/revive is a <strong>demo profile</strong> switch on a data-source code. Default boot 404s those POSTs. Recovery: revive → retry pending → tracking leaves <code>PARTIALLY_VERIFIED</code>.</p>
+      <div class="callout">Boot with <code>--spring.profiles.active=demo</code> for chaos beats. Without it, kill/revive stay unregistered. Kill asks for confirmation.</div>
+      <ol class="runbook" aria-label="Eight-beat demo, incident portion">
+        <li><strong>4</strong> Kill connector → start journey → <code>PARTIALLY_VERIFIED</code></li>
+        <li><strong>4</strong> Revive → Retry pending</li>
+        <li><strong>5</strong> Consent revoke appears as <code>GRANT_DENIED</code></li>
+      </ol>
+      <div class="stack">
+        <section class="card">
+          <h2>Chaos (demo only)</h2>
+          <p class="note">These POSTs exist only on the demo profile. Killing a connector is destructive to in-flight fetches.</p>
+          <div id="chaos"><p class="loading">Loading connectors…</p></div>
+        </section>
+        <section class="card">
+          <h2>Open exceptions</h2>
+          <label for="retryId">Retry instance</label>
+          <input id="retryId"/>
+          <div class="row"><button type="button" class="primary" id="retryBtn">Retry pending</button></div>
+          <div id="exceptions"><p class="loading">Loading exceptions…</p></div>
+        </section>
+        <section class="card">
+          <h2>Applications / SLA</h2>
+          <div id="apps"><p class="loading">Loading tracking…</p></div>
+        </section>
+        <section class="card">
+          <h2>Consent denials (GRANT_DENIED)</h2>
+          <div id="denials"><p class="loading">Loading audit denials…</p></div>
+        </section>
+        <section class="card">
+          <h2>Recovery narrative</h2>
+          <p class="note" id="narrative">Load the queues to compose the story from live rows.</p>
+        </section>
+        <p id="status" class="status" aria-live="polite"></p>
+        <details class="tech">
+          <summary>Technical detail</summary>
+          <pre id="log"></pre>
+        </details>
+      </div>
+    </main>
   </div>
   <script src="/console.js"></script>
   <script>
+    const statusEl = document.getElementById("status");
     const log = (x) => { document.getElementById("log").textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2); };
     async function chaosBox() {
       const box = document.getElementById("chaos");
@@ -58,60 +84,96 @@
           `<div class="row"><span class="mono">${esc(code)}</span>
             <button type="button" class="danger" data-act="kill" data-code="${esc(code)}">Kill</button>
             <button type="button" class="ok" data-act="revive" data-code="${esc(code)}">Revive</button></div>`
-        ).join("") || `<p class="empty">No published connectors.</p>`;
-        box.querySelectorAll("button").forEach(b => b.onclick = () => flip(b.dataset.act, b.dataset.code));
+        ).join("") || emptyBox("No published connectors", "Chaos targets published data-source codes from the catalog.");
+        box.querySelectorAll("button").forEach(b => b.onclick = () => flip(b.dataset.act, b.dataset.code, b));
       } catch (e) { showErr(box, e); }
     }
-    async function flip(act, code) {
+    async function flip(act, code, btn) {
+      if (act === "kill") {
+        const ok = await confirmDanger({
+          title: "Kill connector " + code + "?",
+          body: "This demo action marks the data source down. In-flight department fetches can degrade to PARTIALLY_VERIFIED. Default boot 404s this POST.",
+          confirmLabel: "Kill connector"
+        });
+        if (!ok) return;
+      }
+      setBusy(btn, true, act === "kill" ? "Killing…" : "Reviving…");
       try {
         await api("/api/connector/chaos/" + encodeURIComponent(code) + "/" + act, {method: "POST"});
+        setStatus(statusEl, "ok", act + " " + code + " succeeded.");
         log(act + " " + code + " — ok");
+        announce(act + " " + code + " succeeded");
         await refresh();
       } catch (e) {
-        log((e.status === 404 ? "Chaos endpoint 404. Restart with --spring.profiles.active=demo. " : "") + e.message);
+        const msg = friendlyError(e, "demo");
+        setStatus(statusEl, "bad", msg);
+        log(msg);
+      } finally {
+        setBusy(btn, false);
       }
     }
     async function refresh() {
       const now = Date.now();
-      const [apps, exceptions, denials] = await Promise.all([
-        api("/api/applications?size=50"),
-        api("/api/journeys/exceptions"),
-        api("/api/audit/entries?action=GRANT_DENIED&size=40"),
-      ]);
-      if (exceptions[0]) document.getElementById("retryId").value = exceptions[0].instanceId;
-      document.getElementById("exceptions").innerHTML = exceptions.length
-        ? `<table><tr><th>Instance</th><th>Step</th><th>Reason</th><th>When</th></tr>${
-            exceptions.map(x => `<tr><td class="mono">${esc(x.instanceId)}</td><td>${esc(x.stepCode)}</td><td>${esc(x.reason)}</td><td>${esc(when(x.createdAt))}</td></tr>`).join("")
-          }</table>`
-        : `<p class="empty">No open exceptions.</p>`;
-      document.getElementById("apps").innerHTML = `<table><tr><th>Ref</th><th>Journey</th><th>Status</th><th>SLA</th></tr>${
-        apps.map(a => {
-          const breach = a.slaDueAt && Date.parse(a.slaDueAt) < now;
-          return `<tr><td><a href="/journey.html?ref=${encodeURIComponent(a.referenceNo)}">${esc(a.referenceNo)}</a></td><td class="mono">${esc(a.journeyCode)}</td><td class="${tone(a.status)}">${esc(a.status)}</td><td class="${breach ? "bad" : ""}">${breach ? "BREACH" : esc(a.slaDueAt || "—")}</td></tr>`;
-        }).join("")
-      }</table>`;
-      document.getElementById("denials").innerHTML = denials.length
-        ? `<table><tr><th>Seq</th><th>Subject</th><th>Reason</th></tr>${
-            denials.map(r => `<tr><td>${esc(r.seq)}</td><td class="mono">${esc(r.subjectId)}</td><td>${esc(r.reason)}</td></tr>`).join("")
-          }</table>`
-        : `<p class="empty">No GRANT_DENIED rows.</p>`;
-      const partial = apps.filter(a => a.status === "PARTIALLY_VERIFIED").length;
-      document.getElementById("narrative").textContent =
-        `${exceptions.length} open exception(s). ${partial} application(s) PARTIALLY_VERIFIED. ${denials.length} GRANT_DENIED audit row(s). ` +
-        (exceptions.length
-          ? "Revive the killed data source, then retry the instance so remaining department fetches resume."
-          : "Queue is quiet. Kill a data source (demo profile), start a journey from the caller tool, watch PARTIALLY_VERIFIED, then revive and retry.");
-      log({apps, exceptions, denials});
+      try {
+        const [apps, exceptions, denials] = await Promise.all([
+          api("/api/applications?size=50"),
+          api("/api/journeys/exceptions"),
+          api("/api/audit/entries?action=GRANT_DENIED&size=40"),
+        ]);
+        if (exceptions[0]) document.getElementById("retryId").value = exceptions[0].instanceId;
+        document.getElementById("exceptions").innerHTML = exceptions.length
+          ? tableHtml("Open orchestration exceptions", ["Instance", "Step", "Reason", "When"],
+              exceptions.map(x => `<tr><td class="mono">${esc(x.instanceId)}</td><td>${esc(x.stepCode)}</td><td>${esc(x.reason)}</td><td>${esc(when(x.createdAt))}</td></tr>`).join(""))
+          : emptyBox("No open exceptions", "Exceptions appear when a department fetch cannot complete — typically after a demo kill mid-flight.");
+        document.getElementById("apps").innerHTML = apps.length
+          ? tableHtml("Tracked applications and SLA vs now", ["Ref", "Journey", "Status", "SLA"],
+              apps.map(a => {
+                const breach = a.slaDueAt && Date.parse(a.slaDueAt) < now;
+                return `<tr><td><a href="/journey.html?ref=${encodeURIComponent(a.referenceNo)}">${esc(a.referenceNo)}</a></td><td class="mono">${esc(a.journeyCode)}</td><td class="${tone(a.status)}">${esc(a.status)}</td><td class="${breach ? "bad" : ""}">${breach ? "BREACH" : esc(a.slaDueAt || "—")}</td></tr>`;
+              }).join(""))
+          : emptyBox("No tracked applications", 'Start a catalog journey from the <a href="/caller.html">caller demo</a> after killing a connector to show degradation.');
+        document.getElementById("denials").innerHTML = denials.length
+          ? tableHtml("GRANT_DENIED audit rows", ["Seq", "Subject", "Reason"],
+              denials.map(r => `<tr><td>${esc(r.seq)}</td><td class="mono">${esc(r.subjectId)}</td><td>${esc(r.reason)}</td></tr>`).join(""))
+          : emptyBox("No GRANT_DENIED rows", "Beat 5 writes a denial here after consent revoke, when the next authorize is refused.");
+        const partial = apps.filter(a => a.status === "PARTIALLY_VERIFIED").length;
+        document.getElementById("narrative").textContent =
+          `${exceptions.length} open exception(s). ${partial} application(s) PARTIALLY_VERIFIED. ${denials.length} GRANT_DENIED audit row(s). ` +
+          (exceptions.length
+            ? "Revive the killed data source, then retry the instance so remaining department fetches resume."
+            : "Queue is quiet. Kill a data source (demo profile), start a journey from the caller tool, watch PARTIALLY_VERIFIED, then revive and retry.");
+        log(`${exceptions.length} exception(s), ${apps.length} application(s), ${denials.length} denial(s).`);
+      } catch (e) {
+        const msg = friendlyError(e);
+        showErr(document.getElementById("exceptions"), e);
+        document.getElementById("apps").innerHTML = `<p class="err" role="alert">${esc(msg)}</p>`;
+        document.getElementById("denials").innerHTML = `<p class="err" role="alert">${esc(msg)}</p>`;
+        setStatus(statusEl, "bad", msg);
+      }
     }
     document.getElementById("retryBtn").onclick = async () => {
       const id = document.getElementById("retryId").value.trim();
+      const btn = document.getElementById("retryBtn");
+      if (!id) {
+        setStatus(statusEl, "warn", "Enter a journey instance id to retry.");
+        return;
+      }
+      setBusy(btn, true, "Retrying…");
       try {
         await api("/api/journeys/instances/" + id + "/retry", {method: "POST"});
+        setStatus(statusEl, "ok", "Retry requested for " + id);
         log("retried " + id);
+        announce("Retry requested");
         await refresh();
-      } catch (e) { log(e.message); }
+      } catch (e) {
+        const msg = friendlyError(e);
+        setStatus(statusEl, "bad", msg);
+        log(msg);
+      } finally {
+        setBusy(btn, false);
+      }
     };
-    chaosBox().then(refresh).catch(e => log(e.message));
+    chaosBox().then(refresh).catch(e => setStatus(statusEl, "bad", friendlyError(e)));
   </script>
 </body>
 </html>

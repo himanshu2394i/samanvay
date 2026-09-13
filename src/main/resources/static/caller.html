@@ -3,46 +3,70 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Samanvay — External caller demo</title>
+  <title>External caller demo | Samanvay</title>
   <link rel="stylesheet" href="/console.css"/>
 </head>
 <body>
-  <div class="shell" id="shell">
+  <a class="skip-link visually-hidden" href="#content">Skip to content</a>
+  <p id="live" class="visually-hidden" aria-live="polite"></p>
+  <div class="shell">
     <header class="mast">
-      <div class="brand"><em>समन्वय</em> SAMANVAY</div>
-      <div class="tag">Interoperability infrastructure — this page is not the product.</div>
+      <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">Control plane</span></div>
+      <p class="tag">External caller demo — not the interoperability product.</p>
     </header>
-    <nav class="bar">
-      <a href="/">Command</a>
-      <a href="/journey.html">Journey</a>
-      <a href="/ops.html">Incident</a>
-      <a href="/audit.html">Audit</a>
-      <a href="/onboard.html" class="side">Onboard · tool</a>
-      <a href="/caller.html" class="active side">Caller · tool</a>
+    <nav class="bar" aria-label="Console">
+      <ul class="nav-primary" role="list">
+        <li><a href="/">Command</a></li>
+        <li><a href="/journey.html">Journey</a></li>
+        <li><a href="/ops.html">Incident</a></li>
+        <li><a href="/audit.html">Audit</a></li>
+      </ul>
+      <div class="nav-tools">
+        <span class="nav-tools-label">Tools</span>
+        <ul role="list">
+          <li><a href="/onboard.html" class="side">Onboard</a></li>
+          <li><a href="/caller.html" class="side active" aria-current="page">Caller demo</a></li>
+        </ul>
+      </div>
     </nav>
-    <div class="callout"><strong>EXTERNAL CALLER DEMO.</strong> This is an external caller stand-in for a department portal that invokes Samanvay. Journey codes (including scholarship, NOC, subsidy) prove the platform is generic — they are not Samanvay products.</div>
-    <label>Catalog journey
-      <select id="journey"></select>
-    </label>
-    <p class="note" id="policy"></p>
-    <label>Citizen id <input id="citizenId"/></label>
-    <div class="row">
-      <button type="button" id="regBtn">Register demo citizen</button>
-      <button type="button" id="linkBtn">Link + consent from policy</button>
-      <button type="button" id="startBtn">Start selected journey</button>
-    </div>
-    <pre id="out"></pre>
+    <main id="content" tabindex="-1">
+      <h1 class="page-title">External caller demo <span class="pill">Tool</span></h1>
+      <div class="callout tool"><strong>EXTERNAL CALLER DEMO.</strong> This is an external caller stand-in for a department portal that invokes Samanvay. Journey codes (including scholarship, NOC, subsidy) prove the platform is generic — they are not Samanvay products.</div>
+      <p class="lede">Use this only to start catalog journeys so Command, Journey, Incident, and Audit have live rows. It is not a citizen benefit form.</p>
+      <label for="journey">Catalog journey
+        <select id="journey"></select>
+      </label>
+      <p class="note" id="policy">Loading catalog journeys…</p>
+      <label for="citizenId">Citizen id <input id="citizenId"/></label>
+      <div class="row">
+        <button type="button" id="regBtn">Register demo citizen</button>
+        <button type="button" id="linkBtn">Link + consent from policy</button>
+        <button type="button" class="primary" id="startBtn">Start selected journey</button>
+      </div>
+      <p id="status" class="status" aria-live="polite"></p>
+      <details class="tech">
+        <summary>Technical detail</summary>
+        <pre id="out"></pre>
+      </details>
+    </main>
   </div>
   <script src="/console.js"></script>
   <script>
+    const statusEl = document.getElementById("status");
     const log = (x) => { document.getElementById("out").textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2); };
     let journeys = [];
     async function boot() {
-      journeys = await api("/api/catalog/journeys");
-      const sel = document.getElementById("journey");
-      sel.innerHTML = journeys.map(j => `<option value="${esc(j.code)}">${esc(j.code)} — ${esc(j.name)}</option>`).join("");
-      sel.onchange = describe;
-      describe();
+      try {
+        journeys = await api("/api/catalog/journeys");
+        const sel = document.getElementById("journey");
+        sel.innerHTML = journeys.map(j => `<option value="${esc(j.code)}">${esc(j.code)} — ${esc(j.name)}</option>`).join("");
+        sel.onchange = describe;
+        describe();
+        setStatus(statusEl, "", journeys.length ? "" : "Catalog has no journeys to start.");
+      } catch (e) {
+        document.getElementById("policy").textContent = "";
+        setStatus(statusEl, "bad", friendlyError(e));
+      }
     }
     function selected() {
       return journeys.find(j => j.code === document.getElementById("journey").value);
@@ -55,67 +79,109 @@
         `Categories ${ (j.requiredCategories || []).join(", ") }. Sources ${Object.entries(src).map(([k,v]) => k + "←" + v).join(", ")}. Requester ${j.policy && j.policy.requester}.`;
     }
     document.getElementById("regBtn").onclick = async () => {
-      const id = await api("/api/identity/citizens", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          nameLatin: "Ramesh Kumar", nameDevanagari: "रमेश", givenName: "Ramesh", familyName: "Kumar",
-          fatherName: "Suresh", dob: "2004-01-15", dobPrecision: "DAY", gender: "M", contactMasked: "99****21"
-        })
-      });
-      document.getElementById("citizenId").value = id;
-      log({citizenId: id});
-    };
-    document.getElementById("linkBtn").onclick = async () => {
-      const citizenId = document.getElementById("citizenId").value;
-      const j = selected();
-      const src = (j.policy && j.policy.sources) || {};
-      const depts = [...new Set(Object.values(src))];
-      for (const departmentCode of depts) {
-        await api("/api/identity/links", {
+      const btn = document.getElementById("regBtn");
+      setBusy(btn, true, "Registering…");
+      try {
+        const id = await api("/api/identity/citizens", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
-            citizenId, departmentCode, localIdType: departmentCode, localId: "DEMO-" + departmentCode, proof: "stub"
+            nameLatin: "Ramesh Kumar", nameDevanagari: "रमेश", givenName: "Ramesh", familyName: "Kumar",
+            fatherName: "Suresh", dob: "2004-01-15", dobPrecision: "DAY", gender: "M", contactMasked: "99****21"
           })
         });
+        document.getElementById("citizenId").value = id;
+        setStatus(statusEl, "ok", "Demo citizen registered. Next: link + consent, then start a journey.");
+        log("citizenId " + id);
+        announce("Demo citizen registered");
+      } catch (e) {
+        setStatus(statusEl, "bad", friendlyError(e));
+      } finally {
+        setBusy(btn, false);
       }
-      const req = await api("/api/consent/requests", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          citizenId,
-          requesterId: (j.policy && j.policy.requester) || "CALLER",
-          purposeCode: (j.policy && j.policy.purpose) || j.code,
-          purposeText: j.name,
-          categories: j.requiredCategories || []
-        })
-      });
-      const art = await api("/api/consent/requests/" + req.id + "/grant", {
-        method: "POST",
-        headers: {"Content-Type": "application/json", "X-Auth-Jti": "ui-session"},
-        body: JSON.stringify({citizenId})
-      });
-      log({linked: depts, consent: art});
     };
-    document.getElementById("startBtn").onclick = async () => {
+    document.getElementById("linkBtn").onclick = async () => {
+      const btn = document.getElementById("linkBtn");
       const citizenId = document.getElementById("citizenId").value;
       const j = selected();
-      const inst = await api("/api/journeys/" + encodeURIComponent(j.code) + "/start", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({citizenId, submission: {}})
-      });
-      let ref = null;
-      for (let i = 0; i < 40; i++) {
-        const apps = await api("/api/applications?citizenId=" + encodeURIComponent(citizenId) + "&size=5");
-        if (apps[0]) { ref = apps[0].referenceNo; break; }
-        await new Promise(r => setTimeout(r, 250));
+      if (!citizenId || !j) {
+        setStatus(statusEl, "warn", "Register a demo citizen and select a catalog journey first.");
+        return;
       }
-      log({instance: inst, referenceNo: ref});
-      if (ref) location.href = "/journey.html?ref=" + encodeURIComponent(ref);
+      setBusy(btn, true, "Linking…");
+      try {
+        const src = (j.policy && j.policy.sources) || {};
+        const depts = [...new Set(Object.values(src))];
+        for (const departmentCode of depts) {
+          await api("/api/identity/links", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+              citizenId, departmentCode, localIdType: departmentCode, localId: "DEMO-" + departmentCode, proof: "stub"
+            })
+          });
+        }
+        const req = await api("/api/consent/requests", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            citizenId,
+            requesterId: (j.policy && j.policy.requester) || "CALLER",
+            purposeCode: (j.policy && j.policy.purpose) || j.code,
+            purposeText: j.name,
+            categories: j.requiredCategories || []
+          })
+        });
+        await api("/api/consent/requests/" + req.id + "/grant", {
+          method: "POST",
+          headers: {"Content-Type": "application/json", "X-Auth-Jti": "ui-session"},
+          body: JSON.stringify({citizenId})
+        });
+        setStatus(statusEl, "ok", "Department links and consent granted. You can start the selected journey.");
+        log("linked " + depts.join(", "));
+        announce("Links and consent granted");
+      } catch (e) {
+        setStatus(statusEl, "bad", friendlyError(e));
+      } finally {
+        setBusy(btn, false);
+      }
     };
-    boot().catch(e => log(e.message));
+    document.getElementById("startBtn").onclick = async () => {
+      const btn = document.getElementById("startBtn");
+      const citizenId = document.getElementById("citizenId").value;
+      const j = selected();
+      if (!citizenId || !j) {
+        setStatus(statusEl, "warn", "Register, link + consent, then start.");
+        return;
+      }
+      setBusy(btn, true, "Starting…");
+      try {
+        const inst = await api("/api/journeys/" + encodeURIComponent(j.code) + "/start", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({citizenId, submission: {}})
+        });
+        let ref = null;
+        for (let i = 0; i < 40; i++) {
+          const apps = await api("/api/applications?citizenId=" + encodeURIComponent(citizenId) + "&size=5");
+          if (apps[0]) { ref = apps[0].referenceNo; break; }
+          await new Promise(r => setTimeout(r, 250));
+        }
+        if (ref) {
+          setStatus(statusEl, "ok", "Journey started. Opening timeline for " + ref);
+          log("started " + ref);
+          location.href = "/journey.html?ref=" + encodeURIComponent(ref);
+        } else {
+          setStatus(statusEl, "warn", "Journey start accepted, but no tracking reference yet. Open Journey and load shortly.");
+          log("instance started, reference pending");
+        }
+      } catch (e) {
+        setStatus(statusEl, "bad", friendlyError(e));
+      } finally {
+        setBusy(btn, false);
+      }
+    };
+    boot();
   </script>
 </body>
 </html>

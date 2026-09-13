@@ -52,6 +52,124 @@ function unwrap(v) {
   return String(v);
 }
 
-function showErr(el, e) {
-  el.innerHTML = `<p class="err">${esc(e.message || e)}</p>`;
+function friendlyError(e, hint) {
+  if (e && e.status === 404 && hint === "demo") {
+    return "This action is available only with the demo profile. Restart with --spring.profiles.active=demo. Default boot correctly returns 404.";
+  }
+  if (e && e.status === 404) {
+    return "The control plane could not find that resource. Check the reference and try again.";
+  }
+  if (e && e.status === 400) {
+    return "The request was rejected. Check the fields and try again.";
+  }
+  if (e && e.status === 409) {
+    return "The control plane refused a conflicting change. Refresh and retry.";
+  }
+  if (e && e.status >= 500) {
+    return "The control plane could not complete that request. Retry in a moment.";
+  }
+  const msg = (e && e.message) || String(e || "Request failed");
+  if (msg.length > 220) return "The control plane returned an error. Open technical detail only if you need the raw response.";
+  return msg;
 }
+
+function showErr(el, e, hint) {
+  el.innerHTML = `<p class="err" role="alert">${esc(friendlyError(e, hint))}</p>`;
+}
+
+function setBusy(el, busy, label) {
+  if (!el) return;
+  if (busy) {
+    if (!el.dataset.label) el.dataset.label = el.textContent;
+    el.disabled = true;
+    el.setAttribute("aria-busy", "true");
+    if (label) el.textContent = label;
+  } else {
+    el.disabled = false;
+    el.removeAttribute("aria-busy");
+    if (el.dataset.label) el.textContent = el.dataset.label;
+  }
+}
+
+function loading(msg) {
+  return `<p class="loading">${esc(msg || "Loading live telemetry…")}</p>`;
+}
+
+function emptyBox(title, whyHtml) {
+  return `<div class="empty-box"><p class="empty-title">${esc(title)}</p><p class="empty">${whyHtml}</p></div>`;
+}
+
+function tableHtml(caption, headers, rowHtml) {
+  return `<div class="table-wrap"><table><caption>${esc(caption)}</caption><thead><tr>${
+    headers.map((h) => `<th scope="col">${esc(h)}</th>`).join("")
+  }</tr></thead><tbody>${rowHtml}</tbody></table></div>`;
+}
+
+function announce(text) {
+  let live = document.getElementById("live");
+  if (!live) {
+    live = document.createElement("p");
+    live.id = "live";
+    live.className = "visually-hidden";
+    live.setAttribute("aria-live", "polite");
+    document.body.prepend(live);
+  }
+  live.textContent = text;
+}
+
+function setStatus(el, kind, text) {
+  if (!el) return;
+  el.className = "status " + (kind || "");
+  el.textContent = text;
+}
+
+function confirmDanger(opts) {
+  const title = (opts && opts.title) || "Confirm";
+  const body = (opts && opts.body) || "This demo action changes live control-plane state.";
+  const confirmLabel = (opts && opts.confirmLabel) || "Confirm";
+  return new Promise((resolve) => {
+    let dlg = document.getElementById("confirmDlg");
+    if (!dlg) {
+      dlg = document.createElement("dialog");
+      dlg.id = "confirmDlg";
+      dlg.className = "confirm";
+      dlg.setAttribute("aria-labelledby", "confirmTitle");
+      dlg.innerHTML =
+        `<h2 id="confirmTitle"></h2><p id="confirmBody"></p>` +
+        `<div class="row">` +
+        `<button type="button" class="danger" id="confirmYes"></button>` +
+        `<button type="button" id="confirmNo">Cancel</button>` +
+        `</div>`;
+      document.body.appendChild(dlg);
+    }
+    dlg.querySelector("#confirmTitle").textContent = title;
+    dlg.querySelector("#confirmBody").textContent = body;
+    const yes = dlg.querySelector("#confirmYes");
+    const no = dlg.querySelector("#confirmNo");
+    yes.textContent = confirmLabel;
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      if (dlg.open) dlg.close();
+      resolve(value);
+    };
+    yes.onclick = () => done(true);
+    no.onclick = () => done(false);
+    dlg.addEventListener("close", () => done(false), { once: true });
+    dlg.showModal();
+    yes.focus();
+  });
+}
+
+function syncUserInvalid(event) {
+  const input = event.target;
+  if (!input.matches?.("input, textarea, select")) return;
+  if (input.matches(":user-invalid")) input.setAttribute("aria-invalid", "true");
+  else input.removeAttribute("aria-invalid");
+}
+
+document.addEventListener("blur", syncUserInvalid, true);
+document.addEventListener("input", (event) => {
+  if (event.target.hasAttribute?.("aria-invalid")) syncUserInvalid(event);
+});
