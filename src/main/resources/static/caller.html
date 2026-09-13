@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Samanvay — External caller demo</title>
+  <link rel="stylesheet" href="/console.css"/>
+</head>
+<body>
+  <div class="shell" id="shell">
+    <header class="mast">
+      <div class="brand"><em>समन्वय</em> SAMANVAY</div>
+      <div class="tag">Interoperability infrastructure — this page is not the product.</div>
+    </header>
+    <nav class="bar">
+      <a href="/">Command</a>
+      <a href="/journey.html">Journey</a>
+      <a href="/ops.html">Incident</a>
+      <a href="/audit.html">Audit</a>
+      <a href="/onboard.html" class="side">Onboard · tool</a>
+      <a href="/caller.html" class="active side">Caller · tool</a>
+    </nav>
+    <div class="callout"><strong>EXTERNAL CALLER DEMO.</strong> This is an external caller stand-in for a department portal that invokes Samanvay. Journey codes (including scholarship, NOC, subsidy) prove the platform is generic — they are not Samanvay products.</div>
+    <label>Catalog journey
+      <select id="journey"></select>
+    </label>
+    <p class="note" id="policy"></p>
+    <label>Citizen id <input id="citizenId"/></label>
+    <div class="row">
+      <button type="button" id="regBtn">Register demo citizen</button>
+      <button type="button" id="linkBtn">Link + consent from policy</button>
+      <button type="button" id="startBtn">Start selected journey</button>
+    </div>
+    <pre id="out"></pre>
+  </div>
+  <script src="/console.js"></script>
+  <script>
+    const log = (x) => { document.getElementById("out").textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2); };
+    let journeys = [];
+    async function boot() {
+      journeys = await api("/api/catalog/journeys");
+      const sel = document.getElementById("journey");
+      sel.innerHTML = journeys.map(j => `<option value="${esc(j.code)}">${esc(j.code)} — ${esc(j.name)}</option>`).join("");
+      sel.onchange = describe;
+      describe();
+    }
+    function selected() {
+      return journeys.find(j => j.code === document.getElementById("journey").value);
+    }
+    function describe() {
+      const j = selected();
+      if (!j) return;
+      const src = (j.policy && j.policy.sources) || {};
+      document.getElementById("policy").textContent =
+        `Categories ${ (j.requiredCategories || []).join(", ") }. Sources ${Object.entries(src).map(([k,v]) => k + "←" + v).join(", ")}. Requester ${j.policy && j.policy.requester}.`;
+    }
+    document.getElementById("regBtn").onclick = async () => {
+      const id = await api("/api/identity/citizens", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          nameLatin: "Ramesh Kumar", nameDevanagari: "रमेश", givenName: "Ramesh", familyName: "Kumar",
+          fatherName: "Suresh", dob: "2004-01-15", dobPrecision: "DAY", gender: "M", contactMasked: "99****21"
+        })
+      });
+      document.getElementById("citizenId").value = id;
+      log({citizenId: id});
+    };
+    document.getElementById("linkBtn").onclick = async () => {
+      const citizenId = document.getElementById("citizenId").value;
+      const j = selected();
+      const src = (j.policy && j.policy.sources) || {};
+      const depts = [...new Set(Object.values(src))];
+      for (const departmentCode of depts) {
+        await api("/api/identity/links", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            citizenId, departmentCode, localIdType: departmentCode, localId: "DEMO-" + departmentCode, proof: "stub"
+          })
+        });
+      }
+      const req = await api("/api/consent/requests", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          citizenId,
+          requesterId: (j.policy && j.policy.requester) || "CALLER",
+          purposeCode: (j.policy && j.policy.purpose) || j.code,
+          purposeText: j.name,
+          categories: j.requiredCategories || []
+        })
+      });
+      const art = await api("/api/consent/requests/" + req.id + "/grant", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "X-Auth-Jti": "ui-session"},
+        body: JSON.stringify({citizenId})
+      });
+      log({linked: depts, consent: art});
+    };
+    document.getElementById("startBtn").onclick = async () => {
+      const citizenId = document.getElementById("citizenId").value;
+      const j = selected();
+      const inst = await api("/api/journeys/" + encodeURIComponent(j.code) + "/start", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({citizenId, submission: {}})
+      });
+      let ref = null;
+      for (let i = 0; i < 40; i++) {
+        const apps = await api("/api/applications?citizenId=" + encodeURIComponent(citizenId) + "&size=5");
+        if (apps[0]) { ref = apps[0].referenceNo; break; }
+        await new Promise(r => setTimeout(r, 250));
+      }
+      log({instance: inst, referenceNo: ref});
+      if (ref) location.href = "/journey.html?ref=" + encodeURIComponent(ref);
+    };
+    boot().catch(e => log(e.message));
+  </script>
+</body>
+</html>

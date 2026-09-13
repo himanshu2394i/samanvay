@@ -2,78 +2,115 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Samanvay — citizen</title>
-  <style>
-    body { font-family: sans-serif; max-width: 40rem; margin: 2rem auto; }
-    label { display: block; margin-top: 0.6rem; }
-    button { margin-top: 1rem; }
-    pre { background: #f4f4f4; padding: 0.8rem; overflow: auto; }
-    nav a { margin-right: 1rem; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Samanvay — Command Center</title>
+  <link rel="stylesheet" href="/console.css"/>
 </head>
 <body>
-  <nav>
-    <a href="/">Citizen</a>
-    <a href="/ops.html">Ops</a>
-    <a href="/audit.html">Audit</a>
-    <a href="/onboard.html">Onboard</a>
-  </nav>
-  <h1>Citizen journeys</h1>
-  <p>Thin UI. Keycloak brokering is stubbed. Payloads are never stored. See <code>docs/demo/PHASE4_RUNBOOK.md</code> for the eight-beat rehearsal.</p>
-  <label>Citizen id <input id="citizenId" size="40"/></label>
-  <button type="button" onclick="registerCitizen()">Register Ramesh</button>
-  <button type="button" onclick="linkAndConsent()">Link + consent</button>
-  <button type="button" onclick="startJourney()">Start scholarship</button>
-  <label>Reference <input id="ref" size="30"/></label>
-  <button type="button" onclick="loadStatus()">Load status</button>
-  <pre id="out"></pre>
+  <div class="shell" id="shell">
+    <header class="mast">
+      <div class="brand"><em>समन्वय</em> SAMANVAY</div>
+      <div class="tag">Interoperability infrastructure — control plane console. Not a citizen service portal.</div>
+    </header>
+    <nav class="bar">
+      <a href="/" class="active">Command</a>
+      <a href="/journey.html">Journey</a>
+      <a href="/ops.html">Incident</a>
+      <a href="/audit.html">Audit</a>
+      <a href="/onboard.html" class="side">Onboard · tool</a>
+      <a href="/caller.html" class="side">Caller · tool</a>
+    </nav>
+    <p class="lede">Live counts from catalog, tracking, orchestration, identity, and audit. Journey codes in the catalog are evidence the layer is generic.</p>
+    <div class="grid" id="kpis"></div>
+    <div class="card" style="margin-top:0.85rem">
+      <h2>Registered journeys</h2>
+      <div id="journeys"><p class="empty">Loading…</p></div>
+    </div>
+    <div class="card" style="margin-top:0.85rem">
+      <h2>Department health</h2>
+      <p class="note">Catalog status plus live step outcomes and open exceptions. Seeded connector <code>health_status</code> is not shown — it is not updated at runtime.</p>
+      <div id="depts"><p class="empty">Loading…</p></div>
+    </div>
+    <div class="card" style="margin-top:0.85rem">
+      <h2>Active applications</h2>
+      <div id="apps"><p class="empty">Loading…</p></div>
+    </div>
+  </div>
+  <script src="/console.js"></script>
   <script>
-    const out = document.getElementById('out');
-    const log = (x) => out.textContent = typeof x === 'string' ? x : JSON.stringify(x, null, 2);
-    async function registerCitizen() {
-      const id = await (await fetch('/api/identity/citizens', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          nameLatin:'Ramesh Kumar', nameDevanagari:'रमेश', familyName:'Kumar',
-          fatherName:'Suresh', dob:'2004-01-15', dobPrecision:'DAY'
-        })
-      })).json();
-      document.getElementById('citizenId').value = id;
-      log({citizenId:id});
-    }
-    async function linkAndConsent() {
-      const citizenId = document.getElementById('citizenId').value;
-      for (const [departmentCode, localIdType, localId] of [
-        ['REVENUE','RATION','RC-4471-88'],
-        ['EDUCATION','STUDENT','STU-1001'],
-        ['DBT','DBT','DBT-55']
-      ]) {
-        await fetch('/api/identity/links', {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({citizenId, departmentCode, localIdType, localId, proof:'stub'})});
+    async function load() {
+      const kpis = document.getElementById("kpis");
+      try {
+        const [departments, journeys, apps, exceptions, verify, head, review] = await Promise.all([
+          api("/api/catalog/departments"),
+          api("/api/catalog/journeys"),
+          api("/api/applications?size=50"),
+          api("/api/journeys/exceptions"),
+          api("/api/audit/verify"),
+          api("/api/audit/head"),
+          api("/api/identity/review-queue?size=1"),
+        ]);
+        const now = Date.now();
+        const slaBreach = apps.filter(a => a.slaDueAt && Date.parse(a.slaDueAt) < now).length;
+        const byStatus = {};
+        apps.forEach(a => { byStatus[a.status] = (byStatus[a.status] || 0) + 1; });
+        kpis.innerHTML = `
+          <div class="card"><h3>Audit chain</h3><div class="metric ${verify.valid ? "ok" : "bad"}">${verify.valid ? "VALID" : "BROKEN"}<small>head seq ${esc(head.seq)} · ${esc(verify.fromSeq)}–${esc(verify.toSeq)}</small></div></div>
+          <div class="card"><h3>Open exceptions</h3><div class="metric ${exceptions.length ? "warn" : "ok"}">${exceptions.length}<small>orchestration queue</small></div></div>
+          <div class="card"><h3>Applications</h3><div class="metric">${apps.length}<small>${esc(Object.entries(byStatus).map(([k,v]) => k + " " + v).join(" · ") || "none yet")}</small></div></div>
+          <div class="card"><h3>SLA due vs now</h3><div class="metric ${slaBreach ? "bad" : "ok"}">${slaBreach}<small>breached of ${apps.length} listed</small></div></div>
+          <div class="card"><h3>Identity review</h3><div class="metric">${esc(review.totalElements ?? (review.content || []).length)}<small>pending candidates</small></div></div>
+          <div class="card"><h3>Departments</h3><div class="metric">${departments.length}<small>${esc(departments.filter(d => d.status === "ACTIVE").length)} ACTIVE in catalog</small></div></div>`;
+
+        document.getElementById("journeys").innerHTML = journeys.length
+          ? `<table><tr><th>Code</th><th>Name</th><th>Status</th><th>In flight</th></tr>${
+              journeys.map(j => {
+                const n = apps.filter(a => a.journeyCode === j.code).length;
+                return `<tr><td class="mono">${esc(j.code)}</td><td>${esc(j.name)}</td><td class="${tone(j.status)}">${esc(j.status)}</td><td>${n}</td></tr>`;
+              }).join("")
+            }</table>`
+          : `<p class="empty">No journeys in catalog.</p>`;
+
+        const stepLists = await Promise.all(apps.map(a =>
+          api("/api/applications/" + encodeURIComponent(a.referenceNo) + "/steps").catch(() => [])
+        ));
+        const deptLive = {};
+        departments.forEach(d => { deptLive[d.code] = {failed: 0, pending: 0, done: 0, exc: 0}; });
+        stepLists.flat().forEach(s => {
+          const d = deptLive[s.departmentCode] || (deptLive[s.departmentCode] = {failed: 0, pending: 0, done: 0, exc: 0});
+          if (s.status === "FAILED") d.failed++;
+          else if (s.status === "PENDING_SOURCE") d.pending++;
+          else if (s.status === "COMPLETED") d.done++;
+        });
+        exceptions.forEach(x => {
+          const hit = Object.keys(deptLive).find(code => String(x.stepCode || "").includes(code) || String(x.reason || "").includes(code));
+          if (hit) deptLive[hit].exc++;
+        });
+        document.getElementById("depts").innerHTML = `<table><tr><th>Dept</th><th>Catalog</th><th>Live</th><th>Steps</th></tr>${
+          departments.map(d => {
+            const live = deptLive[d.code] || {failed: 0, pending: 0, done: 0, exc: 0};
+            let health = "QUIET";
+            let cls = "";
+            if (live.failed || live.exc) { health = "DEGRADED"; cls = "bad"; }
+            else if (live.pending) { health = "PENDING"; cls = "warn"; }
+            else if (live.done) { health = "FLOWING"; cls = "ok"; }
+            return `<tr><td>${esc(d.name)} <span class="mono">${esc(d.code)}</span></td><td class="${tone(d.status)}">${esc(d.status)}</td><td class="${cls}">${health}</td><td class="mono">${live.done} ok / ${live.pending} pending / ${live.failed} failed / ${live.exc} exc</td></tr>`;
+          }).join("")
+        }</table>`;
+
+        document.getElementById("apps").innerHTML = apps.length
+          ? `<table><tr><th>Reference</th><th>Journey</th><th>Status</th><th>SLA</th></tr>${
+              apps.map(a => {
+                const breach = a.slaDueAt && Date.parse(a.slaDueAt) < now;
+                return `<tr><td><a href="/journey.html?ref=${encodeURIComponent(a.referenceNo)}">${esc(a.referenceNo)}</a></td><td class="mono">${esc(a.journeyCode)}</td><td class="${tone(a.status)}">${esc(a.status)}</td><td class="${breach ? "bad" : ""}">${breach ? "BREACH" : esc(a.slaDueAt || "—")}</td></tr>`;
+              }).join("")
+            }</table>`
+          : `<p class="empty">No applications yet. Start one from the <a href="/caller.html">external caller demo</a>.</p>`;
+      } catch (e) {
+        showErr(kpis, e);
       }
-      const req = await (await fetch('/api/consent/requests', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({citizenId, requesterId:'SCHOLARSHIP', purposeCode:'SCHOLARSHIP_ELIGIBILITY',
-          purposeText:'Scholarship', categories:['INCOME_CERTIFICATE','CASTE_CERTIFICATE','MARKS','BANK_ACCOUNT']})
-      })).json();
-      const art = await (await fetch('/api/consent/requests/'+req.id+'/grant', {method:'POST',
-        headers:{'Content-Type':'application/json','X-Auth-Jti':'ui-session'},
-        body: JSON.stringify({citizenId})})).json();
-      log({linked:true, consent:art});
     }
-    async function startJourney() {
-      const citizenId = document.getElementById('citizenId').value;
-      const inst = await (await fetch('/api/journeys/POST_MATRIC_SCHOLARSHIP/start', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({citizenId, submission:{}})
-      })).json();
-      log(inst);
-    }
-    async function loadStatus() {
-      const ref = document.getElementById('ref').value;
-      const app = await (await fetch('/api/applications/'+ref)).json();
-      const steps = await (await fetch('/api/applications/'+ref+'/steps')).json();
-      log({app, steps});
-    }
+    load();
   </script>
 </body>
 </html>

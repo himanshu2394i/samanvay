@@ -172,7 +172,14 @@ class TrackingServices implements ApplicationTracking {
     @Override
     public ApplicationView byReference(String referenceNo) {
         ApplicationEntity e = applications.findByReferenceNo(referenceNo).orElseThrow(() -> new ApplicationNotFoundException(referenceNo));
-        return new ApplicationView(e.getReferenceNo(), e.getCitizenId(), e.getJourneyCode(), e.getStatus(), e.getSubmittedAt(), e.getSlaDueAt());
+        return new ApplicationView(
+                e.getReferenceNo(),
+                e.getCitizenId(),
+                e.getJourneyCode(),
+                e.getStatus(),
+                e.getSubmittedAt(),
+                e.getSlaDueAt(),
+                e.getId());
     }
 
     @Override
@@ -180,7 +187,12 @@ class TrackingServices implements ApplicationTracking {
         return applications
                 .findByCitizenId(citizenId, p)
                 .map(e -> new ApplicationSummary(
-                        e.getReferenceNo(), e.getCitizenId(), e.getJourneyCode(), e.getStatus(), e.getSlaDueAt()));
+                        e.getReferenceNo(),
+                        e.getCitizenId(),
+                        e.getJourneyCode(),
+                        e.getStatus(),
+                        e.getSlaDueAt(),
+                        e.getId()));
     }
 
     @Override
@@ -188,7 +200,12 @@ class TrackingServices implements ApplicationTracking {
         return applications
                 .findAll(p)
                 .map(e -> new ApplicationSummary(
-                        e.getReferenceNo(), e.getCitizenId(), e.getJourneyCode(), e.getStatus(), e.getSlaDueAt()));
+                        e.getReferenceNo(),
+                        e.getCitizenId(),
+                        e.getJourneyCode(),
+                        e.getStatus(),
+                        e.getSlaDueAt(),
+                        e.getId()));
     }
 
     @Override

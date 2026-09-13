@@ -2,62 +2,121 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Samanvay — audit verifier</title>
-  <style>
-    body { font-family: sans-serif; max-width: 52rem; margin: 2rem auto; }
-    button { margin: 0.4rem 0.4rem 0 0; }
-    pre { background: #f4f4f4; padding: 0.8rem; overflow: auto; }
-    .fail { color: #a10; }
-    .ok { color: #163; }
-    nav a { margin-right: 1rem; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Samanvay — Audit Ledger</title>
+  <link rel="stylesheet" href="/console.css"/>
 </head>
 <body>
-  <nav>
-    <a href="/">Citizen</a>
-    <a href="/ops.html">Ops</a>
-    <a href="/audit.html">Audit</a>
-    <a href="/onboard.html">Onboard</a>
-  </nav>
-  <h1>Audit explorer</h1>
-  <p>Beat 6: verify the hash chain, then tamper one row (migrate role) and watch verification fail. The app role cannot UPDATE <code>audit.audit_entry</code>.</p>
-  <p>Head seq: <strong id="head">—</strong></p>
-  <label>From <input id="from" type="number" min="1" value="1"/></label>
-  <label>To <input id="to" type="number" min="1"/></label>
-  <button type="button" onclick="verify()">Verify range</button>
-  <button type="button" onclick="tamper()">Tamper head (demo)</button>
-  <button type="button" onclick="loadEntries()">Load entries</button>
-  <p id="result"></p>
-  <pre id="out"></pre>
+  <div class="shell" id="shell">
+    <header class="mast">
+      <div class="brand"><em>समन्वय</em> SAMANVAY</div>
+      <div class="tag">Interoperability infrastructure — hash-chained audit ledger.</div>
+    </header>
+    <nav class="bar">
+      <a href="/">Command</a>
+      <a href="/journey.html">Journey</a>
+      <a href="/ops.html">Incident</a>
+      <a href="/audit.html" class="active">Audit</a>
+      <a href="/onboard.html" class="side">Onboard · tool</a>
+      <a href="/caller.html" class="side">Caller · tool</a>
+    </nav>
+    <p class="lede">Verify the chain from live <code>/api/audit/*</code>. Tamper POST exists only on the demo profile; the app role still cannot UPDATE <code>audit.audit_entry</code>.</p>
+    <div class="callout">Tamper beat: boot with <code>--spring.profiles.active=demo</code>. Default boot 404s <code>POST /api/audit/demo/tamper/{seq}</code>.</div>
+    <div class="grid">
+      <div class="card"><h3>Head seq</h3><div class="metric mono" id="head">—</div></div>
+      <div class="card"><h3>Checkpoint</h3><div class="metric" id="ckpt">—<small id="ckptSub"></small></div></div>
+    </div>
+    <div class="row" style="margin-top:1rem">
+      <label>From <input id="from" type="number" min="1" value="1"/></label>
+      <label>To <input id="to" type="number" min="1"/></label>
+    </div>
+    <div class="row">
+      <button type="button" id="verifyBtn">Verify range</button>
+      <button type="button" class="danger" id="tamperBtn">Tamper head (demo)</button>
+      <button type="button" id="entriesBtn">Load entries</button>
+    </div>
+    <div id="okBanner" class="banner"><strong class="ok">CHAIN INTACT</strong> <span id="okText"></span></div>
+    <div id="failBanner" class="banner fail">
+      <h2>TAMPER DETECTED</h2>
+      <p id="failText"></p>
+      <div class="chain" id="chain"></div>
+    </div>
+    <div id="entries"></div>
+    <pre id="out"></pre>
+  </div>
+  <script src="/console.js"></script>
   <script>
-    const out = document.getElementById('out');
-    const result = document.getElementById('result');
-    const log = (x) => out.textContent = typeof x === 'string' ? x : JSON.stringify(x, null, 2);
+    const out = document.getElementById("out");
+    const log = (x) => { out.textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2); };
     async function head() {
-      const h = await (await fetch('/api/audit/head')).json();
-      document.getElementById('head').textContent = h.seq;
-      if (!document.getElementById('to').value) document.getElementById('to').value = h.seq;
+      const [h, ck] = await Promise.all([api("/api/audit/head"), api("/api/audit/checkpoint")]);
+      document.getElementById("head").textContent = h.seq;
+      if (!document.getElementById("to").value) document.getElementById("to").value = h.seq;
+      if (ck) {
+        document.getElementById("ckpt").innerHTML = esc(ck.uptoEntrySeq) + `<small>signed ${esc(when(ck.signedAt))}</small>`;
+      } else {
+        document.getElementById("ckpt").textContent = "none";
+      }
       return h.seq;
     }
+    function paint(r) {
+      const ok = document.getElementById("okBanner");
+      const fail = document.getElementById("failBanner");
+      const from = Number(r.fromSeq || document.getElementById("from").value || 1);
+      const to = Number(r.toSeq || document.getElementById("to").value || from);
+      const beads = [];
+      const span = Math.max(1, to - from + 1);
+      const max = Math.min(span, 48);
+      const step = Math.max(1, Math.floor(span / max));
+      for (let seq = from; seq <= to; seq += step) {
+        const brk = !r.valid && r.failedAtSeq != null && seq >= r.failedAtSeq && seq < r.failedAtSeq + step;
+        beads.push(`<span class="bead ${brk ? "brk" : (r.valid ? "ok" : "")}">${seq}</span>`);
+      }
+      document.getElementById("chain").innerHTML = beads.join("");
+      if (r.valid) {
+        fail.classList.remove("show");
+        ok.classList.add("show");
+        document.getElementById("okText").textContent = `seq ${r.fromSeq}–${r.toSeq}`;
+      } else {
+        ok.classList.remove("show");
+        fail.classList.add("show");
+        document.getElementById("failText").textContent =
+          `Verification failed at seq ${r.failedAtSeq}. ${r.reason || "entry was modified"}. The hash chain no longer closes.`;
+      }
+    }
     async function verify() {
-      const from = document.getElementById('from').value || 1;
-      const to = document.getElementById('to').value;
-      const r = await (await fetch('/api/audit/verify?from=' + from + '&to=' + to)).json();
-      result.className = r.valid ? 'ok' : 'fail';
-      result.textContent = r.valid ? 'Chain valid' : ('FAILED at seq ' + r.failedAtSeq + ': ' + r.reason);
+      const from = document.getElementById("from").value || 1;
+      const to = document.getElementById("to").value;
+      const r = await api("/api/audit/verify?from=" + from + "&to=" + to);
+      paint(r);
       log(r);
     }
     async function tamper() {
       const seq = await head();
-      const r = await (await fetch('/api/audit/demo/tamper/' + seq, {method:'POST'})).json();
-      result.className = 'fail';
-      result.textContent = r.valid ? 'Unexpected pass' : ('FAILED at seq ' + r.failedAtSeq + ': ' + r.reason);
-      log(r);
+      try {
+        const r = await api("/api/audit/demo/tamper/" + seq, {method: "POST"});
+        paint(r);
+        log(r);
+      } catch (e) {
+        document.getElementById("failBanner").classList.add("show");
+        document.getElementById("failText").textContent =
+          e.status === 404
+            ? "Tamper endpoint is 404. This is correct on default boot. Rerun with --spring.profiles.active=demo."
+            : e.message;
+        log(e.body || e.message);
+      }
     }
     async function loadEntries() {
-      log(await (await fetch('/api/audit/entries?size=40')).json());
+      const rows = await api("/api/audit/entries?size=40");
+      document.getElementById("entries").innerHTML = `<table><tr><th>Seq</th><th>Action</th><th>Subject</th><th>Outcome</th><th>Reason</th></tr>${
+        rows.map(r => `<tr><td>${esc(r.seq)}</td><td>${esc(r.action)}</td><td class="mono">${esc(r.subjectId)}</td><td>${esc(r.outcome)}</td><td>${esc(r.reason)}</td></tr>`).join("")
+      }</table>`;
+      log(rows);
     }
-    head();
+    document.getElementById("verifyBtn").onclick = () => verify().catch(e => log(e.message));
+    document.getElementById("tamperBtn").onclick = () => tamper().catch(e => log(e.message));
+    document.getElementById("entriesBtn").onclick = () => loadEntries().catch(e => log(e.message));
+    head().then(verify).catch(e => log(e.message));
   </script>
 </body>
 </html>

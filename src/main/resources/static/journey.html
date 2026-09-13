@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Samanvay — Journey</title>
+  <link rel="stylesheet" href="/console.css"/>
+</head>
+<body>
+  <div class="shell" id="shell">
+    <header class="mast">
+      <div class="brand"><em>समन्वय</em> SAMANVAY</div>
+      <div class="tag">Interoperability infrastructure — one application reference, federated steps.</div>
+    </header>
+    <nav class="bar">
+      <a href="/">Command</a>
+      <a href="/journey.html" class="active">Journey</a>
+      <a href="/ops.html">Incident</a>
+      <a href="/audit.html">Audit</a>
+      <a href="/onboard.html" class="side">Onboard · tool</a>
+      <a href="/caller.html" class="side">Caller · tool</a>
+    </nav>
+    <p class="lede">Timeline is Identity → Consent → department fetches → degraded/recovery. Numbers and steps come from tracking and catalog, not a hardcoded script.</p>
+    <label>Application reference <input id="ref" placeholder="MH-…"/></label>
+    <div class="row">
+      <button type="button" id="loadBtn">Load</button>
+      <button type="button" id="retryBtn">Retry pending</button>
+    </div>
+    <div id="meta"></div>
+    <ol class="timeline" id="tl"></ol>
+  </div>
+  <script src="/console.js"></script>
+  <script>
+    const refEl = document.getElementById("ref");
+    refEl.value = qs("ref") || "";
+    document.getElementById("loadBtn").onclick = load;
+    document.getElementById("retryBtn").onclick = retry;
+    async function retry() {
+      const meta = document.getElementById("meta");
+      try {
+        const app = await api("/api/applications/" + encodeURIComponent(refEl.value.trim()));
+        if (!app.instanceId) throw new Error("instance id missing on application");
+        await api("/api/journeys/instances/" + app.instanceId + "/retry", {method: "POST"});
+        await load();
+      } catch (e) { showErr(meta, e); }
+    }
+    async function load() {
+      const ref = refEl.value.trim();
+      const tl = document.getElementById("tl");
+      const meta = document.getElementById("meta");
+      if (!ref) {
+        const apps = await api("/api/applications?size=1");
+        if (apps[0]) { refEl.value = apps[0].referenceNo; return load(); }
+        tl.innerHTML = "";
+        meta.innerHTML = `<p class="empty">No application reference yet. Use the <a href="/caller.html">external caller demo</a>.</p>`;
+        return;
+      }
+      history.replaceState(null, "", "/journey.html?ref=" + encodeURIComponent(ref));
+      try {
+        const app = await api("/api/applications/" + encodeURIComponent(ref));
+        const steps = await api("/api/applications/" + encodeURIComponent(ref) + "/steps");
+        const journey = await api("/api/catalog/journeys/" + encodeURIComponent(app.journeyCode)).catch(() => null);
+        const [profile, links, consents, state, exceptions] = await Promise.all([
+          app.citizenId ? api("/api/identity/citizens/" + app.citizenId).catch(() => null) : null,
+          app.citizenId ? api("/api/identity/citizens/" + app.citizenId + "/links").catch(() => []) : [],
+          app.citizenId ? api("/api/consent/citizens/" + app.citizenId).catch(() => []) : [],
+          app.instanceId ? api("/api/journeys/instances/" + app.instanceId).catch(() => null) : null,
+          api("/api/journeys/exceptions"),
+        ]);
+        const mine = exceptions.filter(x => x.instanceId === app.instanceId);
+        meta.innerHTML = `<div class="card"><strong class="mono">${esc(app.referenceNo)}</strong>
+          · journey <span class="mono">${esc(app.journeyCode)}</span>
+          · status <span class="${tone(app.status)}">${esc(app.status)}</span>
+          · instance <span class="mono">${esc(app.instanceId || "—")}</span>
+          · submitted ${esc(when(app.submittedAt))}</div>`;
+        const items = [];
+        items.push({
+          cls: profile ? "ok" : "warn",
+          title: "Identity",
+          body: profile
+            ? `${esc(profile.nameLatin)} · ${esc(profile.citizenId)} · ${links.length} department link(s): ${esc(links.map(l => l.departmentCode + ":" + l.localIdType).join(", ") || "none")}`
+            : "Citizen profile not loaded.",
+        });
+        const granted = (consents || []).filter(c => c.status === "GRANTED" || c.status === "ACTIVE");
+        const revoked = (consents || []).filter(c => c.status === "REVOKED");
+        items.push({
+          cls: revoked.length && !granted.length ? "bad" : (consents.length ? "ok" : "warn"),
+          title: "Consent",
+          body: consents.length
+            ? `${consents.length} artifact(s). Granted/active ${granted.length}. Revoked ${revoked.length}. ${esc((consents[0] && consents[0].purposeCode) || "")}`
+            : "No consent artifacts for this citizen.",
+        });
+        const byCat = Object.fromEntries(steps.map(s => [s.stepCode, s]));
+        const cats = (journey && journey.requiredCategories) || steps.map(s => s.stepCode);
+        cats.forEach(cat => {
+          const s = byCat[cat];
+          const dept = (journey && journey.policy && journey.policy.sources && journey.policy.sources[cat]) || (s && s.departmentCode) || "?";
+          const st = s ? s.status : "NOT_STARTED";
+          items.push({
+            cls: tone(st) || (s ? "" : "warn"),
+            title: `Department · ${dept} · ${cat}`,
+            body: s
+              ? `${esc(st)} · source ${esc(s.source)} · ${esc(unwrap(s.outcome))} · ${esc(when(s.completedAt || s.startedAt))}`
+              : "No tracking step yet.",
+          });
+        });
+        const degraded = app.status === "PARTIALLY_VERIFIED" || steps.some(s => s.status === "PENDING_SOURCE" || s.status === "FAILED") || mine.length;
+        items.push({
+          cls: degraded ? "warn" : "ok",
+          title: degraded ? "Degraded / recovery" : "Recovery",
+          body: degraded
+            ? `Orchestration ${esc(state && state.status || app.status)}. Open exceptions: ${mine.length || 0}. ${mine.map(x => esc(x.stepCode) + " — " + esc(x.reason)).join("; ") || "Pending source or failed step. Use Incident to kill/revive (demo profile) then Retry."}`
+            : `No open degradation. Journey state ${esc(state && state.status || app.status)}.`,
+        });
+        tl.innerHTML = items.map(i => `<li class="${i.cls}"><strong>${i.title}</strong><div>${i.body}</div></li>`).join("");
+      } catch (e) {
+        showErr(meta, e);
+        tl.innerHTML = "";
+      }
+    }
+    load();
+  </script>
+</body>
+</html>
