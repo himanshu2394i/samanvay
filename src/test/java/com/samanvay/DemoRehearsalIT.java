@@ -118,7 +118,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 links("REVENUE", "RATION", "EDUCATION", "STUDENT", "DBT", "DBT"));
         JourneyInstance down = journeys.start(
                 "POST_MATRIC_SCHOLARSHIP", chaosCitizen, JsonMapper.builder().build().createObjectNode());
-        assertThat(awaitProjected(chaosCitizen).status()).isEqualTo("PARTIALLY_VERIFIED");
+        assertThat(awaitStatus(chaosCitizen, "PARTIALLY_VERIFIED").status()).isEqualTo("PARTIALLY_VERIFIED");
         chaos.revive("revenue-rest-mock");
         journeys.retryPending(down.id());
         assertThat(awaitStatus(chaosCitizen, "VERIFIED").status()).isEqualTo("VERIFIED");
