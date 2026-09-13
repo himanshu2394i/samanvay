@@ -70,6 +70,16 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
+        <!-- Resilience4j: circuit breaker / retry / bulkhead for connector's
+             per-data-source resilience (see docs/architecture/lld/06-connector.md).
+             The "-spring-boot4" artifact, not "-spring-boot3" - verified on
+             Maven Central, released specifically for Boot 4 / Spring 7. -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot4</artifactId>
+            <version>2.4.0</version>
+        </dependency>
+
         <!--
             Spring Modulith: module boundaries + event publication registry.
             The "-jdbc" starter (not "-jpa") is deliberate: our own entities

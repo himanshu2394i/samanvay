@@ -2,9 +2,14 @@ services:
   postgres:
     image: postgres:16
     environment:
+      # samanvay_migrate owns every schema/table and runs migrations. The
+      # running application never connects as this role - see
+      # docs/architecture/lld/01-audit.md #1 for why: a role that owns a
+      # table implicitly has every privilege on it regardless of REVOKE,
+      # which would silently defeat audit's tamper-evidence guarantee.
       POSTGRES_DB: samanvay
-      POSTGRES_USER: samanvay
-      POSTGRES_PASSWORD: samanvay
+      POSTGRES_USER: samanvay_migrate
+      POSTGRES_PASSWORD: samanvay_migrate
     ports:
       - "5432:5432"
     volumes:

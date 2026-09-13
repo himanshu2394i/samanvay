@@ -92,7 +92,7 @@ public interface AccessGrantVerifier {
 | `consent_request` | Pending requests awaiting citizen action |
 | `consent_artifact` | subject, requester, purpose, categories, granularity, validity, `frequency_limit`, status, `version`, `citizen_auth_ref` |
 | `consent_event` | Immutable grant/revoke/expire log (mirrored to `audit`) |
-| `access_grant` | `id`, `nonce` (unique), consent id + version, subject, requester, category, department, connector, `issued_at`, `expires_at`, `used_at`, `signature` |
+| `consent_access_grant` | `id`, `nonce` (unique), consent id + version, subject, requester, category, department, connector, `issued_at`, `expires_at`, `used_at`, `signature` |
 
 Grants are metadata. Persisted for nonce enforcement and audit; archived after 90 days.
 

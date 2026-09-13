@@ -34,27 +34,27 @@ the platform is generic**, not as the product.
 |---|---|
 | [docs/architecture/HLD.md](docs/architecture/HLD.md) | **High Level Design — combined.** Single source of truth for principles, flows and technology decisions |
 | [docs/architecture/hld/](docs/architecture/hld/README.md) | High Level Design — one charter per module, plus the dependency graph |
-| `docs/architecture/LLD.md` | Low Level Design — combined *(pending)* |
-| `docs/architecture/lld/` | Low Level Design — one document per module *(pending)* |
+| [docs/architecture/LLD.md](docs/architecture/LLD.md) | **Low Level Design — combined.** Package layout, DB conventions, error handling, testing, cross-module sequence diagrams |
+| [docs/architecture/lld/](docs/architecture/lld/README.md) | Low Level Design — one document per module: DDL, class design, sequences, tests |
 
 ### Modules
 
-| # | Module | Plane | Phase |
-|---|---|---|---|
-| [01](docs/architecture/hld/01-audit.md) | `audit` | Cross-cutting | 0 |
-| [02](docs/architecture/hld/02-catalog.md) | `catalog` | Control | 1 |
-| [03](docs/architecture/hld/03-identity.md) | `identity` | Control | 1 → 2 |
-| [04](docs/architecture/hld/04-registry.md) | `registry` | Control | 1 → 2 |
-| [05](docs/architecture/hld/05-consent.md) | `consent` + `AccessAuthority` | Control | 1 |
-| [06](docs/architecture/hld/06-connector.md) | `connector` | Data | 1 → 2 |
-| [07](docs/architecture/hld/07-orchestration.md) | `orchestration` | Data | 1 → 2 |
-| [08](docs/architecture/hld/08-tracking.md) | `tracking` | Data | 1 |
-| [09](docs/architecture/hld/09-notifications.md) | `notifications` | Data | 2 |
+| # | Module | Plane | Phase | HLD | LLD |
+|---|---|---|---|---|---|
+| 01 | `audit` | Cross-cutting | 0 | [charter](docs/architecture/hld/01-audit.md) | [LLD](docs/architecture/lld/01-audit.md) |
+| 02 | `catalog` | Control | 1 | [charter](docs/architecture/hld/02-catalog.md) | [LLD](docs/architecture/lld/02-catalog.md) |
+| 03 | `identity` | Control | 1 → 2 | [charter](docs/architecture/hld/03-identity.md) | [LLD](docs/architecture/lld/03-identity.md) |
+| 04 | `registry` | Control | 1 → 2 | [charter](docs/architecture/hld/04-registry.md) | [LLD](docs/architecture/lld/04-registry.md) |
+| 05 | `consent` + `AccessAuthority` | Control | 1 | [charter](docs/architecture/hld/05-consent.md) | [LLD](docs/architecture/lld/05-consent.md) |
+| 06 | `connector` | Data | 1 → 2 | [charter](docs/architecture/hld/06-connector.md) | [LLD](docs/architecture/lld/06-connector.md) |
+| 07 | `orchestration` | Data | 1 → 2 | [charter](docs/architecture/hld/07-orchestration.md) | [LLD](docs/architecture/lld/07-orchestration.md) |
+| 08 | `tracking` | Data | 1 | [charter](docs/architecture/hld/08-tracking.md) | [LLD](docs/architecture/lld/08-tracking.md) |
+| 09 | `notifications` | Data | 2 | [charter](docs/architecture/hld/09-notifications.md) | [LLD](docs/architecture/lld/09-notifications.md) |
 
 ## Stack
 
-**Backend** Java 21 · Spring Boot 3 · Spring Modulith · PostgreSQL 16 · Flowable (behind a
-port) · Keycloak · Resilience4j · Flyway
+**Backend** Java 21 · Spring Boot 4 (Spring Framework 7) · Spring Modulith 2.x ·
+PostgreSQL 16 · Flowable 8.x (behind a port) · Keycloak · Resilience4j · Flyway
 
 **Frontend** React 18 · TypeScript · Vite · React Router · TanStack Query · Zod · React
 Hook Form

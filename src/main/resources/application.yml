@@ -2,15 +2,25 @@ spring:
   application:
     name: samanvay-core
   datasource:
+    # The app's runtime connection. Deliberately NOT samanvay_migrate -
+    # see docs/architecture/lld/01-audit.md #1. This role owns nothing,
+    # so its privileges are exactly what's explicitly granted, no more.
     url: jdbc:postgresql://localhost:5432/samanvay
-    username: samanvay
-    password: samanvay
+    username: samanvay_app
+    password: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
   flyway:
     enabled: true
+    # Migrations run as the schema-owning admin role, separate from the
+    # app's own runtime connection above.
+    url: jdbc:postgresql://localhost:5432/samanvay
+    user: samanvay_migrate
+    password: ${SAMANVAY_MIGRATE_DB_PASSWORD:samanvay_migrate}
+    placeholders:
+      appRolePassword: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
   modulith:
     events:
       # Spring Modulith's own internal event_publication table (the
