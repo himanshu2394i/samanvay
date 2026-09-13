@@ -1,6 +1,7 @@
 package com.samanvay.catalog.internal.web;
 
 import com.samanvay.catalog.api.CatalogOnboarding;
+import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
 import com.samanvay.catalog.api.ConnectorTestReport;
@@ -30,6 +31,7 @@ class CatalogController {
 
     private final DepartmentCatalog departments;
     private final JourneyCatalog journeys;
+    private final ConnectorCatalog connectors;
     private final CatalogOnboarding onboarding;
     private final SpecImport importer;
     private final SchemaCatalog schemas;
@@ -37,11 +39,13 @@ class CatalogController {
     CatalogController(
             DepartmentCatalog departments,
             JourneyCatalog journeys,
+            ConnectorCatalog connectors,
             CatalogOnboarding onboarding,
             SpecImport importer,
             SchemaCatalog schemas) {
         this.departments = departments;
         this.journeys = journeys;
+        this.connectors = connectors;
         this.onboarding = onboarding;
         this.importer = importer;
         this.schemas = schemas;
@@ -52,9 +56,19 @@ class CatalogController {
         return departments.all();
     }
 
+    @GetMapping("/journeys")
+    List<JourneyDefinition> journeys() {
+        return journeys.all();
+    }
+
     @GetMapping("/journeys/{code}")
     JourneyDefinition journey(@PathVariable String code) {
         return journeys.byCode(code);
+    }
+
+    @GetMapping("/connectors")
+    List<ConnectorDefinition> connectors() {
+        return connectors.published();
     }
 
     @PostMapping("/departments")

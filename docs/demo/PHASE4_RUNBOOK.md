@@ -19,22 +19,35 @@ docker compose up -d
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
 
-Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tamper/{seq}` and `POST /api/connector/chaos/**` are unregistered (404).
+Open the Phase-UI console at `http://localhost:8080/` (Command Center). It is a **judge/ops control plane**, not a scholarship/NOC/subsidy portal.
+
+Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tamper/{seq}` and `POST /api/connector/chaos/**` are unregistered (404). **Incident kill/revive and Audit tamper need `--spring.profiles.active=demo`.**
 
 | Beat | Where | How it is proven |
 |---|---|---|
-| 1 | Three portals / same form | Problem statement; not automated. Citizen page starts each journey independently. |
+| 1 | Three portals / same form | Problem statement; not automated. `/caller.html` is an **external caller demo** that can start any catalog journey. |
 | 2 | Link department IDs + SSO | Linking works via `/api/identity/links`. **Keycloak full brokering stays stubbed** (`X-Auth-Jti`). |
-| 3 | Scholarship fan-out | `ScholarshipJourneyIT` + citizen Start scholarship |
-| 4 | Revenue killed mid-flight | Ops: Kill Revenue → start scholarship → status `PARTIALLY_VERIFIED`, Exceptions queue → Revive → Retry pending |
-| 5 | Consent revoke | Citizen revoke (`POST /api/consent/{id}/revoke`) → next `AccessAuthority.authorize` is `DENIED` (`GRANT_DENIED` on Ops denials) |
-| 6 | Audit verifier | `/audit.html`: Verify range (green) → Tamper head → fail (“entry was modified”). Tamper uses the **migrate** role; `samanvay_app` still cannot `UPDATE` |
+| 3 | Scholarship fan-out | `ScholarshipJourneyIT` + caller starts `POST_MATRIC_SCHOLARSHIP` (one catalog code among others) |
+| 4 | Revenue killed mid-flight | Incident (`/ops.html`): Kill `revenue-rest-mock` → start a journey → status `PARTIALLY_VERIFIED`, Exceptions → Revive → Retry pending |
+| 5 | Consent revoke | `POST /api/consent/{id}/revoke` → next `AccessAuthority.authorize` is `DENIED` (`GRANT_DENIED` on Incident denials) |
+| 6 | Audit verifier | `/audit.html`: Verify range (green) → Tamper head → spectacular fail. Tamper uses the **migrate** role; `samanvay_app` still cannot `UPDATE` |
 | 7 | Onboard from spec | `/onboard.html`: Suggest mappings (advisory) → check boxes → Save approved only |
 | 8 | Journey 3 is configuration | `FarmerSubsidyJourneyIT` + `git log` / Phase 3 tag: farmer subsidy landed as catalog/BPMN/policy, not Java |
 
+### Phase-UI surfaces
+
+| URL | Surface |
+|---|---|
+| `/` | Command Center — live catalog, applications, exceptions, audit verify, department health composed from steps |
+| `/journey.html?ref=…` | Journey timeline (Identity → Consent → departments → recovery) |
+| `/ops.html` | Incident / ops — chaos (demo), exceptions, retry, denials |
+| `/audit.html` | Audit ledger — verify, entries, demo tamper |
+| `/onboard.html` | Supporting OpenAPI import tool |
+| `/caller.html` | External caller demo (not the product) |
+
 ## Known gaps
 
-- No React SPA (HLD §11). Thin static HTML against existing APIs.
+- No React SPA (HLD §11). Thin static HTML Phase-UI against existing APIs.
 - Keycloak identity brokering is stubbed, not a live IdP hop.
 - Flowable Boot 4 remains optional behind `WorkflowEngine`.
 - Semantic/model mapping pass is omitted; suggestions are lexical only (HLD §8.2).

@@ -34,6 +34,11 @@ class JourneyCatalogService implements JourneyCatalog {
         return byCode(journeyCode).policy();
     }
 
+    @Override
+    public List<JourneyDefinition> all() {
+        return journeys.findAll().stream().map(this::toJourney).toList();
+    }
+
     private JourneyDefinition toJourney(JourneyEntity e) {
         JsonNode policy = e.getPolicy() == null ? JSON.createObjectNode() : JSON.readTree(e.getPolicy());
         boolean acceptStale = policy.get("accept_stale") != null && policy.get("accept_stale").booleanValue();

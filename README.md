@@ -70,6 +70,16 @@ docker compose up -d          # starts Postgres
 ./mvnw spring-boot:run        # Windows: .\mvnw.cmd spring-boot:run
 ```
 
+Judge/demo console (thin static HTML, not a service portal): `http://localhost:8080/`
+
+Incident kill/revive and audit tamper require demo profile:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
+```
+
+See [docs/demo/PHASE4_RUNBOOK.md](docs/demo/PHASE4_RUNBOOK.md).
+
 ## Contributing
 
 1. Branch off `main`, work in your module's package (`com.samanvay.<module>.*`).
