@@ -125,11 +125,11 @@
           : emptyBox("No tracked applications", 'This plane lists federated cases after an external caller starts a catalog journey. It is not a citizen intake form. Use the <a href="/caller.html">caller demo</a> to start one.');
         announce("Command Center telemetry loaded.");
       } catch (e) {
-        const msg = friendlyError(e);
         showErr(kpis, e);
-        journeysEl.innerHTML = `<p class="err" role="alert">${esc(msg)}</p>`;
-        deptsEl.innerHTML = `<p class="err" role="alert">${esc(msg)}</p>`;
-        appsEl.innerHTML = `<p class="err" role="alert">${esc(msg)}</p>`;
+        const quiet = `<p class="empty">Telemetry unavailable — see the error above.</p>`;
+        journeysEl.innerHTML = quiet;
+        deptsEl.innerHTML = quiet;
+        appsEl.innerHTML = quiet;
         announce("Command Center failed to load telemetry.");
       } finally {
         kpis.removeAttribute("aria-busy");

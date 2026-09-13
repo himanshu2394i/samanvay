@@ -56,6 +56,7 @@ class PhaseUiStaticPagesTest {
         assertThat(js).contains("function friendlyError(");
         assertThat(js).contains("function setBusy(");
         assertThat(js).contains("function tableHtml(");
+        assertThat(js).contains("The control plane API did not answer");
     }
 
     private static String page(String name) {

@@ -127,7 +127,8 @@ nav.bar a.side {
 nav.bar a.side.active,
 nav.bar a.side[aria-current="page"] { background: var(--chip); color: var(--ink); border-style: solid; }
 
-.page-title { margin: 0 0 0.3rem; font-size: 1.32rem; letter-spacing: 0.02em; }
+.page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.65rem; margin: 0 0 0.3rem; }
+.page-title { margin: 0; font-size: 1.32rem; letter-spacing: 0.02em; }
 .lede { color: var(--muted); margin: 0 0 1rem; max-width: 52rem; }
 .stack { display: flex; flex-direction: column; gap: 0.85rem; }
 

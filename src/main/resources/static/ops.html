@@ -145,9 +145,10 @@
         log(`${exceptions.length} exception(s), ${apps.length} application(s), ${denials.length} denial(s).`);
       } catch (e) {
         const msg = friendlyError(e);
+        const quiet = `<p class="empty">Telemetry unavailable — see the status above.</p>`;
         showErr(document.getElementById("exceptions"), e);
-        document.getElementById("apps").innerHTML = `<p class="err" role="alert">${esc(msg)}</p>`;
-        document.getElementById("denials").innerHTML = `<p class="err" role="alert">${esc(msg)}</p>`;
+        document.getElementById("apps").innerHTML = quiet;
+        document.getElementById("denials").innerHTML = quiet;
         setStatus(statusEl, "bad", msg);
       }
     }

@@ -52,7 +52,18 @@ function unwrap(v) {
   return String(v);
 }
 
+function looksLikeHtml(body) {
+  return typeof body === "string" && /<!DOCTYPE|<html/i.test(body);
+}
+
 function friendlyError(e, hint) {
+  const msg = (e && e.message) || String(e || "Request failed");
+  if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+    return "Cannot reach the control plane. Confirm the Spring app is running and open http://localhost:8080/.";
+  }
+  if (e && looksLikeHtml(e.body)) {
+    return "The control plane API did not answer. Start the Spring app and open http://localhost:8080/ — these pages only read /api/*.";
+  }
   if (e && e.status === 404 && hint === "demo") {
     return "This action is available only with the demo profile. Restart with --spring.profiles.active=demo. Default boot correctly returns 404.";
   }
@@ -68,7 +79,6 @@ function friendlyError(e, hint) {
   if (e && e.status >= 500) {
     return "The control plane could not complete that request. Retry in a moment.";
   }
-  const msg = (e && e.message) || String(e || "Request failed");
   if (msg.length > 220) return "The control plane returned an error. Open technical detail only if you need the raw response.";
   return msg;
 }
