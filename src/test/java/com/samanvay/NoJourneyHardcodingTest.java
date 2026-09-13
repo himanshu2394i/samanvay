@@ -11,20 +11,8 @@ import com.tngtech.archunit.lang.ArchRule;
 class NoJourneyHardcodingTest {
 
     @ArchTest
-    static final ArchRule no_department_for_switches = noMethods()
-            .that()
-            .haveName("departmentFor")
-            .should()
-            .beDeclaredInClassesThat()
-            .resideInAPackage("com.samanvay..")
-            .allowEmptyShould(true);
+    static final ArchRule no_department_for_switches = noMethods().should().haveName("departmentFor");
 
     @ArchTest
-    static final ArchRule no_categories_for_switches = noMethods()
-            .that()
-            .haveName("categoriesFor")
-            .should()
-            .beDeclaredInClassesThat()
-            .resideInAPackage("com.samanvay..")
-            .allowEmptyShould(true);
+    static final ArchRule no_categories_for_switches = noMethods().should().haveName("categoriesFor");
 }
