@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Samanvay — audit verifier</title>
+  <style>
+    body { font-family: sans-serif; max-width: 52rem; margin: 2rem auto; }
+    button { margin: 0.4rem 0.4rem 0 0; }
+    pre { background: #f4f4f4; padding: 0.8rem; overflow: auto; }
+    .fail { color: #a10; }
+    .ok { color: #163; }
+    nav a { margin-right: 1rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">Citizen</a>
+    <a href="/ops.html">Ops</a>
+    <a href="/audit.html">Audit</a>
+    <a href="/onboard.html">Onboard</a>
+  </nav>
+  <h1>Audit explorer</h1>
+  <p>Beat 6: verify the hash chain, then tamper one row (migrate role) and watch verification fail. The app role cannot UPDATE <code>audit.audit_entry</code>.</p>
+  <p>Head seq: <strong id="head">—</strong></p>
+  <label>From <input id="from" type="number" min="1" value="1"/></label>
+  <label>To <input id="to" type="number" min="1"/></label>
+  <button type="button" onclick="verify()">Verify range</button>
+  <button type="button" onclick="tamper()">Tamper head (demo)</button>
+  <button type="button" onclick="loadEntries()">Load entries</button>
+  <p id="result"></p>
+  <pre id="out"></pre>
+  <script>
+    const out = document.getElementById('out');
+    const result = document.getElementById('result');
+    const log = (x) => out.textContent = typeof x === 'string' ? x : JSON.stringify(x, null, 2);
+    async function head() {
+      const h = await (await fetch('/api/audit/head')).json();
+      document.getElementById('head').textContent = h.seq;
+      if (!document.getElementById('to').value) document.getElementById('to').value = h.seq;
+      return h.seq;
+    }
+    async function verify() {
+      const from = document.getElementById('from').value || 1;
+      const to = document.getElementById('to').value;
+      const r = await (await fetch('/api/audit/verify?from=' + from + '&to=' + to)).json();
+      result.className = r.valid ? 'ok' : 'fail';
+      result.textContent = r.valid ? 'Chain valid' : ('FAILED at seq ' + r.failedAtSeq + ': ' + r.reason);
+      log(r);
+    }
+    async function tamper() {
+      const seq = await head();
+      const r = await (await fetch('/api/audit/demo/tamper/' + seq, {method:'POST'})).json();
+      result.className = 'fail';
+      result.textContent = r.valid ? 'Unexpected pass' : ('FAILED at seq ' + r.failedAtSeq + ': ' + r.reason);
+      log(r);
+    }
+    async function loadEntries() {
+      log(await (await fetch('/api/audit/entries?size=40')).json());
+    }
+    head();
+  </script>
+</body>
+</html>

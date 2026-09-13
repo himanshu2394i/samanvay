@@ -262,6 +262,11 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
     }
 
     @Override
+    public List<String> refs() {
+        return schemas.findAll().stream().map(s -> s.getRef()).toList();
+    }
+
+    @Override
     public ValidationResult validate(String schemaRef, JsonNode document) {
         String def = definition(schemaRef);
         JsonNode schema = JSON.readTree(def);

@@ -15,6 +15,7 @@ import com.samanvay.connector.api.AdapterRequest;
 import com.samanvay.connector.api.Capability;
 import com.samanvay.connector.api.ConnectorResult;
 import com.samanvay.connector.api.ConnectorRuntime;
+import com.samanvay.connector.api.DepartmentChaos;
 import com.samanvay.connector.api.ExecutionInputs;
 import com.samanvay.connector.api.FailureKind;
 import com.samanvay.connector.api.ProtocolAdapter;
@@ -38,6 +39,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
     private final ResilienceRegistries resilience;
     private final MappingExecutor mapping;
     private final AuditService audit;
+    private final DepartmentChaos chaos;
     private final JsonMapper json = JsonMapper.builder().build();
 
     ConnectorRuntimeImpl(
@@ -47,7 +49,8 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             List<ProtocolAdapter> adapterList,
             ResilienceRegistries resilience,
             MappingExecutor mapping,
-            AuditService audit) {
+            AuditService audit,
+            DepartmentChaos chaos) {
         this.grantVerifier = grantVerifier;
         this.connectors = connectors;
         this.schemas = schemas;
@@ -56,6 +59,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
         this.resilience = resilience;
         this.mapping = mapping;
         this.audit = audit;
+        this.chaos = chaos;
     }
 
     @Override
@@ -95,6 +99,9 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                 template,
                 bound,
                 dataSource.authConfigRef());
+        if (chaos.killed(dataSource.code())) {
+            return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
+        }
         try {
             var adapter = adapters.get(dataSource.protocol());
             if (adapter == null) {

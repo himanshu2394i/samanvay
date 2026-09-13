@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Samanvay — ops</title>
+  <style>
+    body { font-family: sans-serif; max-width: 56rem; margin: 2rem auto; }
+    button { margin: 0.4rem 0.4rem 0 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { border: 1px solid #ccc; padding: 0.35rem 0.5rem; text-align: left; }
+    pre { background: #f4f4f4; padding: 0.8rem; overflow: auto; }
+    nav a { margin-right: 1rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">Citizen</a>
+    <a href="/ops.html">Ops</a>
+    <a href="/audit.html">Audit</a>
+    <a href="/onboard.html">Onboard</a>
+  </nav>
+  <h1>Ops / officer dashboards</h1>
+  <p>Beats 4–5: journey status, SLA due, exception queue, denial reasons. Revenue kill is a demo chaos switch on <code>revenue-rest-mock</code>.</p>
+  <button type="button" onclick="loadApps()">Applications</button>
+  <button type="button" onclick="loadExceptions()">Exceptions</button>
+  <button type="button" onclick="loadDenials()">Denial reasons</button>
+  <button type="button" onclick="killRevenue()">Kill Revenue</button>
+  <button type="button" onclick="reviveRevenue()">Revive Revenue</button>
+  <label>Retry instance <input id="retryId" size="40"/></label>
+  <button type="button" onclick="retry()">Retry pending</button>
+  <table id="tbl"></table>
+  <pre id="out"></pre>
+  <script>
+    const out = document.getElementById('out');
+    const tbl = document.getElementById('tbl');
+    const log = (x) => out.textContent = typeof x === 'string' ? x : JSON.stringify(x, null, 2);
+    function rows(headers, data, cells) {
+      tbl.innerHTML = '<tr>' + headers.map(h => '<th>'+h+'</th>').join('') + '</tr>' +
+        data.map(r => '<tr>' + cells(r).map(c => '<td>'+c+'</td>').join('') + '</tr>').join('');
+    }
+    async function loadApps() {
+      const data = await (await fetch('/api/applications?size=50')).json();
+      const now = Date.now();
+      rows(['ref','journey','status','SLA'], data, r => [
+        r.referenceNo, r.journeyCode, r.status,
+        r.slaDueAt && Date.parse(r.slaDueAt) < now ? 'BREACH' : (r.slaDueAt || '')
+      ]);
+      log(data);
+    }
+    async function loadExceptions() {
+      const data = await (await fetch('/api/journeys/exceptions')).json();
+      rows(['instance','step','reason'], data, r => [r.instanceId, r.stepCode, r.reason]);
+      if (data[0]) document.getElementById('retryId').value = data[0].instanceId;
+      log(data);
+    }
+    async function loadDenials() {
+      const data = await (await fetch('/api/audit/entries?action=GRANT_DENIED&size=40')).json();
+      rows(['seq','subject','reason'], data, r => [r.seq, r.subjectId, r.reason]);
+      log(data);
+    }
+    async function killRevenue() {
+      await fetch('/api/connector/chaos/revenue-rest-mock/kill', {method:'POST'});
+      log('Revenue killed');
+    }
+    async function reviveRevenue() {
+      await fetch('/api/connector/chaos/revenue-rest-mock/revive', {method:'POST'});
+      log('Revenue revived');
+    }
+    async function retry() {
+      const id = document.getElementById('retryId').value;
+      await fetch('/api/journeys/instances/' + id + '/retry', {method:'POST'});
+      log('retried ' + id);
+      loadApps();
+    }
+  </script>
+</body>
+</html>

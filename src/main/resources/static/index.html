@@ -2,17 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Samanvay — scholarship</title>
+  <title>Samanvay — citizen</title>
   <style>
     body { font-family: sans-serif; max-width: 40rem; margin: 2rem auto; }
     label { display: block; margin-top: 0.6rem; }
     button { margin-top: 1rem; }
     pre { background: #f4f4f4; padding: 0.8rem; overflow: auto; }
+    nav a { margin-right: 1rem; }
   </style>
 </head>
 <body>
-  <h1>Post-matric scholarship</h1>
-  <p>Thin Journey 1 UI. Auth is stubbed (Phase 1). Payloads are never stored.</p>
+  <nav>
+    <a href="/">Citizen</a>
+    <a href="/ops.html">Ops</a>
+    <a href="/audit.html">Audit</a>
+    <a href="/onboard.html">Onboard</a>
+  </nav>
+  <h1>Citizen journeys</h1>
+  <p>Thin UI. Keycloak brokering is stubbed. Payloads are never stored. See <code>docs/demo/PHASE4_RUNBOOK.md</code> for the eight-beat rehearsal.</p>
   <label>Citizen id <input id="citizenId" size="40"/></label>
   <button type="button" onclick="registerCitizen()">Register Ramesh</button>
   <button type="button" onclick="linkAndConsent()">Link + consent</button>

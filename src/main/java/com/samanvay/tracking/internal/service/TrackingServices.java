@@ -179,7 +179,16 @@ class TrackingServices implements ApplicationTracking {
     public Page<ApplicationSummary> forCitizen(UUID citizenId, Pageable p) {
         return applications
                 .findByCitizenId(citizenId, p)
-                .map(e -> new ApplicationSummary(e.getReferenceNo(), e.getCitizenId(), e.getJourneyCode(), e.getStatus()));
+                .map(e -> new ApplicationSummary(
+                        e.getReferenceNo(), e.getCitizenId(), e.getJourneyCode(), e.getStatus(), e.getSlaDueAt()));
+    }
+
+    @Override
+    public Page<ApplicationSummary> recent(Pageable p) {
+        return applications
+                .findAll(p)
+                .map(e -> new ApplicationSummary(
+                        e.getReferenceNo(), e.getCitizenId(), e.getJourneyCode(), e.getStatus(), e.getSlaDueAt()));
     }
 
     @Override

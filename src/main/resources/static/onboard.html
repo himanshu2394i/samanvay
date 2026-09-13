@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Samanvay — spec import</title>
+  <style>
+    body { font-family: sans-serif; max-width: 52rem; margin: 2rem auto; }
+    textarea { width: 100%; height: 12rem; }
+    label { display: block; margin-top: 0.6rem; }
+    button { margin: 0.6rem 0.4rem 0 0; }
+    pre { background: #f4f4f4; padding: 0.8rem; overflow: auto; }
+    nav a { margin-right: 1rem; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">Citizen</a>
+    <a href="/ops.html">Ops</a>
+    <a href="/audit.html">Audit</a>
+    <a href="/onboard.html">Onboard</a>
+  </nav>
+  <h1>OpenAPI import</h1>
+  <p>Beat 7: suggestions are advisory. Nothing is saved until you approve and click Save mapping. Keycloak brokering stays stubbed.</p>
+  <label>OpenAPI JSON
+    <textarea id="spec">{
+  "openapi": "3.0.0",
+  "paths": {
+    "/income": {
+      "get": {
+        "operationId": "getIncome",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "annual_income": { "type": "number" },
+                    "holder_name": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}</textarea>
+  </label>
+  <label>Operation id <input id="op" value="getIncome"/></label>
+  <label>Target schema <input id="schema" size="40" value="Credential/IncomeCertificate@1"/></label>
+  <label>Mapping ref <input id="mapRef" value="map-import-demo@1"/></label>
+  <label>Connector ref <input id="connRef" value="rev-income@1"/></label>
+  <button type="button" onclick="preview()">Suggest mappings</button>
+  <button type="button" onclick="saveApproved()">Save approved only</button>
+  <div id="suggestions"></div>
+  <pre id="out"></pre>
+  <script>
+    let previewData = null;
+    const out = document.getElementById('out');
+    const log = (x) => out.textContent = typeof x === 'string' ? x : JSON.stringify(x, null, 2);
+    async function preview() {
+      previewData = await (await fetch('/api/catalog/import/openapi', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          spec: document.getElementById('spec').value,
+          operationId: document.getElementById('op').value,
+          targetSchemaRef: document.getElementById('schema').value
+        })
+      })).json();
+      const box = document.getElementById('suggestions');
+      box.innerHTML = (previewData.suggestions || []).map((s,i) =>
+        '<label><input type="checkbox" data-i="'+i+'"/> ' + s.source + ' → ' + s.target +
+        ' (' + s.confidence + ', ' + s.rationale + ')</label>').join('');
+      log(previewData);
+    }
+    async function saveApproved() {
+      if (!previewData) { log('preview first'); return; }
+      const rules = [...document.querySelectorAll('#suggestions input:checked')].map(cb => {
+        const s = previewData.suggestions[Number(cb.dataset.i)];
+        return {source:s.source, target:s.target, transforms:[]};
+      });
+      if (!rules.length) { log('approve at least one suggestion'); return; }
+      const saved = await (await fetch('/api/catalog/mappings', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          ref: document.getElementById('mapRef').value,
+          connectorRef: document.getElementById('connRef').value,
+          rules
+        })
+      })).json();
+      log(saved);
+    }
+  </script>
+</body>
+</html>
