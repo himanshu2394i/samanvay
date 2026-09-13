@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="https://samanvay.dev/bpmn">
+  <process id="scholarship" name="Post-matric scholarship" isExecutable="true">
+    <startEvent id="start"/>
+    <parallelGateway id="fanout"/>
+    <serviceTask id="fetchIncome" name="Fetch income"/>
+    <serviceTask id="fetchCaste" name="Fetch caste"/>
+    <serviceTask id="fetchMarks" name="Fetch marks"/>
+    <serviceTask id="fetchBank" name="Fetch bank"/>
+    <parallelGateway id="join"/>
+    <endEvent id="end"/>
+    <sequenceFlow sourceRef="start" targetRef="fanout"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchIncome"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchCaste"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchMarks"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchBank"/>
+    <sequenceFlow sourceRef="fetchIncome" targetRef="join"/>
+    <sequenceFlow sourceRef="fetchCaste" targetRef="join"/>
+    <sequenceFlow sourceRef="fetchMarks" targetRef="join"/>
+    <sequenceFlow sourceRef="fetchBank" targetRef="join"/>
+    <sequenceFlow sourceRef="join" targetRef="end"/>
+  </process>
+</definitions>
