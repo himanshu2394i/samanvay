@@ -16,8 +16,10 @@ Same class is in `./mvnw verify`.
 
 ```bash
 docker compose up -d
-./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
+
+Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tamper/{seq}` and `POST /api/connector/chaos/**` are unregistered (404).
 
 | Beat | Where | How it is proven |
 |---|---|---|

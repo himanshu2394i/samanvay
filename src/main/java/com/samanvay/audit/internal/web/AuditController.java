@@ -5,12 +5,9 @@ import com.samanvay.audit.api.AuditRecord;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.audit.api.Checkpoint;
 import com.samanvay.audit.api.VerificationResult;
-import com.samanvay.audit.internal.service.DemoAuditTamper;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,11 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 class AuditController {
 
     private final AuditService audit;
-    private final DemoAuditTamper tamper;
 
-    AuditController(AuditService audit, DemoAuditTamper tamper) {
+    AuditController(AuditService audit) {
         this.audit = audit;
-        this.tamper = tamper;
     }
 
     @GetMapping("/head")
@@ -56,12 +51,6 @@ class AuditController {
     @GetMapping("/checkpoint")
     Checkpoint checkpoint() {
         return audit.latestCheckpoint().orElse(null);
-    }
-
-    @PostMapping("/demo/tamper/{seq}")
-    VerificationResult tamper(@PathVariable long seq) {
-        tamper.rewriteReason(seq, "tampered-demo");
-        return audit.verify(seq, seq);
     }
 
     record Head(long seq) {}

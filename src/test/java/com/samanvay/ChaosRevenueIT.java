@@ -23,9 +23,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest(classes = SamanvayApplication.class)
+@ActiveProfiles("demo")
 class ChaosRevenueIT extends PostgresIntegrationTest {
 
     @Autowired

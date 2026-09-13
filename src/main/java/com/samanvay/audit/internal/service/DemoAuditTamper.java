@@ -2,12 +2,14 @@ package com.samanvay.audit.internal.service;
 
 import java.sql.DriverManager;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
  * Demo-only: rewrites one audit row using the migrate role (the app role cannot UPDATE).
  * Proves beat 6 — verification fails after a live edit. Not a production mutation API.
  */
+@Profile("demo")
 @Component
 public class DemoAuditTamper {
 
