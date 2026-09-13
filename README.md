@@ -60,3 +60,18 @@ port) · Keycloak · Resilience4j · Flyway
 Hook Form
 
 **Runtime** Docker Compose — fully offline, deterministic seed data
+
+## Getting started
+
+Requires: Java 21+ (JDK 25 works fine — Maven compiles down to release 21), Docker Desktop. No Maven install needed, the wrapper handles it.
+
+```bash
+docker compose up -d          # starts Postgres
+./mvnw spring-boot:run        # Windows: .\mvnw.cmd spring-boot:run
+```
+
+## Contributing
+
+1. Branch off `main`, work in your module's package (`com.samanvay.<module>.*`).
+2. Open a PR against `main`. CI must pass; the technical lead's review is required (enforced via [CODEOWNERS](CODEOWNERS) and branch protection — direct pushes to `main` are blocked).
+3. Read your module's charter in [`docs/architecture/hld/`](docs/architecture/hld/README.md) before writing code — it defines what your module owns, its public interface, and its acceptance criteria.
