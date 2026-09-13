@@ -23,7 +23,9 @@ class NeverFailedWhilePartialTest {
         e.setStatus("SUBMITTED");
         Mockito.when(apps.findById(e.getId())).thenReturn(Optional.of(e));
         Mockito.when(apps.save(e)).thenReturn(e);
-        TrackingServices tracking = new TrackingServices(apps, Mockito.mock(StepRepository.class), Mockito.mock(JdbcTemplate.class), ev -> {});
+        JdbcTemplate jdbc = Mockito.mock(JdbcTemplate.class);
+        Mockito.when(jdbc.queryForObject(Mockito.anyString(), Mockito.eq(Long.class))).thenReturn(1L);
+        TrackingServices tracking = new TrackingServices(apps, Mockito.mock(StepRepository.class), jdbc, ev -> {});
         tracking.on(new StepPendingSource(e.getId(), "INCOME_CERTIFICATE", 1, Instant.now()));
         assertThat(e.getStatus()).isEqualTo("PARTIALLY_VERIFIED");
         assertThat(e.getStatus()).isNotEqualTo("FAILED");

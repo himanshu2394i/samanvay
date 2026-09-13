@@ -71,9 +71,7 @@ class ScholarshipJourneyIT extends PostgresIntegrationTest {
                 "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode());
         assertThat(instance.id()).isNotNull();
 
-        var apps = tracking.forCitizen(citizen, Pageable.ofSize(10));
-        assertThat(apps.getContent()).isNotEmpty();
-        ApplicationView view = tracking.byReference(apps.getContent().getFirst().referenceNo());
+        ApplicationView view = awaitProjected(citizen);
         assertThat(view.status()).isIn("VERIFIED", "SUBMITTED", "PARTIALLY_VERIFIED");
         assertThat(tracking.steps(view.referenceNo())).isNotEmpty();
 
@@ -93,5 +91,22 @@ class ScholarshipJourneyIT extends PostgresIntegrationTest {
                 """,
                 String.class);
         assertThat(blob).doesNotContain("INCOME-AMT-998877");
+    }
+
+    /** After-commit tracking listeners finish after {@code start()} returns. */
+    private ApplicationView awaitProjected(UUID citizen) throws InterruptedException {
+        for (int i = 0; i < 80; i++) {
+            var apps = tracking.forCitizen(citizen, Pageable.ofSize(10));
+            if (!apps.getContent().isEmpty()) {
+                ApplicationView view = tracking.byReference(apps.getContent().getFirst().referenceNo());
+                if (!tracking.steps(view.referenceNo()).isEmpty()) {
+                    return view;
+                }
+            }
+            Thread.sleep(50);
+        }
+        var apps = tracking.forCitizen(citizen, Pageable.ofSize(10));
+        assertThat(apps.getContent()).isNotEmpty();
+        return tracking.byReference(apps.getContent().getFirst().referenceNo());
     }
 }

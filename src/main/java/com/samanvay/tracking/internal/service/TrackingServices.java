@@ -17,13 +17,13 @@ import com.samanvay.tracking.internal.domain.ApplicationEntity;
 import com.samanvay.tracking.internal.domain.StepEntity;
 import com.samanvay.tracking.internal.repository.ApplicationRepository;
 import com.samanvay.tracking.internal.repository.StepRepository;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.Year;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -51,32 +51,27 @@ class TrackingServices implements ApplicationTracking {
 
     @ApplicationModuleListener
     void on(JourneyStarted event) {
-        ApplicationEntity e = applications.findById(event.instanceId()).orElseGet(ApplicationEntity::new);
-        e.setId(event.instanceId());
-        if (e.getReferenceNo() == null) {
-            e.setReferenceNo(nextReference(event.journeyCode()));
-        }
-        e.setCitizenId(event.citizenId());
-        e.setJourneyCode(event.journeyCode());
-        e.setProcessInstanceId(event.processInstanceId());
-        if (e.getStatus() == null) {
-            e.setStatus("SUBMITTED");
-        }
-        if (e.getSubmittedAt() == null) {
-            e.setSubmittedAt(Instant.now());
-        }
-        e.setSlaDueAt(event.slaDueAt());
-        try {
-            applications.saveAndFlush(e);
-        } catch (DataIntegrityViolationException ex) {
-            e = applications.findById(event.instanceId()).orElseThrow();
-            e.setCitizenId(event.citizenId());
-            e.setJourneyCode(event.journeyCode());
-            e.setProcessInstanceId(event.processInstanceId());
-            e.setSlaDueAt(event.slaDueAt());
-            applications.saveAndFlush(e);
-        }
-        events.publishEvent(new ApplicationReferenceIssued(e.getReferenceNo(), event.citizenId()));
+        Timestamp sla = event.slaDueAt() == null ? null : Timestamp.from(event.slaDueAt());
+        jdbc.update(
+                """
+                INSERT INTO tracking_application
+                  (id, reference_no, citizen_id, journey_code, process_instance_id, status, submitted_at, sla_due_at)
+                VALUES (?, ?, ?, ?, ?, 'SUBMITTED', now(), ?)
+                ON CONFLICT (id) DO UPDATE SET
+                  citizen_id = EXCLUDED.citizen_id,
+                  journey_code = EXCLUDED.journey_code,
+                  process_instance_id = EXCLUDED.process_instance_id,
+                  sla_due_at = EXCLUDED.sla_due_at
+                """,
+                event.instanceId(),
+                nextReference(event.journeyCode()),
+                event.citizenId(),
+                event.journeyCode(),
+                event.processInstanceId(),
+                sla);
+        String ref = jdbc.queryForObject(
+                "SELECT reference_no FROM tracking_application WHERE id = ?", String.class, event.instanceId());
+        events.publishEvent(new ApplicationReferenceIssued(ref, event.citizenId()));
     }
 
     @ApplicationModuleListener
@@ -135,27 +130,21 @@ class TrackingServices implements ApplicationTracking {
     }
 
     /**
-     * After-commit module listeners are not ordered. A step event can arrive
-     * before {@link JourneyStarted} inserts the parent row; flush a placeholder
-     * so {@code tracking_step.application_id} satisfies the FK.
+     * After-commit module listeners are not ordered. {@code ON CONFLICT}
+     * avoids a Postgres-aborted TX if {@link JourneyStarted} already inserted
+     * the same id (catching unique-violation still poisons the step write).
      */
     private void ensureApplication(UUID id) {
-        if (applications.findById(id).isPresent()) {
-            return;
-        }
-        ApplicationEntity e = new ApplicationEntity();
-        e.setId(id);
-        e.setReferenceNo(nextReference("UNKNOWN"));
-        e.setCitizenId(new UUID(0L, 0L));
-        e.setJourneyCode("UNKNOWN");
-        e.setProcessInstanceId("pending");
-        e.setStatus("SUBMITTED");
-        e.setSubmittedAt(Instant.now());
-        try {
-            applications.saveAndFlush(e);
-        } catch (DataIntegrityViolationException ignored) {
-            // JourneyStarted won the insert race
-        }
+        jdbc.update(
+                """
+                INSERT INTO tracking_application
+                  (id, reference_no, citizen_id, journey_code, process_instance_id, status, submitted_at)
+                VALUES (?, ?, ?, 'UNKNOWN', 'pending', 'SUBMITTED', now())
+                ON CONFLICT (id) DO NOTHING
+                """,
+                id,
+                nextReference("UNKNOWN"),
+                new UUID(0L, 0L));
     }
 
     String nextReference(String journeyCode) {
