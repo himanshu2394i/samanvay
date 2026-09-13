@@ -23,12 +23,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 class TrackingServices implements ApplicationTracking {
@@ -51,18 +51,32 @@ class TrackingServices implements ApplicationTracking {
 
     @ApplicationModuleListener
     void on(JourneyStarted event) {
-        String ref = nextReference(event.journeyCode());
-        ApplicationEntity e = new ApplicationEntity();
+        ApplicationEntity e = applications.findById(event.instanceId()).orElseGet(ApplicationEntity::new);
         e.setId(event.instanceId());
-        e.setReferenceNo(ref);
+        if (e.getReferenceNo() == null) {
+            e.setReferenceNo(nextReference(event.journeyCode()));
+        }
         e.setCitizenId(event.citizenId());
         e.setJourneyCode(event.journeyCode());
         e.setProcessInstanceId(event.processInstanceId());
-        e.setStatus("SUBMITTED");
-        e.setSubmittedAt(Instant.now());
+        if (e.getStatus() == null) {
+            e.setStatus("SUBMITTED");
+        }
+        if (e.getSubmittedAt() == null) {
+            e.setSubmittedAt(Instant.now());
+        }
         e.setSlaDueAt(event.slaDueAt());
-        applications.save(e);
-        events.publishEvent(new ApplicationReferenceIssued(ref, event.citizenId()));
+        try {
+            applications.saveAndFlush(e);
+        } catch (DataIntegrityViolationException ex) {
+            e = applications.findById(event.instanceId()).orElseThrow();
+            e.setCitizenId(event.citizenId());
+            e.setJourneyCode(event.journeyCode());
+            e.setProcessInstanceId(event.processInstanceId());
+            e.setSlaDueAt(event.slaDueAt());
+            applications.saveAndFlush(e);
+        }
+        events.publishEvent(new ApplicationReferenceIssued(e.getReferenceNo(), event.citizenId()));
     }
 
     @ApplicationModuleListener
@@ -103,6 +117,7 @@ class TrackingServices implements ApplicationTracking {
     }
 
     private void upsertStep(UUID applicationId, String stepCode, String status, String outcome, Instant completed, Long auditRef) {
+        ensureApplication(applicationId);
         StepEntity s = steps.findByApplicationIdAndStepCode(applicationId, stepCode).orElseGet(StepEntity::new);
         if (s.getId() == null) {
             s.setId(UUID.randomUUID());
@@ -117,6 +132,30 @@ class TrackingServices implements ApplicationTracking {
         s.setCompletedAt(completed);
         s.setAuditRef(auditRef);
         steps.save(s);
+    }
+
+    /**
+     * After-commit module listeners are not ordered. A step event can arrive
+     * before {@link JourneyStarted} inserts the parent row; flush a placeholder
+     * so {@code tracking_step.application_id} satisfies the FK.
+     */
+    private void ensureApplication(UUID id) {
+        if (applications.findById(id).isPresent()) {
+            return;
+        }
+        ApplicationEntity e = new ApplicationEntity();
+        e.setId(id);
+        e.setReferenceNo(nextReference("UNKNOWN"));
+        e.setCitizenId(new UUID(0L, 0L));
+        e.setJourneyCode("UNKNOWN");
+        e.setProcessInstanceId("pending");
+        e.setStatus("SUBMITTED");
+        e.setSubmittedAt(Instant.now());
+        try {
+            applications.saveAndFlush(e);
+        } catch (DataIntegrityViolationException ignored) {
+            // JourneyStarted won the insert race
+        }
     }
 
     String nextReference(String journeyCode) {

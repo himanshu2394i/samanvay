@@ -95,15 +95,12 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                 template,
                 bound,
                 dataSource.authConfigRef());
-        resilience.breaker(dataSource.code());
-        resilience.bulkhead(dataSource.code());
-        resilience.retry(dataSource.code());
         try {
             var adapter = adapters.get(dataSource.protocol());
             if (adapter == null) {
                 return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
             }
-            var raw = adapter.execute(request);
+            var raw = resilience.execute(dataSource.code(), () -> adapter.execute(request));
             var mapped = mappingRef == null ? raw.body() : mapping.apply(connectors.mapping(mappingRef), raw.body());
             if (outputSchema != null) {
                 var vr = schemas.validate(outputSchema, mapped);
@@ -128,6 +125,8 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             return new ConnectorResult.Success(mapped, provenance);
         } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException e) {
             return new ConnectorResult.Unavailable(FailureKind.BREAKER_OPEN, true);
+        } catch (io.github.resilience4j.bulkhead.BulkheadFullException e) {
+            return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
         }
     }
 
