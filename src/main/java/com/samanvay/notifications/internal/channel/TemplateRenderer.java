@@ -14,10 +14,12 @@ public class TemplateRenderer {
     public String render(String templateRef, Map<String, String> variables) {
         String template = load(templateRef);
         for (var e : variables.entrySet()) {
-            String value = e.getValue() == null ? "" : e.getValue().replace("&", "&amp;").replace("<", "&lt;");
+            String value = e.getValue() == null
+                    ? ""
+                    : e.getValue().replace("&", "&amp;").replace("<", "&lt;").replace("{", "&#123;");
             template = template.replace("{{" + e.getKey() + "}}", value);
         }
-        if (template.contains("{{")) {
+        if (template.matches("(?s).*\\{\\{[A-Za-z0-9_]+\\}\\}.*")) {
             throw new UnresolvedTemplatePlaceholderException(templateRef);
         }
         return template;

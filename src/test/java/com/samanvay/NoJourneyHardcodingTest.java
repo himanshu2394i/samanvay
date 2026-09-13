@@ -16,7 +16,8 @@ class NoJourneyHardcodingTest {
             .haveName("departmentFor")
             .should()
             .beDeclaredInClassesThat()
-            .resideInAPackage("com.samanvay..");
+            .resideInAPackage("com.samanvay..")
+            .allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule no_categories_for_switches = noMethods()
@@ -24,5 +25,6 @@ class NoJourneyHardcodingTest {
             .haveName("categoriesFor")
             .should()
             .beDeclaredInClassesThat()
-            .resideInAPackage("com.samanvay..");
+            .resideInAPackage("com.samanvay..")
+            .allowEmptyShould(true);
 }

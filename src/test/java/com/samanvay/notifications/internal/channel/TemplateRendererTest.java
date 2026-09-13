@@ -21,7 +21,7 @@ class TemplateRendererTest {
                         "BUSINESS_NOC",
                         "revokeUrl",
                         "/consent"));
-        assertThat(body).contains("INDUSTRY{{x}}");
+        assertThat(body).contains("INDUSTRY&#123;&#123;x}}");
         assertThat(body).doesNotContain("asked for {{");
     }
 }
