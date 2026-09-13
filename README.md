@@ -15,7 +15,7 @@ ownership of their data; Samanvay owns only the *interoperability state* — ide
 consent, discovery metadata, workflow, tracking, audit and mappings.
 
 Citizen journeys (scholarship, business licensing, farmer subsidy) exist as **evidence that
-the platform is generic**, not as the product.
+the platform is generic**, not as the product .
 
 ## Design principles
 
@@ -31,7 +31,7 @@ the platform is generic**, not as the product.
 ## Documentation
 
 | Document | Contents |
-|---|---|
+|---|---| 
 | [docs/architecture/HLD.md](docs/architecture/HLD.md) | **High Level Design — combined.** Single source of truth for principles, flows and technology decisions |
 | [docs/architecture/hld/](docs/architecture/hld/README.md) | High Level Design — one charter per module, plus the dependency graph |
 | [docs/architecture/LLD.md](docs/architecture/LLD.md) | **Low Level Design — combined.** Package layout, DB conventions, error handling, testing, cross-module sequence diagrams |
