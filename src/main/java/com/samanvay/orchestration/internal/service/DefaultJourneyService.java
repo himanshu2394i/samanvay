@@ -44,7 +44,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -64,6 +65,7 @@ class DefaultJourneyService implements JourneyService {
     private final StepStateRepository steps;
     private final JdbcTemplate jdbc;
     private final ApplicationEventPublisher events;
+    private final TransactionTemplate tx;
 
     DefaultJourneyService(
             JourneyCatalog journeys,
@@ -75,7 +77,8 @@ class DefaultJourneyService implements JourneyService {
             InstanceRepository instances,
             StepStateRepository steps,
             JdbcTemplate jdbc,
-            ApplicationEventPublisher events) {
+            ApplicationEventPublisher events,
+            PlatformTransactionManager transactions) {
         this.journeys = journeys;
         this.connectors = connectors;
         this.engine = engine;
@@ -86,22 +89,22 @@ class DefaultJourneyService implements JourneyService {
         this.steps = steps;
         this.jdbc = jdbc;
         this.events = events;
+        this.tx = new TransactionTemplate(transactions);
     }
 
     @Override
     public JourneyInstance start(String journeyCode, UUID citizenId, JsonNode submission) {
         JourneyDefinition journey = journeys.byCode(journeyCode);
-        JourneyInstance started = persistStart(journey, citizenId);
+        JourneyInstance started = tx.execute(status -> persistStart(journey, citizenId));
         List<CategoryFetch> fetches = journey.requiredCategories().stream()
                 .map(category -> CompletableFuture.supplyAsync(
                         () -> fetchCategory(journey, started.processInstanceId(), citizenId, category), FANOUT))
                 .map(CompletableFuture::join)
                 .toList();
-        applyFetches(started.id(), fetches);
+        tx.executeWithoutResult(status -> applyFetches(started.id(), fetches));
         return started;
     }
 
-    @Transactional
     JourneyInstance persistStart(JourneyDefinition journey, UUID citizenId) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("citizenId", citizenId.toString());
@@ -154,7 +157,6 @@ class DefaultJourneyService implements JourneyService {
         return new CategoryFetch(category, dept, source, result);
     }
 
-    @Transactional
     void applyFetches(UUID instanceId, List<CategoryFetch> fetches) {
         boolean pending = false;
         boolean failed = false;

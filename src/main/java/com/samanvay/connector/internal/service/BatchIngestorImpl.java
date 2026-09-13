@@ -44,7 +44,8 @@ class BatchIngestorImpl implements BatchIngestor {
             int start = Math.max(1, state.rowOffset() + 1);
             for (int i = start; i < lines.length; i++) {
                 String line = lines[i];
-                if (line == null || line.isBlank() || line.split(",", -1).length < 2) {
+                String[] cols = line == null ? new String[0] : line.split(",", -1);
+                if (line == null || line.isBlank() || cols.length < 2 || cols[0].isBlank()) {
                     rejected++;
                     jdbc.update(
                             """
