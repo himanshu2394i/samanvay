@@ -11,4 +11,8 @@ public interface JourneyService {
     void cancel(UUID instanceId, String reason);
 
     JourneyState state(UUID instanceId);
+
+    void retryPending(UUID instanceId);
+
+    java.util.List<JourneyExceptionView> openExceptions();
 }

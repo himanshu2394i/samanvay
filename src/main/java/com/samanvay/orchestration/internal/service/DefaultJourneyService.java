@@ -16,6 +16,7 @@ import com.samanvay.orchestration.api.ApplicationStateChanged;
 import com.samanvay.orchestration.api.InstanceNotFoundException;
 import com.samanvay.orchestration.api.JourneyInstance;
 import com.samanvay.orchestration.api.JourneyService;
+import com.samanvay.orchestration.api.JourneyExceptionView;
 import com.samanvay.orchestration.api.JourneyStarted;
 import com.samanvay.orchestration.api.JourneyState;
 import com.samanvay.orchestration.api.ManualUploadRequested;
@@ -171,6 +172,10 @@ class DefaultJourneyService implements JourneyService {
             saveStep(instanceId, f.category(), outcome);
             if ("COMPLETED".equals(outcome)) {
                 events.publishEvent(new StepCompleted(instanceId, f.category(), outcome, null, f.department(), f.source()));
+                jdbc.update(
+                        "UPDATE orchestration_exception SET status = 'RESOLVED' WHERE instance_id = ? AND step_code = ? AND status = 'OPEN'",
+                        instanceId,
+                        f.category());
             } else if ("PENDING_SOURCE".equals(outcome)) {
                 pending = true;
                 events.publishEvent(new StepPendingSource(instanceId, f.category(), 1, Instant.now().plusSeconds(30), f.department()));
@@ -206,16 +211,47 @@ class DefaultJourneyService implements JourneyService {
         return new JourneyState(instanceId, "RUNNING", outcomes);
     }
 
+    @Override
+    public void retryPending(UUID instanceId) {
+        InstanceEntity e = instances.findById(instanceId).orElseThrow(InstanceNotFoundException::new);
+        JourneyDefinition journey = journeys.byCode(e.getJourneyCode());
+        List<CategoryFetch> fetches = steps.findByInstanceId(instanceId).stream()
+                .filter(s -> !"COMPLETED".equals(s.getStatus()))
+                .map(s -> fetchCategory(journey, e.getProcessInstanceId(), e.getCitizenId(), s.getStepCode()))
+                .toList();
+        tx.executeWithoutResult(status -> applyFetches(instanceId, fetches));
+    }
+
+    @Override
+    public List<JourneyExceptionView> openExceptions() {
+        return jdbc.query(
+                """
+                SELECT id, instance_id, step_code, reason, created_at
+                FROM orchestration_exception WHERE status = 'OPEN' ORDER BY created_at DESC
+                """,
+                (rs, n) -> new JourneyExceptionView(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("instance_id", UUID.class),
+                        rs.getString("step_code"),
+                        rs.getString("reason"),
+                        rs.getTimestamp("created_at").toInstant()));
+    }
+
     @ApplicationModuleListener
     void onConsentRevoked(ConsentRevoked event) {
         // in-flight steps would be marked AUTHORIZATION_WITHDRAWN
     }
 
     private void saveStep(UUID instanceId, String stepCode, String outcome) {
-        StepStateEntity s = new StepStateEntity();
-        s.setId(UUID.randomUUID());
-        s.setInstanceId(instanceId);
-        s.setStepCode(stepCode);
+        StepStateEntity s = steps.findByInstanceId(instanceId).stream()
+                .filter(existing -> stepCode.equals(existing.getStepCode()))
+                .findFirst()
+                .orElseGet(StepStateEntity::new);
+        if (s.getId() == null) {
+            s.setId(UUID.randomUUID());
+            s.setInstanceId(instanceId);
+            s.setStepCode(stepCode);
+        }
         s.setStatus("COMPLETED".equals(outcome) ? "COMPLETED" : "PENDING_SOURCE".equals(outcome) ? "PENDING_SOURCE" : "FAILED");
         s.setAttemptCount(1);
         s.setLastFailureReason("COMPLETED".equals(outcome) ? null : outcome);

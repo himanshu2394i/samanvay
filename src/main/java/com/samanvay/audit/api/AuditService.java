@@ -15,4 +15,8 @@ public interface AuditService {
     Optional<Checkpoint> latestCheckpoint();
 
     Page<AuditEntry> search(AuditQuery query, Pageable page);
+
+    long headSeq();
+
+    Page<AuditRecord> browse(AuditQuery query, Pageable page);
 }

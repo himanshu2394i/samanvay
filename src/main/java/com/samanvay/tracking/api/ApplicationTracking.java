@@ -10,5 +10,7 @@ public interface ApplicationTracking {
 
     Page<ApplicationSummary> forCitizen(UUID citizenId, Pageable p);
 
+    Page<ApplicationSummary> recent(Pageable p);
+
     List<StepView> steps(String referenceNo);
 }

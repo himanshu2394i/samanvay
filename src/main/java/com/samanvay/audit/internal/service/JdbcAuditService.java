@@ -2,6 +2,7 @@ package com.samanvay.audit.internal.service;
 
 import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditQuery;
+import com.samanvay.audit.api.AuditRecord;
 import com.samanvay.audit.api.AuditRef;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.audit.api.ChainGapException;
@@ -103,6 +104,26 @@ class JdbcAuditService implements AuditService {
     @Override
     public Page<AuditEntry> search(AuditQuery query, Pageable page) {
         return entries.search(query, page).map(AuditEntryRow::toEntry);
+    }
+
+    @Override
+    public long headSeq() {
+        return entries.currentMaxSeq();
+    }
+
+    @Override
+    public Page<AuditRecord> browse(AuditQuery query, Pageable page) {
+        return entries.search(query, page)
+                .map(r -> new AuditRecord(
+                        r.seq(),
+                        r.ts(),
+                        r.actorId(),
+                        r.action(),
+                        r.subjectId(),
+                        r.departmentId(),
+                        r.outcome(),
+                        r.reason(),
+                        r.consentId()));
     }
 
     static byte[] sha256(byte[] data) {
