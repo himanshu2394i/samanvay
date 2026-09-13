@@ -23,7 +23,7 @@ class ConnectorLifecycleServiceTest {
     @Test
     void publishAndNewVersionRules() {
         ConnectorRepository repos = mock(ConnectorRepository.class);
-        CatalogServices catalog = new CatalogServices(null, null, repos, null, null, null, e -> {});
+        CatalogServices catalog = new CatalogServices(null, null, repos, null, null, null, null, e -> {});
         ConnectorEntity draft = new ConnectorEntity();
         draft.setRef("rev-income@1");
         draft.setConnectorId("rev-income");

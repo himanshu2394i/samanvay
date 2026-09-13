@@ -15,6 +15,7 @@ import com.samanvay.consent.api.ConsentGranted;
 import com.samanvay.consent.api.ConsentNotFoundException;
 import com.samanvay.consent.api.ConsentRequest;
 import com.samanvay.consent.api.ConsentRequestDraft;
+import com.samanvay.consent.api.ConsentRequested;
 import com.samanvay.consent.api.ConsentRevoked;
 import com.samanvay.consent.api.ConsentService;
 import com.samanvay.consent.api.DenialReason;
@@ -101,6 +102,12 @@ class ConsentServices implements ConsentService, AccessAuthority {
         e.setStatus("PENDING");
         e.setCreatedAt(clock.instant());
         requests.save(e);
+        events.publishEvent(new ConsentRequested(
+                e.getId(),
+                e.getSubjectCitizenId(),
+                e.getRequesterId(),
+                e.getPurposeCode(),
+                Arrays.asList(e.getDataCategories())));
         return toRequest(e);
     }
 
@@ -203,7 +210,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         if (p.validUntil() != null && p.validUntil().isBefore(java.time.LocalDate.now(clock))) {
             return deny(req, DenialReason.POINTER_EXPIRED, null);
         }
-        if (p.sensitivity() == Sensitivity.SENSITIVE && !"SCHOLARSHIP".equals(req.requester().id())) {
+        if (!registry.hasClearance(req.requester(), p.sensitivity())) {
             return deny(req, DenialReason.INSUFFICIENT_CLEARANCE, null);
         }
         if (p.freshness().isStale() && req.journeyCode() != null && !journeys.policy(req.journeyCode()).acceptStale()) {

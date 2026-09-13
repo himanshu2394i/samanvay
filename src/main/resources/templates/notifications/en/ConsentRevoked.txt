@@ -1,0 +1,1 @@
+Consent revoked for {{requester}}.

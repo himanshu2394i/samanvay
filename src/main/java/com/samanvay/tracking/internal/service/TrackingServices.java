@@ -64,7 +64,7 @@ class TrackingServices implements ApplicationTracking {
                   sla_due_at = EXCLUDED.sla_due_at
                 """,
                 event.instanceId(),
-                nextReference(event.journeyCode()),
+                nextReference(event.referencePrefix()),
                 event.citizenId(),
                 event.journeyCode(),
                 event.processInstanceId(),
@@ -76,17 +76,25 @@ class TrackingServices implements ApplicationTracking {
 
     @ApplicationModuleListener
     void on(StepCompleted event) {
-        upsertStep(event.instanceId(), event.stepCode(), "COMPLETED", event.outcome(), Instant.now(), event.auditRef());
+        upsertStep(
+                event.instanceId(),
+                event.stepCode(),
+                "COMPLETED",
+                event.outcome(),
+                Instant.now(),
+                event.auditRef(),
+                event.departmentCode(),
+                event.source());
     }
 
     @ApplicationModuleListener
     void on(StepFailed event) {
-        upsertStep(event.instanceId(), event.stepCode(), "FAILED", event.outcome(), Instant.now(), null);
+        upsertStep(event.instanceId(), event.stepCode(), "FAILED", event.outcome(), Instant.now(), null, event.departmentCode(), "API");
     }
 
     @ApplicationModuleListener
     void on(StepPendingSource event) {
-        upsertStep(event.instanceId(), event.stepCode(), "PENDING_SOURCE", null, null, null);
+        upsertStep(event.instanceId(), event.stepCode(), "PENDING_SOURCE", null, null, null, event.departmentCode(), "API");
         applications.findById(event.instanceId()).ifPresent(a -> {
             a.setStatus("PARTIALLY_VERIFIED");
             applications.save(a);
@@ -111,7 +119,15 @@ class TrackingServices implements ApplicationTracking {
         // Journey 1: no long-lived in-flight grant to mark
     }
 
-    private void upsertStep(UUID applicationId, String stepCode, String status, String outcome, Instant completed, Long auditRef) {
+    private void upsertStep(
+            UUID applicationId,
+            String stepCode,
+            String status,
+            String outcome,
+            Instant completed,
+            Long auditRef,
+            String departmentCode,
+            String source) {
         ensureApplication(applicationId);
         StepEntity s = steps.findByApplicationIdAndStepCode(applicationId, stepCode).orElseGet(StepEntity::new);
         if (s.getId() == null) {
@@ -120,10 +136,10 @@ class TrackingServices implements ApplicationTracking {
             s.setStepCode(stepCode);
             s.setStartedAt(Instant.now());
         }
-        s.setDepartmentCode(departmentFor(stepCode));
+        s.setDepartmentCode(departmentCode);
         s.setStatus(status);
         s.setOutcome(outcome);
-        s.setSource("API");
+        s.setSource(source == null || source.isBlank() ? "API" : source);
         s.setCompletedAt(completed);
         s.setAuditRef(auditRef);
         steps.save(s);
@@ -147,9 +163,9 @@ class TrackingServices implements ApplicationTracking {
                 new UUID(0L, 0L));
     }
 
-    String nextReference(String journeyCode) {
+    String nextReference(String referencePrefix) {
         Long n = jdbc.queryForObject("SELECT nextval('tracking_reference_seq')", Long.class);
-        String prefix = "POST_MATRIC_SCHOLARSHIP".equals(journeyCode) ? "SCH" : "APP";
+        String prefix = referencePrefix == null || referencePrefix.isBlank() ? "APP" : referencePrefix;
         return "MH-" + prefix + "-" + Year.now() + "-" + String.format("%06d", n);
     }
 
@@ -183,11 +199,4 @@ class TrackingServices implements ApplicationTracking {
                 .toList();
     }
 
-    private static String departmentFor(String step) {
-        return switch (step) {
-            case "MARKS" -> "EDUCATION";
-            case "BANK_ACCOUNT" -> "DBT";
-            default -> "REVENUE";
-        };
-    }
 }

@@ -34,6 +34,18 @@ class MockDepartmentBackend {
             n.put("accountRef", "XXXX1234");
             return n;
         }
+        if (path.contains("fire")) {
+            n.put("nocStatus", "valid");
+            return n;
+        }
+        if (path.contains("pollution")) {
+            n.put("clearanceStatus", "clear");
+            return n;
+        }
+        if (path.contains("land")) {
+            n.put("surveyNo", "12/4-A");
+            return n;
+        }
         n.put("ok", true);
         return n;
     }

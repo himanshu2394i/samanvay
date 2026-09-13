@@ -1,6 +1,7 @@
 package com.samanvay;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -17,6 +18,14 @@ class ArchitectureTest {
             .that()
             .resideInAPackage("..internal.repository..")
             .should(new TablePrefixMatchesModuleCondition());
+
+    @ArchTest
+    static final ArchRule notifications_does_not_depend_on_connector = noClasses()
+            .that()
+            .resideInAPackage("com.samanvay.notifications..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("com.samanvay.connector..");
 
     @ArchTest
     static void modulith_is_respected(JavaClasses classes) {
