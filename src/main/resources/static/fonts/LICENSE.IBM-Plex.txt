@@ -1,0 +1,6 @@
+IBM Plex (SIL Open Font License 1.1)
+https://github.com/IBM/plex/blob/master/LICENSE.txt
+
+These latin and Devanagari woff2 files are subsets of IBM Plex Sans,
+IBM Plex Sans Devanagari, and IBM Plex Mono, vendored for the offline
+Samanvay control-plane console.
