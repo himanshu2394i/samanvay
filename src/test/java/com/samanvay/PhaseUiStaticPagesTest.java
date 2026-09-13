@@ -11,7 +11,8 @@ class PhaseUiStaticPagesTest {
 
     @Test
     void fourSurfacesFrameInteroperabilityNotAScholarshipPortal() {
-        String command = page("index.html");
+        String demo = page("index.html");
+        String command = page("command.html");
         String journey = page("journey.html");
         String incident = page("ops.html");
         String audit = page("audit.html");
@@ -20,19 +21,28 @@ class PhaseUiStaticPagesTest {
         String css = page("console.css");
         String js = page("console.js");
 
-        for (String html : new String[] {command, journey, incident, audit, onboard}) {
+        for (String html : new String[] {demo, command, journey, incident, audit, onboard, caller}) {
             assertThat(html).containsIgnoringCase("interoperability");
             assertThat(html).doesNotContain("Apply for scholarship");
             assertThat(html).contains("journey.html");
             assertThat(html).contains("ops.html");
             assertThat(html).contains("audit.html");
+            assertThat(html).contains("caller.html");
+            assertThat(html).contains("command.html");
             assertThat(html).contains("Control plane");
             assertThat(html).contains("Skip to content");
             assertThat(html).contains("<main");
             assertThat(html).contains("nav-primary");
             assertThat(html).contains("nav-tools");
+            assertThat(html).contains(">Demo<");
+            assertThat(html).contains(">Caller<");
+            assertThat(html).contains(">Ops<");
         }
 
+        assertThat(demo).contains("Start demo (external caller)");
+        assertThat(demo).contains("interoperability middle layer");
+        assertThat(demo).doesNotContain("/api/");
+        assertThat(demo).doesNotContain("<script");
         assertThat(command).contains("Command");
         assertThat(command).contains("Tracked applications");
         assertThat(journey).contains("Identity");
@@ -48,6 +58,8 @@ class PhaseUiStaticPagesTest {
         assertThat(caller).contains("external caller");
         assertThat(caller).doesNotContain("Apply for scholarship");
         assertThat(caller).contains("nav-tools");
+        assertThat(caller).contains("Now open Journey / Incident / Audit to see what happened inside");
+        assertThat(caller).doesNotContain("location.href");
         assertThat(css).contains(":focus-visible");
         assertThat(css).contains("prefers-reduced-motion");
         assertThat(css).contains("table-wrap");

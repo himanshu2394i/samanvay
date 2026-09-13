@@ -46,14 +46,17 @@ class PhaseUiCatalogReadIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void commandCenterIsServed() {
-        String html = RestClient.create()
-                .get()
-                .uri(url("/"))
-                .retrieve()
-                .body(String.class);
-        assertThat(html).contains("interoperability");
-        assertThat(html).contains("Command");
+    void demoEntryLeadsWithCallerAndServesOpsCutaway() {
+        RestClient http = RestClient.create();
+        String demo = http.get().uri(url("/")).retrieve().body(String.class);
+        assertThat(demo).contains("interoperability");
+        assertThat(demo).contains("Start demo (external caller)");
+        assertThat(demo).contains("/caller.html");
+        assertThat(demo).doesNotContain("Command Center");
+
+        String ops = http.get().uri(url("/command.html")).retrieve().body(String.class);
+        assertThat(ops).contains("Command Center");
+        assertThat(ops).contains("Tracked applications");
     }
 
     private String url(String path) {

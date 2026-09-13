@@ -19,13 +19,13 @@ docker compose up -d
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
 
-Open the Phase-UI console at `http://localhost:8080/` (Command Center). It is a **judge/ops control plane**, not a scholarship/NOC/subsidy portal.
+Open the Phase-UI **Demo** entry at `http://localhost:8080/`. Primary CTA: **Start demo (external caller)** → `/caller.html`. Do **not** open the demo on Ops/Command. Journey, Incident, and Audit are cutaways of what the caller started. It is **not** a scholarship/NOC/subsidy portal.
 
 Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tamper/{seq}` and `POST /api/connector/chaos/**` are unregistered (404). **Incident kill/revive and Audit tamper need `--spring.profiles.active=demo`.**
 
 | Beat | Where | How it is proven |
 |---|---|---|
-| 1 | Three portals / same form | Problem statement; not automated. `/caller.html` is an **external caller demo** that can start any catalog journey. |
+| 1 | Three portals / same form | Problem statement; not automated. Start at `/` then `/caller.html` — the **external caller** that can start any catalog journey. |
 | 2 | Link department IDs + SSO | Linking works via `/api/identity/links`. **Keycloak full brokering stays stubbed** (`X-Auth-Jti`). |
 | 3 | Scholarship fan-out | `ScholarshipJourneyIT` + caller starts `POST_MATRIC_SCHOLARSHIP` (one catalog code among others) |
 | 4 | Revenue killed mid-flight | Incident (`/ops.html`): Kill `revenue-rest-mock` → start a journey → status `PARTIALLY_VERIFIED`, Exceptions → Revive → Retry pending |
@@ -38,12 +38,13 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 
 | URL | Surface |
 |---|---|
-| `/` | Command Center — live catalog, applications, exceptions, audit verify, department health composed from steps |
-| `/journey.html?ref=…` | Journey timeline (Identity → Consent → departments → recovery) |
-| `/ops.html` | Incident / ops — chaos (demo), exceptions, retry, denials |
-| `/audit.html` | Audit ledger — verify, entries, demo tamper |
-| `/onboard.html` | Supporting OpenAPI import tool |
-| `/caller.html` | External caller demo (not the product) |
+| `/` | Demo entry — interoperability middle-layer framing; primary CTA to Caller |
+| `/caller.html` | External caller demo (not the product). After start: open Journey / Incident / Audit |
+| `/journey.html?ref=…` | Journey timeline cutaway (Identity → Consent → departments → recovery) |
+| `/ops.html` | Incident cutaway — chaos (demo), exceptions, retry, denials |
+| `/audit.html` | Audit ledger cutaway — verify, entries, demo tamper |
+| `/command.html` | Ops console (former Command Center) — live catalog, applications, exceptions, ledger |
+| `/onboard.html` | Supporting OpenAPI import tool (side tool) |
 
 ## Known gaps
 

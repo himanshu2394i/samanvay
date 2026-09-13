@@ -70,7 +70,9 @@ docker compose up -d          # starts Postgres
 ./mvnw spring-boot:run        # Windows: .\mvnw.cmd spring-boot:run
 ```
 
-Judge/demo console (thin static HTML, not a service portal): `http://localhost:8080/`
+Judge/demo entry (Caller-first, thin static HTML, not a service portal): `http://localhost:8080/`
+
+Primary CTA starts the external caller at `/caller.html`. Journey, Incident, and Audit are cutaways of what happened inside. Ops console is `/command.html`. Onboard stays a side tool.
 
 Incident kill/revive and audit tamper require demo profile:
 
