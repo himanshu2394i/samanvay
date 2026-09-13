@@ -16,16 +16,8 @@ import com.samanvay.catalog.api.DepartmentCatalog;
 import com.samanvay.catalog.api.DepartmentDraft;
 import com.samanvay.catalog.api.DepartmentRegistered;
 import com.samanvay.catalog.api.IllegalConnectorStateException;
-import com.samanvay.catalog.api.IllegalHostException;
-import com.samanvay.catalog.api.JourneyCatalog;
-import com.samanvay.catalog.api.JourneyDefinition;
-import com.samanvay.catalog.api.JourneyNotFoundException;
-import com.samanvay.catalog.api.JourneyPolicy;
-import com.samanvay.catalog.api.MappingCatalog;
 import com.samanvay.catalog.api.MappingDefinition;
-import com.samanvay.catalog.api.MappingDraft;
 import com.samanvay.catalog.api.SchemaCatalog;
-import com.samanvay.catalog.api.UnknownTransformException;
 import com.samanvay.catalog.api.ValidationResult;
 import com.samanvay.catalog.internal.domain.ConnectorEntity;
 import com.samanvay.catalog.internal.domain.DataSourceEntity;
@@ -38,11 +30,9 @@ import com.samanvay.catalog.internal.repository.JourneyRepository;
 import com.samanvay.catalog.internal.repository.MappingRepository;
 import com.samanvay.catalog.internal.repository.SchemaRepository;
 import com.samanvay.shared.DataCategory;
-import com.samanvay.shared.MappingTransforms;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -53,7 +43,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
-class CatalogServices implements DepartmentCatalog, ConnectorCatalog, MappingCatalog, JourneyCatalog, SchemaCatalog {
+class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCatalog {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -61,11 +51,11 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, MappingCat
     private final DataSourceRepository dataSources;
     private final ConnectorRepository connectors;
     private final MappingRepository mappings;
-    private final JourneyRepository journeys;
     private final SchemaRepository schemas;
     private final ApplicationEventPublisher events;
     private final DataSourceHostPolicy hosts;
 
+    @org.springframework.beans.factory.annotation.Autowired
     CatalogServices(
             DepartmentRepository departments,
             DataSourceRepository dataSources,
@@ -90,7 +80,6 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, MappingCat
         this.dataSources = dataSources;
         this.connectors = connectors;
         this.mappings = mappings;
-        this.journeys = journeys;
         this.schemas = schemas;
         this.events = events;
         this.hosts = new DataSourceHostPolicy(resolver);
@@ -228,46 +217,8 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, MappingCat
 
     @Override
     public MappingDefinition mapping(String mappingRef) {
-        return byRefMapping(mappingRef);
-    }
-
-    @Override
-    public MappingDefinition byRef(String mappingRef) {
-        return byRefMapping(mappingRef);
-    }
-
-    private MappingDefinition byRefMapping(String mappingRef) {
         MappingEntity e = mappings.findById(mappingRef).orElseThrow(() -> new ConnectorNotFoundException(mappingRef));
         return CatalogMappingParser.parse(e.getRef(), e.getConnectorRef(), e.getRules());
-    }
-
-    @Override
-    @Transactional
-    public MappingDefinition save(MappingDraft draft) {
-        draft.rules().forEach(rule -> rule.transforms().forEach(t -> {
-            if (!MappingTransforms.NAMES.contains(t.fn())) {
-                throw new UnknownTransformException(t.fn());
-            }
-        }));
-        MappingEntity e = new MappingEntity();
-        e.setRef(draft.ref());
-        e.setConnectorRef(draft.connectorRef());
-        e.setRules(CatalogMappingParser.toJson(draft.rules()));
-        mappings.save(e);
-        return new MappingDefinition(draft.ref(), draft.connectorRef(), draft.rules());
-    }
-
-    @Override
-    public JourneyDefinition byCode(String journeyCode) {
-        return journeys
-                .findById(journeyCode)
-                .map(this::toJourney)
-                .orElseThrow(() -> new JourneyNotFoundException(journeyCode));
-    }
-
-    @Override
-    public JourneyPolicy policy(String journeyCode) {
-        return byCode(journeyCode).policy();
     }
 
     @Override
@@ -287,14 +238,6 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, MappingCat
             }
         }
         return ValidationResult.ok();
-    }
-
-    private JourneyDefinition toJourney(com.samanvay.catalog.internal.domain.JourneyEntity e) {
-        JsonNode policy = e.getPolicy() == null ? JSON.createObjectNode() : JSON.readTree(e.getPolicy());
-        boolean acceptStale = policy.get("accept_stale") != null && policy.get("accept_stale").booleanValue();
-        int sla = policy.get("sla_hours") == null ? 72 : policy.get("sla_hours").intValue();
-        List<String> cats = e.getRequiredCategories() == null ? List.of() : Arrays.asList(e.getRequiredCategories());
-        return new JourneyDefinition(e.getCode(), e.getName(), e.getBpmnRef(), cats, new JourneyPolicy(acceptStale, sla), e.getStatus());
     }
 
     private ConnectorDefinition toConnector(ConnectorEntity e) {

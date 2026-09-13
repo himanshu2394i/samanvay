@@ -15,7 +15,7 @@ class MappingServiceTest {
 
     @Test
     void unknownTransformRejectedAtSave() {
-        CatalogServices catalog = new CatalogServices(null, null, null, Mockito.mock(MappingRepository.class), null, null, e -> {});
+        MappingCatalogService catalog = new MappingCatalogService(Mockito.mock(MappingRepository.class));
         MappingDraft draft = new MappingDraft(
                 "map-x@1",
                 "x@1",

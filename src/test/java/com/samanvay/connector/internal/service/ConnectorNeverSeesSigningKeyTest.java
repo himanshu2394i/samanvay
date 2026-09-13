@@ -2,20 +2,26 @@ package com.samanvay.connector.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.tngtech.archunit.core.domain.JavaClasses;
-import com.tngtech.archunit.core.importer.ClassFileImporter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class ConnectorNeverSeesSigningKeyTest {
 
     @Test
-    void connectorSourcesDoNotResolveSigningKey() {
-        JavaClasses classes = new ClassFileImporter().importPackages("com.samanvay.connector");
-        classes.forEach(c -> assertThat(c.getSource().map(s -> s.getUri().toString()).orElse(""))
-                .doesNotContain("this-is-not-a-source-check"));
-        String joined = classes.stream()
-                .flatMap(c -> c.getCodeUnitNames().stream())
-                .reduce("", (a, b) -> a + b);
-        assertThat(joined).doesNotContain("consent-grant-signing-key");
+    void connectorSourcesDoNotResolveSigningKey() throws IOException {
+        Path root = Path.of("src/main/java/com/samanvay/connector");
+        StringBuilder all = new StringBuilder();
+        try (var walk = Files.walk(root)) {
+            walk.filter(p -> p.toString().endsWith(".java")).forEach(p -> {
+                try {
+                    all.append(Files.readString(p));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+        assertThat(all.toString()).doesNotContain("consent-grant-signing-key");
     }
 }

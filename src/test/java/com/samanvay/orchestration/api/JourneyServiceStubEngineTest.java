@@ -39,6 +39,6 @@ class JourneyServiceStubEngineTest {
             }
         };
         String id = stub.start("scholarship", Map.of("citizenId", "x"));
-        assertThat(stub.state(id).completed()).isFalse();
+        assertThat(stub.state(id).done()).isFalse();
     }
 }
