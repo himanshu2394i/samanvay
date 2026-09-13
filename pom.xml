@@ -132,6 +132,27 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <!-- See com.samanvay.SamanvayApplication's static block: on
+                         India-locale machines the JVM's default zone is the
+                         legacy alias "Asia/Calcutta", which Postgres's tzdata
+                         rejects. That fix only fires when main() is actually
+                         launched - @SpringBootTest boots the app via ASM-based
+                         annotation scanning, which never triggers
+                         SamanvayApplication's class initialization at all, so
+                         every *IT test needs this set at the forked JVM's
+                         startup instead, before any class loads. -->
+                    <argLine>-Duser.timezone=UTC</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Same reasoning as maven-failsafe-plugin above, for any
+                         *Test that also opens a real Postgres connection. -->
+                    <argLine>-Duser.timezone=UTC</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>
