@@ -134,7 +134,8 @@
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
-              citizenId, departmentCode, localIdType: departmentCode, localId: "DEMO-" + departmentCode, proof: "stub"
+              citizenId, departmentCode, localIdType: departmentCode, localId: "DEMO-" + departmentCode,
+              provider: "DIGILOCKER", proof: "sandbox"
             })
           });
         }

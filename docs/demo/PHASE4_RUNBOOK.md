@@ -26,7 +26,7 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 | Beat | Where | How it is proven |
 |---|---|---|
 | 1 | Three portals / same form | Problem statement; not automated. Start at `/` then `/caller.html` — the **external caller** that can start any catalog journey. |
-| 2 | Link department IDs + SSO | Linking works via `/api/identity/links`. **Keycloak full brokering stays stubbed** (`X-Auth-Jti`). |
+| 2 | Link department IDs + SSO | Linking works via `/api/identity/links` with a labeled `LinkProofProvider` (DigiLocker sandbox mock or Local ID + OTP demo). Consent grant still uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
 | 3 | Scholarship fan-out | `ScholarshipJourneyIT` + caller starts `POST_MATRIC_SCHOLARSHIP` (one catalog code among others) |
 | 4 | Revenue killed mid-flight | Incident (`/ops.html`): Kill `revenue-rest-mock` → start a journey → status `PARTIALLY_VERIFIED`, Exceptions → Revive → Retry pending |
 | 5 | Consent revoke | `POST /api/consent/{id}/revoke` → next `AccessAuthority.authorize` is `DENIED` (`GRANT_DENIED` on Incident denials) |
