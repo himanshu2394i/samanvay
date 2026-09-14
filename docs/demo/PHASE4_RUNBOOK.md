@@ -21,13 +21,15 @@ docker compose up -d
 
 **Judge path starts at Citizen services** (`/`), then a department portal — not on Samanvay operations.
 
-Open `http://localhost:8080/` (Government of Maharashtra — Citizen services). Two independent callers: Scholarship Portal and Business licence / NOC.
+Open `http://localhost:8080/` (Government of Maharashtra — Citizen services). Three independent callers: Scholarship Portal, Business licence / NOC, and Farmer subsidy.
 
 Scholarship: Apply → connect Revenue / Education / DBT → consent → submit. Then **Officer desk** (`officer` / `demo-2026`) → Revenue unavailable → restore → Retry.
 
 Licence: `/licence/` is a second government skin on `BUSINESS_NOC` (Municipal, Fire, Pollution, Revenue). Same APIs, different portal.
 
-Optional 60-second Samanvay cutaway: `/demo.html` → `/audit.html` and `/schemes.html` (farmer subsidy as configuration). Do **not** open Command/Caller first.
+Farmer: `/farmer/` is a third government skin on `FARMER_SUBSIDY`. The journey itself is catalog + BPMN + policy (`FarmerSubsidyJourneyIT`) — no new Java module.
+
+Optional 60-second Samanvay cutaway: `/demo.html` → `/audit.html` and `/schemes.html`. Do **not** open Command/Caller first.
 
 Spoken script: [JUDGE_SCRIPT.md](JUDGE_SCRIPT.md). One-pager: [ONE_PAGER.md](ONE_PAGER.md).
 
@@ -35,10 +37,11 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 
 | Beat | Where | How it is proven |
 |---|---|---|
-| 1 | Three portals / same form | **Start at `/`** — two independent government services. Scholarship and licence would otherwise duplicate citizen data. |
+| 1 | Three portals / same form | **Start at `/`** — three independent government services. They would otherwise duplicate citizen data. |
 | 2 | Connect department accounts | Scholarship **Connect accounts**. Consent uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
 | 3 | Scholarship fan-out | Portal submit starts `POST_MATRIC_SCHOLARSHIP`. |
 | 3b | Second caller | `/licence/` starts `BUSINESS_NOC` on the same core. |
+| 3c | Third caller | `/farmer/` starts `FARMER_SUBSIDY` (catalog configuration + caller skin). |
 | 4 | Revenue unavailable mid-flight | **Officer desk**: Mark Revenue records unavailable → application needs action → Restore → Retry. Optional staff cutaway: `/ops.html`. |
 | 5 | Consent revoke | `POST /api/consent/{id}/revoke` → next authorize denied |
 | 6 | Audit verifier | `/audit.html`: Verify range → Tamper head → fail |
@@ -49,9 +52,10 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 
 | URL | Surface |
 |---|---|
-| `/` | **Judge entry** — Citizen services directory (two independent portals) |
+| `/` | **Judge entry** — Citizen services directory (three independent portals) |
 | `/scholarship/` | Scholarship Portal (gov service). Calls identity, consent, journeys, tracking. |
 | `/licence/` | Business licence / NOC portal — second independent caller |
+| `/farmer/` | Farmer subsidy portal — third caller on catalog-only journey |
 | `/scholarship/#officer` | Officer desk — demonstration login, department records, Retry |
 | `/demo.html` | Optional operations cutaway — judge script; not the entry |
 | `/schemes.html` | Published catalog journeys — farmer subsidy as configuration |

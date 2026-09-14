@@ -13,29 +13,29 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 @SpringBootTest(classes = SamanvayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class LicencePortalIT extends PostgresIntegrationTest {
+class FarmerPortalIT extends PostgresIntegrationTest {
 
     @LocalServerPort
     int port;
 
     @Test
-    void licencePagesAreASeparateProductSkin() {
+    void farmerPagesAreASeparateProductSkin() {
         RestClient http = RestClient.create();
-        String landing = http.get().uri(url("/licence")).retrieve().body(String.class);
+        String landing = http.get().uri(url("/farmer")).retrieve().body(String.class);
         String root = http.get().uri(url("/")).retrieve().body(String.class);
         assertThat(landing).contains("Government of Maharashtra");
-        assertThat(landing).contains("Apply for licence");
+        assertThat(landing).contains("Apply for subsidy");
         assertThat(landing).doesNotContain("Control plane");
         assertThat(landing).doesNotContain("Apply for scholarship");
-        assertThat(root).contains("/licence/");
         assertThat(root).contains("/farmer/");
+        assertThat(root).contains("/licence/");
         assertThat(root).contains("/scholarship/");
         assertThat(root).contains("Citizen services");
         assertThat(root).doesNotContain("Control plane");
     }
 
     @Test
-    void portalHttpFlowStartsBusinessNocJourney() throws InterruptedException {
+    void portalHttpFlowStartsFarmerSubsidyJourney() throws InterruptedException {
         RestClient http = RestClient.create();
         UUID citizenId = http.post()
                 .uri(url("/api/identity/citizens"))
@@ -43,15 +43,15 @@ class LicencePortalIT extends PostgresIntegrationTest {
                 .body(
                         """
                         {
-                          "nameLatin": "Anita Desai",
-                          "nameDevanagari": "अनिता",
-                          "givenName": "Anita",
-                          "familyName": "Desai",
-                          "fatherName": "Ravi",
-                          "dob": "1988-03-04",
+                          "nameLatin": "Suresh Patil",
+                          "nameDevanagari": "सुरेश",
+                          "givenName": "Suresh",
+                          "familyName": "Patil",
+                          "fatherName": "Kumar",
+                          "dob": "1975-08-12",
                           "dobPrecision": "DAY",
-                          "gender": "F",
-                          "contactMasked": "98****11"
+                          "gender": "M",
+                          "contactMasked": "77****09"
                         }
                         """)
                 .retrieve()
@@ -59,7 +59,7 @@ class LicencePortalIT extends PostgresIntegrationTest {
         assertThat(citizenId).isNotNull();
 
         String suffix = citizenId.toString().substring(0, 8);
-        for (String department : new String[] {"MUNICIPAL", "FIRE", "POLLUTION", "REVENUE"}) {
+        for (String department : new String[] {"REVENUE", "AGRICULTURE", "DBT"}) {
             Map<?, ?> link = http.post()
                     .uri(url("/api/identity/links"))
                     .contentType(MediaType.APPLICATION_JSON)
@@ -71,7 +71,7 @@ class LicencePortalIT extends PostgresIntegrationTest {
                             "localIdType",
                             department,
                             "localId",
-                            "LICENCE-" + department + "-" + suffix,
+                            "FARMER-" + department + "-" + suffix,
                             "provider",
                             "DIGILOCKER",
                             "proof",
@@ -88,13 +88,13 @@ class LicencePortalIT extends PostgresIntegrationTest {
                         "citizenId",
                         citizenId,
                         "requesterId",
-                        "INDUSTRY",
+                        "AGRICULTURE",
                         "purposeCode",
-                        "BUSINESS_NOC",
+                        "FARMER_SUBSIDY",
                         "purposeText",
-                        "Business licence / NOC",
+                        "Farmer subsidy",
                         "categories",
-                        new String[] {"PROPERTY", "FIRE_NOC", "POLLUTION_CLEARANCE", "LAND_RECORD"}))
+                        new String[] {"LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT"}))
                 .retrieve()
                 .body(Map.class);
 
@@ -107,15 +107,15 @@ class LicencePortalIT extends PostgresIntegrationTest {
                 .toBodilessEntity();
 
         Map<?, ?> started = http.post()
-                .uri(url("/api/journeys/BUSINESS_NOC/start"))
+                .uri(url("/api/journeys/FARMER_SUBSIDY/start"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("citizenId", citizenId, "submission", Map.of()))
                 .retrieve()
                 .body(Map.class);
-        assertThat(started.get("journeyCode")).isEqualTo("BUSINESS_NOC");
+        assertThat(started.get("journeyCode")).isEqualTo("FARMER_SUBSIDY");
 
         ApplicationSummary app = awaitApplication(http, citizenId);
-        assertThat(app.referenceNo()).contains("-NOC-");
+        assertThat(app.referenceNo()).contains("-FAR-");
         assertThat(app.status()).isIn("SUBMITTED", "VERIFIED", "PARTIALLY_VERIFIED");
     }
 
@@ -130,7 +130,7 @@ class LicencePortalIT extends PostgresIntegrationTest {
             }
             Thread.sleep(50);
         }
-        throw new AssertionError("tracking did not project a licence application");
+        throw new AssertionError("tracking did not project a farmer subsidy application");
     }
 
     private String url(String path) {

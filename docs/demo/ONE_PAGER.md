@@ -10,20 +10,21 @@ Citizens fill the same facts on every department portal. Departments keep their 
 
 **Samanvay is the middle layer.** It does not replace Aaple Sarkar. It does not store department payloads. It owns only interoperability state: identity links, consent, catalog, workflow, tracking, audit.
 
-Two **independent government services** call it:
+Three **independent government services** call it:
 
 | Service | URL | Departments |
 |---|---|---|
 | Scholarship Portal | `/scholarship/` | Revenue, Education, DBT |
 | Business licence / NOC | `/licence/` | Municipal, Fire, Pollution, Revenue |
+| Farmer subsidy | `/farmer/` | Revenue, Agriculture, DBT |
 
-Farmer subsidy is a third journey added as **catalog configuration** (`/schemes.html`) — not a new Java application.
+Farmer subsidy’s **journey** was added as **catalog configuration** (`/schemes.html`) — not a new Java module. `/farmer/` is a thin caller skin on that configuration.
 
 ## What to click
 
 1. `http://localhost:8080/` — citizen services directory  
 2. Scholarship apply → Officer desk (`officer` / `demo-2026`) → Retry after Revenue unavailable  
-3. Licence portal — second caller, same APIs  
+3. Licence and farmer portals — second and third callers, same APIs  
 4. `/audit.html` then `/schemes.html`
 
 Demo identity is **AUTH STUBBED** (not live Keycloak). DigiLocker and OTP on the portals are labelled mocks.

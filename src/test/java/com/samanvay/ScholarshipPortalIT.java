@@ -33,6 +33,7 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
         assertThat(root).contains("/scholarship/");
         assertThat(root).contains("Scholarship");
         assertThat(root).contains("/licence/");
+        assertThat(root).contains("/farmer/");
         assertThat(root).contains("Citizen services");
         assertThat(root).doesNotContain("Control plane");
     }

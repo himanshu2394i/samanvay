@@ -14,6 +14,8 @@ class ScholarshipPortalWeb implements WebMvcConfigurer {
         registry.addViewController("/scholarship/").setViewName("forward:/scholarship/index.html");
         registry.addViewController("/licence").setViewName("forward:/licence/index.html");
         registry.addViewController("/licence/").setViewName("forward:/licence/index.html");
+        registry.addViewController("/farmer").setViewName("forward:/farmer/index.html");
+        registry.addViewController("/farmer/").setViewName("forward:/farmer/index.html");
         registry.setOrder(Ordered.HIGHEST_PRECEDENCE);
     }
 }

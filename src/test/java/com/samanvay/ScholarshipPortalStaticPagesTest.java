@@ -107,6 +107,7 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(root).contains("/scholarship/");
         assertThat(root).contains("Scholarship");
         assertThat(root).contains("/licence/");
+        assertThat(root).contains("/farmer/");
         assertThat(root).contains("Citizen services");
         assertThat(root).doesNotContain("Control plane");
         assertThat(root).doesNotContain("nav-tools");
@@ -126,6 +127,7 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("configuration");
         assertThat(html).contains("no new Java");
         assertThat(html).contains("/scholarship/");
+        assertThat(html).contains("/farmer/");
         assertThat(html).doesNotContain("Apply for scholarship");
         assertThat(html).contains("AUTH STUBBED");
         assertThat(html).contains("not live Keycloak");

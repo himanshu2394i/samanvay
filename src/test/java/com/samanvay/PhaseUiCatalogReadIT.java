@@ -51,6 +51,7 @@ class PhaseUiCatalogReadIT extends PostgresIntegrationTest {
         String root = http.get().uri(url("/")).retrieve().body(String.class);
         assertThat(root).contains("/scholarship/");
         assertThat(root).contains("/licence/");
+        assertThat(root).contains("/farmer/");
         assertThat(root).contains("Citizen services");
         assertThat(root).doesNotContain("Command Center");
 
