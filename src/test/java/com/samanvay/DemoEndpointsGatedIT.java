@@ -27,10 +27,17 @@ class DemoEndpointsGatedIT extends PostgresIntegrationTest {
         RestClient http = RestClient.create();
         assertThat(status(http, "/api/audit/demo/tamper/1").value()).isEqualTo(404);
         assertThat(status(http, "/api/connector/chaos/revenue-rest-mock/kill").value()).isEqualTo(404);
+        assertThat(getStatus(http, "/api/connector/chaos/revenue-rest-mock").value()).isEqualTo(404);
     }
 
     private HttpStatusCode status(RestClient http, String path) {
         return http.post()
+                .uri("http://localhost:" + port + path)
+                .exchange((req, res) -> res.getStatusCode());
+    }
+
+    private HttpStatusCode getStatus(RestClient http, String path) {
+        return http.get()
                 .uri("http://localhost:" + port + path)
                 .exchange((req, res) -> res.getStatusCode());
     }
