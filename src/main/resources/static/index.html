@@ -32,13 +32,14 @@
     </nav>
     <main id="content" tabindex="-1">
       <h1 class="page-title">Caller-first demo</h1>
-      <p class="lede">Samanvay is the interoperability middle layer. An external caller invokes it. Journey, Incident, Audit, and Ops are cutaways of what happened inside. This is not a scholarship product.</p>
-      <div class="callout tool"><strong>JUDGE PATH.</strong> Start as the external caller. Then open the cutaways. Do not begin on Ops.</div>
+      <p class="lede">Samanvay is the interoperability middle layer. Judges start on the Scholarship Portal (a government service). This console is the optional cutaway of what that portal called. Journey, Incident, Audit, and Ops are not the citizen product.</p>
+      <div class="callout tool"><strong>JUDGE PATH.</strong> Open the Scholarship Portal first. Then optionally return here for Ops/Audit cutaways. Do not begin on Ops.</div>
       <div class="callout"><strong>AUTH STUBBED.</strong> Demo identity uses header <code>X-Auth-Jti</code> (for example <code>ui-session</code>). This is not live Keycloak SSO.</div>
       <p class="row">
-        <a class="btn primary" href="/caller.html">Start demo (external caller)</a>
+        <a class="btn primary" href="/scholarship/">Open Scholarship Portal (judge path)</a>
+        <a class="btn" href="/caller.html">Start demo (external caller)</a>
       </p>
-      <p class="note">After a journey starts, open Journey, Incident, or Audit to see the federated case inside the control plane.</p>
+      <p class="note">After a journey starts from the portal or caller, open Journey, Incident, or Audit to see the federated case inside the control plane.</p>
       <div class="stack">
         <section>
           <h2>Cutaways</h2>

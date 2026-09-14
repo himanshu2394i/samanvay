@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Post-Matric Scholarship | Government of Maharashtra — Scholarship Services</title>
+  <link rel="stylesheet" href="/scholarship/portal.css"/>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <p id="live" class="visually-hidden" aria-live="polite"></p>
+
+  <div class="tricolor" aria-hidden="true"></div>
+  <p class="sandbox">Demonstration portal. DigiLocker and local-ID OTP here are labelled mocks — not live DigiLocker, not live Aadhaar SSO, and no secrets are used.</p>
+
+  <header class="mast">
+    <div class="mast-inner">
+      <div class="crest" aria-hidden="true">MH</div>
+      <div>
+        <p class="gov" lang="hi">महाराष्ट्र शासन</p>
+        <p class="gov">Government of Maharashtra — Scholarship Services</p>
+        <p class="dept">Directorate of Higher Education · Post-matric scholarship</p>
+      </div>
+    </div>
+  </header>
+
+  <nav class="bar" aria-label="Scholarship Services">
+    <ul>
+      <li><a href="#scheme" data-nav="scheme">Scheme</a></li>
+      <li><a href="#apply" data-nav="apply">Apply</a></li>
+      <li><a href="#status" data-nav="status">Track application</a></li>
+      <li><a href="#officer" data-nav="officer">Officer desk</a></li>
+    </ul>
+  </nav>
+
+  <main id="content" tabindex="-1">
+    <section id="view-scheme">
+      <p class="crumb">Home / Scholarships / Post-matric</p>
+      <h1>Post-Matric Scholarship <span lang="hi" class="hi">/ उत्तर-माध्यमिक शिष्यवृत्ती</span></h1>
+      <p class="lede">Financial assistance for eligible students after Class 10. This service collects only the consent you give, then checks eligibility using records already held by other departments.</p>
+      <dl class="facts">
+        <div><dt>Scheme year</dt><dd>2026–27</dd></div>
+        <div><dt>Who can apply</dt><dd>Students studying after Class 10 in a recognised institution in Maharashtra</dd></div>
+        <div><dt>What is checked</dt><dd>Income and caste (Revenue), marks (Education), bank account for payment (DBT)</dd></div>
+      </dl>
+      <p>
+        <a class="btn primary" href="#apply" data-nav="apply">Apply for scholarship</a>
+        <a class="btn" href="#status" data-nav="status">Track an application</a>
+      </p>
+    </section>
+
+    <section id="view-apply" hidden>
+      <h1>Apply for scholarship</h1>
+      <ol class="steps" aria-label="Application steps">
+        <li data-step="details">Applicant</li>
+        <li data-step="connect">Connect accounts</li>
+        <li data-step="consent">Consent</li>
+        <li data-step="submit">Submit</li>
+      </ol>
+
+      <div id="panel-details">
+        <h2>Applicant details <span lang="hi" class="hi">/ अर्जदाराची माहिती</span></h2>
+        <form id="detailsForm" action="/scholarship/" method="post">
+          <div class="field">
+            <label for="givenName">Given name / <span lang="hi">नाव</span></label>
+            <input id="givenName" name="givenName" autocomplete="given-name" required maxlength="100"/>
+          </div>
+          <div class="field">
+            <label for="familyName">Family name / <span lang="hi">आडनाव</span></label>
+            <input id="familyName" name="familyName" autocomplete="family-name" required maxlength="100"/>
+          </div>
+          <div class="field">
+            <label for="nameDevanagari">Name in Marathi (optional) / <span lang="hi">मराठी नाव</span></label>
+            <input id="nameDevanagari" name="nameDevanagari" lang="hi" maxlength="200"/>
+          </div>
+          <div class="field">
+            <label for="fatherName">Father’s / guardian’s name</label>
+            <input id="fatherName" name="fatherName" autocomplete="name" required maxlength="200"/>
+          </div>
+          <div class="field">
+            <label for="dob">Date of birth</label>
+            <input id="dob" name="dob" type="date" autocomplete="bday" required/>
+          </div>
+          <fieldset>
+            <legend>Gender</legend>
+            <label class="choice"><input type="radio" name="gender" value="F" required/> Female</label>
+            <label class="choice"><input type="radio" name="gender" value="M"/> Male</label>
+            <label class="choice"><input type="radio" name="gender" value="O"/> Other</label>
+          </fieldset>
+          <p class="hint">You will next connect department accounts. This is not a document upload list.</p>
+          <button type="submit" class="btn primary">Continue to connect accounts</button>
+        </form>
+      </div>
+
+      <div id="panel-connect" hidden>
+        <h2>Connect accounts <span lang="hi" class="hi">/ खाती जोडा</span></h2>
+        <p>This scheme needs three department accounts — not individual documents. Connect only the departments below. Proof providers on this page are demo mocks and are not live SSO.</p>
+        <ul id="deptList" class="depts"></ul>
+        <p id="connectStatus" class="status" aria-live="polite"></p>
+        <button type="button" class="btn primary" id="toConsent" disabled>Continue to consent</button>
+      </div>
+
+      <div id="panel-consent" hidden>
+        <h2>Consent to share records</h2>
+        <form id="consentForm" action="/scholarship/" method="post">
+          <p>I agree to share income and caste from Revenue, marks from Education, and bank details from DBT so this scholarship application can be checked for eligibility.</p>
+          <p lang="hi">मी महसूल विभागाकडून उत्पन्न व जात, शिक्षण विभागाकडून गुण, आणि DBT कडून बँक तपशील शिष्यवृत्ती पात्रतेसाठी देण्यास सहमत आहे.</p>
+          <label class="choice">
+            <input type="checkbox" id="consentCheck" name="consent" required/>
+            I have read this and I agree / <span lang="hi">मी सहमत आहे</span>
+          </label>
+          <p class="hint">This demonstration records consent with a labelled session stub (<code>X-Auth-Jti</code>), not live Aadhaar login.</p>
+          <button type="submit" class="btn primary" id="submitBtn">Submit application</button>
+        </form>
+        <p id="submitStatus" class="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="view-status" hidden>
+      <h1>Application status <span lang="hi" class="hi">/ अर्जाची स्थिती</span></h1>
+      <form id="trackForm" action="/scholarship/" method="get">
+        <div class="field">
+          <label for="referenceNo">Application number</label>
+          <input id="referenceNo" name="referenceNo" autocomplete="off" required maxlength="40" aria-describedby="refHint"/>
+          <p id="refHint" class="hint">Shown after you submit. Example shape: MH-SCH-2026-000123</p>
+        </div>
+        <button type="submit" class="btn primary">Check status</button>
+      </form>
+      <p id="statusMsg" class="status" aria-live="polite"></p>
+      <div id="statusCard"></div>
+    </section>
+
+    <section id="view-officer" hidden>
+      <h1>Officer desk <span lang="hi" class="hi">/ अधिकारी कक्ष</span></h1>
+      <p>Recent scholarship applications for this demonstration. Status is written for officers, not as technical codes.</p>
+      <p id="officerMsg" class="status" aria-live="polite"></p>
+      <div id="officerTable"></div>
+      <button type="button" class="btn" id="officerRefresh">Refresh list</button>
+    </section>
+  </main>
+
+  <dialog id="proofDlg" aria-labelledby="proofTitle">
+    <form id="proofForm" method="dialog" action="/scholarship/">
+      <h2 id="proofTitle"></h2>
+      <p id="proofBody"></p>
+      <div id="otpFields" hidden>
+        <div class="field">
+          <label for="localId">Local department ID (demo)</label>
+          <input id="localId" name="localId" maxlength="60" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label for="otp">One-time password (demo)</label>
+          <input id="otp" name="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" aria-describedby="otpHint"/>
+          <p id="otpHint" class="hint">Demo OTP: enter any 6 digits. This is not a live telecom OTP.</p>
+        </div>
+      </div>
+      <div class="row">
+        <button type="submit" class="btn primary" id="proofConfirm" value="ok">Continue</button>
+        <button type="submit" class="btn" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <footer>
+    <p>Government of Maharashtra — Scholarship Services. Content for SIH demonstration only.</p>
+    <p class="cutaway">Optional SIH cutaway (not the citizen product): <a href="/ops.html">Samanvay Ops</a> · <a href="/audit.html">Audit</a></p>
+  </footer>
+  <script src="/scholarship/portal.js"></script>
+</body>
+</html>

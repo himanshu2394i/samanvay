@@ -19,16 +19,20 @@ docker compose up -d
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
 
-Open the Phase-UI **Demo** entry at `http://localhost:8080/`. Primary CTA: **Start demo (external caller)** → `/caller.html`. Do **not** open the demo on Ops/Command. Journey, Incident, and Audit are cutaways of what the caller started. It is **not** a scholarship/NOC/subsidy portal.
+**Judge path starts on the Scholarship Portal**, not on Samanvay Ops/console.
+
+Open `http://localhost:8080/scholarship/` (Government of Maharashtra — Scholarship Services). Apply → connect the three department accounts (Revenue / Education / DBT; labelled DigiLocker mock or local-ID OTP — not live SSO) → consent in plain language → submit. Status uses tracking, with human wording (submitted / in progress / needs action / completed). Officer desk is a thin list of applications.
+
+Samanvay is the middle layer the portal calls. Optional cutaways after that: Phase-UI Demo `http://localhost:8080/` → Journey / Incident (`/ops.html`) / Audit. Do **not** open the demo on Ops/Command first. `/caller.html` remains the generic external-caller stand-in (any catalog journey), not the citizen product.
 
 Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tamper/{seq}` and `POST /api/connector/chaos/**` are unregistered (404). **Incident kill/revive and Audit tamper need `--spring.profiles.active=demo`.**
 
 | Beat | Where | How it is proven |
 |---|---|---|
-| 1 | Three portals / same form | Problem statement; not automated. Start at `/` then `/caller.html` — the **external caller** that can start any catalog journey. |
-| 2 | Connect department accounts | Caller **Connect accounts** checklist: missing departments only, one connect per dept via labeled `LinkProofProvider` (DigiLocker sandbox mock or Local ID + OTP demo). Consent grant still uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
-| 3 | Scholarship fan-out | `ScholarshipJourneyIT` + caller starts `POST_MATRIC_SCHOLARSHIP` (one catalog code among others) |
-| 4 | Revenue killed mid-flight | Incident (`/ops.html`): Kill `revenue-rest-mock` → start a journey from Caller → `PARTIALLY_VERIFIED` + open exception → Revive → one-click Retry |
+| 1 | Three portals / same form | Problem statement. **Start at `/scholarship/`** — citizen scholarship apply on a government portal. Samanvay is not on screen. |
+| 2 | Connect department accounts | Portal **Connect accounts** checklist (Revenue / Education / DBT): missing departments only, one connect per dept via labeled DigiLocker sandbox or Local ID + OTP demo (`LinkProofProvider`). Consent grant still uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** Optional: `/caller.html` has the same checklist for any catalog journey. |
+| 3 | Scholarship fan-out | Portal submit starts `POST_MATRIC_SCHOLARSHIP` (`ScholarshipPortalIT` + `ScholarshipJourneyIT`). Optional: `/caller.html` still starts any catalog journey. |
+| 4 | Revenue killed mid-flight | Incident (`/ops.html`): Kill `revenue-rest-mock` → start a journey → `PARTIALLY_VERIFIED` + open exception → Revive → one-click Retry |
 | 5 | Consent revoke | `POST /api/consent/{id}/revoke` → next `AccessAuthority.authorize` is `DENIED` (`GRANT_DENIED` on Incident denials) |
 | 6 | Audit verifier | `/audit.html`: Verify range (green) → Tamper head → spectacular fail. Tamper uses the **migrate** role; `samanvay_app` still cannot `UPDATE` |
 | 7 | Onboard from spec | `/onboard.html`: Suggest mappings (advisory) → check boxes → Save approved only |
@@ -38,8 +42,9 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 
 | URL | Surface |
 |---|---|
-| `/` | Demo entry — interoperability middle-layer framing; primary CTA to Caller |
-| `/caller.html` | External caller demo (not the product). After start: open Journey / Incident / Audit |
+| `/scholarship/` | **Judge entry** — Scholarship Portal (gov service). Calls identity, consent, journeys, tracking. Not the control plane. |
+| `/` | Control-plane demo entry — interoperability middle-layer framing; links to portal + Caller |
+| `/caller.html` | External caller demo (generic catalog start, not the citizen product). After start: open Journey / Incident / Audit |
 | `/journey.html?ref=…` | Journey timeline cutaway (Identity → Consent → departments → recovery) |
 | `/ops.html` | Incident cutaway: affected connector, impacted apps, open exceptions with one-click Retry, recovery spine. Chaos kill/revive is secondary (demo). |
 | `/audit.html` | Audit ledger cutaway — verify, entries, demo tamper |
