@@ -6,8 +6,8 @@
   --sky: #e8f1fb;
   --line: #c5d0dc;
   --line-strong: #5a6a7a;
-  --navy: #0a3d91;
-  --navy-deep: #062a66;
+  --navy: #4a3b12;
+  --navy-deep: #2e250b;
   --navy-ink: #ffffff;
   --saffron: #c05600;
   --green: #0b5d1e;
@@ -272,43 +272,6 @@ h3 {
 .facts dd {
   margin: 0.2rem 0 0;
 }
-
-.services {
-  display: grid;
-  gap: 0.75rem;
-  margin: 1.25rem 0 1.5rem;
-  padding: 0;
-  list-style: none;
-}
-
-.services a {
-  display: block;
-  min-height: 48px;
-  padding: 1rem 1.15rem;
-  border: 1px solid var(--line-strong);
-  border-left: 4px solid var(--navy);
-  background: var(--paper);
-  color: inherit;
-  text-decoration: none;
-}
-
-.services a:hover,
-.services a:focus-visible {
-  background: var(--sky);
-}
-
-.services strong {
-  display: block;
-  font-size: 1.05rem;
-}
-
-.services span {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--muted);
-  font-weight: 400;
-}
-
 
 .how {
   margin: 0 0 1.25rem;
