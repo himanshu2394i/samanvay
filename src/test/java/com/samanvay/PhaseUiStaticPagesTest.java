@@ -18,38 +18,45 @@ class PhaseUiStaticPagesTest {
         String audit = page("audit.html");
         String onboard = page("onboard.html");
         String caller = page("caller.html");
+        String schemes = page("schemes.html");
         String css = page("console.css");
         String js = page("console.js");
 
-        for (String html : new String[] {demo, command, journey, incident, audit, onboard, caller}) {
+        for (String html : new String[] {demo, command, journey, incident, audit, onboard, caller, schemes}) {
             assertThat(html).containsIgnoringCase("interoperability");
             assertThat(html).doesNotContain("Apply for scholarship");
             assertThat(html).contains("journey.html");
             assertThat(html).contains("ops.html");
             assertThat(html).contains("audit.html");
-            assertThat(html).contains("caller.html");
-            assertThat(html).contains("command.html");
-            assertThat(html).contains("Control plane");
+            assertThat(html).contains("schemes.html");
+            assertThat(html).contains("/scholarship/");
+            assertThat(html).contains("State operations");
+            assertThat(html).contains("Government of Maharashtra");
             assertThat(html).contains("Skip to content");
             assertThat(html).contains("<main");
             assertThat(html).contains("nav-primary");
             assertThat(html).contains("nav-tools");
-            assertThat(html).contains(">Demo<");
+            assertThat(html).contains("Staff tools");
             assertThat(html).contains("/demo.html");
-            assertThat(html).contains(">Caller<");
-            assertThat(html).contains(">Ops<");
+            assertThat(html).contains("class=\"tricolor\"");
+            assertThat(html).contains("AUTH STUBBED");
+            assertThat(html).contains("not live Keycloak");
         }
 
         assertThat(demo).contains("Start demo (external caller)");
         assertThat(demo).contains("/scholarship/");
         assertThat(demo).contains("Open Scholarship Portal");
         assertThat(demo).contains("interoperability middle layer");
+        assertThat(demo).contains("Officer desk");
+        assertThat(demo).contains("Published schemes");
         assertThat(demo).contains("AUTH STUBBED");
         assertThat(demo).contains("not live Keycloak");
         assertThat(demo).doesNotContain("/api/");
         assertThat(demo).doesNotContain("<script");
         assertThat(command).contains("Command");
         assertThat(command).contains("Tracked applications");
+        assertThat(schemes).contains("Farmer subsidy");
+        assertThat(schemes).contains("configuration");
         assertThat(journey).contains("Identity");
         assertThat(journey).contains("/api/applications/");
         assertThat(incident).contains("/api/connector/chaos/");

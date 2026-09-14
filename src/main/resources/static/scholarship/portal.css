@@ -572,6 +572,39 @@ footer {
   font-size: 0.95rem;
 }
 
+.lang-switch {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.lang-switch button {
+  min-height: 44px;
+  min-width: 44px;
+  border: 2px solid var(--navy);
+  background: var(--paper);
+  color: var(--navy);
+  font: inherit;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.lang-switch button[aria-pressed="true"] {
+  background: var(--navy);
+  color: var(--navy-ink);
+}
+
+#officerCase {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-block-start: 1px solid var(--line);
+}
+
+#officerLogin,
+#officerWork {
+  margin-top: 0.75rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

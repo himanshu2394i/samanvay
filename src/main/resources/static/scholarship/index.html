@@ -15,7 +15,10 @@
 
   <div class="util">
     <div class="util-inner">
-      <p>English · <span lang="hi">मराठी</span></p>
+      <p class="lang-switch" role="group" aria-label="Language">
+        <button type="button" id="langEn" data-lang="en" aria-pressed="true">English</button>
+        <button type="button" id="langMr" data-lang="mr" lang="mr" aria-pressed="false">मराठी</button>
+      </p>
       <p class="text-size">
         <span id="textSizeLabel">Text size</span>
         <button type="button" data-text="s" aria-labelledby="textSizeLabel" aria-label="Smaller text">A−</button>
@@ -53,18 +56,18 @@
 
   <nav class="bar" aria-label="Scholarship Services">
     <ul role="list">
-      <li><a href="#scheme" data-nav="scheme">Scheme</a></li>
-      <li><a href="#apply" data-nav="apply">Apply</a></li>
-      <li><a href="#status" data-nav="status">Track application</a></li>
-      <li><a href="#officer" data-nav="officer">Officer desk</a></li>
+      <li><a href="#scheme" data-nav="scheme" data-i18n="nav.scheme">Scheme</a></li>
+      <li><a href="#apply" data-nav="apply" data-i18n="nav.apply">Apply</a></li>
+      <li><a href="#status" data-nav="status" data-i18n="nav.status">Track application</a></li>
+      <li><a href="#officer" data-nav="officer" data-i18n="nav.officer">Officer desk</a></li>
     </ul>
   </nav>
 
   <main id="content" tabindex="-1">
     <section id="view-scheme">
       <p class="crumb">Home / Scholarships / Post-matric</p>
-      <h1>Post-Matric Scholarship <span lang="hi" class="hi">/ उत्तर-माध्यमिक शिष्यवृत्ती</span></h1>
-      <p class="lede">Financial assistance for eligible students after Class 10. This service collects only the consent you give, then checks eligibility using records already held by other departments. You do not upload documents here.</p>
+      <h1 data-i18n="scheme.title">Post-Matric Scholarship <span lang="hi" class="hi">/ उत्तर-माध्यमिक शिष्यवृत्ती</span></h1>
+      <p class="lede" data-i18n="scheme.lede">Financial assistance for eligible students after Class 10. This service collects only the consent you give, then checks eligibility using records already held by other departments. You do not upload documents here.</p>
       <dl class="facts">
         <div><dt>Scheme year</dt><dd>2026–27</dd></div>
         <div><dt>Who can apply</dt><dd>Students studying after Class 10 in a recognised institution in Maharashtra</dd></div>
@@ -84,7 +87,7 @@
     </section>
 
     <section id="view-apply" hidden>
-      <h1>Apply for scholarship</h1>
+      <h1 data-i18n="apply.title">Apply for scholarship</h1>
       <ol class="steps" role="list" aria-label="Application steps">
         <li data-step="details">1. Applicant</li>
         <li data-step="connect">2. Connect accounts</li>
@@ -171,12 +174,50 @@
     </section>
 
     <section id="view-officer" hidden>
-      <h1>Officer desk <span lang="hi" class="hi">/ अधिकारी कक्ष</span></h1>
-      <p class="lede">Review applications for this scheme. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.</p>
-      <p id="officerCounts" class="progress" role="status"></p>
-      <p id="officerMsg" class="status" aria-live="polite"></p>
-      <div id="officerTable"></div>
-      <button type="button" class="btn" id="officerRefresh">Refresh list</button>
+      <h1 data-i18n="officer.title">Officer desk <span lang="hi" class="hi">/ अधिकारी कक्ष</span></h1>
+      <p class="lede" data-i18n="officer.lede">Review applications for this scheme. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.</p>
+
+      <div id="officerLogin">
+        <h2>Officer login</h2>
+        <p class="callout honesty"><strong>Officer login.</strong> This is a demonstration — not SSO. This desk is labelled as a demonstration. Use officer ID <code>officer</code> and password <code>demo-2026</code>.</p>
+        <form id="officerLoginForm" action="/scholarship/" method="post">
+          <div class="field">
+            <label for="officerUser">Officer ID</label>
+            <input id="officerUser" name="officerUser" autocomplete="username" required maxlength="40"/>
+          </div>
+          <div class="field">
+            <label for="officerPass">Password (demonstration)</label>
+            <input id="officerPass" name="officerPass" type="password" autocomplete="current-password" required maxlength="40"/>
+          </div>
+          <p id="officerLoginMsg" class="status" aria-live="polite"></p>
+          <button type="submit" class="btn primary">Sign in to officer desk</button>
+        </form>
+      </div>
+
+      <div id="officerWork" hidden>
+        <p class="callout honesty"><strong>AUTH STUBBED.</strong> Officer session is a labelled demonstration. This is not live SSO.</p>
+        <h2>Demonstration: department records unavailable</h2>
+        <p>For the live demo only: mark Revenue records unavailable, then restore them. Officers retry the application after the department is back. This needs the demonstration profile; otherwise the service reports that the control is not available.</p>
+        <p class="row">
+          <button type="button" class="btn" id="revenueDown">Mark Revenue records unavailable</button>
+          <button type="button" class="btn" id="revenueUp">Restore Revenue records</button>
+        </p>
+        <p id="officerCounts" class="progress" role="status"></p>
+        <p id="officerMsg" class="status" aria-live="polite"></p>
+        <div id="officerTable"></div>
+        <p class="row">
+          <button type="button" class="btn" id="officerRefresh">Refresh list</button>
+          <button type="button" class="btn" id="officerSignOut">Sign out</button>
+        </p>
+        <div id="officerCase">
+          <h2>Application file</h2>
+          <p id="officerCaseEmpty">Open an application number to review which department records have arrived.</p>
+          <div id="officerCaseBody" hidden></div>
+          <p class="row">
+            <button type="button" class="btn primary" id="officerRetry" hidden>Retry</button>
+          </p>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -205,7 +246,7 @@
 
   <footer>
     <p>Government of Maharashtra — Scholarship Portal. Content for SIH demonstration only.</p>
-    <p class="cutaway">Optional SIH cutaway (not the citizen product): <a href="/demo.html">Samanvay Demo</a> · <a href="/ops.html">Ops</a> · <a href="/audit.html">Audit</a></p>
+    <p class="cutaway">Optional SIH cutaway after the citizen and officer beats (not the citizen product): <a href="/demo.html">Samanvay operations</a> · <a href="/schemes.html">Published schemes</a> · <a href="/audit.html">Audit</a></p>
   </footer>
   <script src="/scholarship/portal.js"></script>
 </body>
