@@ -115,8 +115,12 @@ class DefaultJourneyService implements JourneyService {
         if (sources == null || sources.isEmpty()) {
             return;
         }
+        LinkedHashSet<String> required = new LinkedHashSet<>();
+        for (String category : journey.requiredCategories()) {
+            required.add(journey.policy().sourceDepartment(category));
+        }
         List<String> missing = new ArrayList<>();
-        for (String dept : new LinkedHashSet<>(sources.values())) {
+        for (String dept : required) {
             if (linking.activeLink(citizenId, dept).isEmpty()) {
                 missing.add(dept);
             }
