@@ -2,6 +2,7 @@ package com.samanvay.connector.internal.web;
 
 import com.samanvay.connector.api.DepartmentChaos;
 import org.springframework.context.annotation.Profile;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +19,11 @@ class ChaosController {
         this.chaos = chaos;
     }
 
+    @GetMapping("/{dataSourceCode}")
+    ChaosView state(@PathVariable String dataSourceCode) {
+        return new ChaosView(dataSourceCode, chaos.killed(dataSourceCode));
+    }
+
     @PostMapping("/{dataSourceCode}/kill")
     void kill(@PathVariable String dataSourceCode) {
         chaos.kill(dataSourceCode);
@@ -27,4 +33,6 @@ class ChaosController {
     void revive(@PathVariable String dataSourceCode) {
         chaos.revive(dataSourceCode);
     }
+
+    record ChaosView(String dataSourceCode, boolean killed) {}
 }

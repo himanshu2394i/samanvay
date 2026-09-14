@@ -6,6 +6,9 @@ import com.samanvay.identity.api.CitizenProfiles;
 import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.identity.api.IdentityResolution;
 import com.samanvay.identity.api.Link;
+import com.samanvay.identity.api.LinkProofInvalidException;
+import com.samanvay.identity.api.LinkProofKind;
+import com.samanvay.identity.api.LinkProofProviderInfo;
 import com.samanvay.identity.api.Profile;
 import com.samanvay.identity.api.ProfileDraft;
 import com.samanvay.identity.api.ReviewFilter;
@@ -44,9 +47,19 @@ class IdentityController {
         return profiles.profile(id);
     }
 
+    @GetMapping("/proof-providers")
+    List<LinkProofProviderInfo> proofProviders() {
+        return linking.availableProofProviders();
+    }
+
     @PostMapping("/links")
     Link assertLink(@RequestBody LinkBody body) {
-        return linking.assertLink(body.citizenId(), body.departmentCode(), body.localIdType(), body.localId(), new AuthProof(body.proof()));
+        return linking.assertLink(
+                body.citizenId(),
+                body.departmentCode(),
+                body.localIdType(),
+                body.localId(),
+                new AuthProof(parseProvider(body.provider()), body.proof()));
     }
 
     @GetMapping("/citizens/{id}/links")
@@ -69,7 +82,19 @@ class IdentityController {
         resolution.reject(id, body.reviewerId(), body.note());
     }
 
-    record LinkBody(UUID citizenId, String departmentCode, String localIdType, String localId, String proof) {}
+    record LinkBody(
+            UUID citizenId, String departmentCode, String localIdType, String localId, String provider, String proof) {}
 
     record ReviewBody(String reviewerId, String note) {}
+
+    private static LinkProofKind parseProvider(String provider) {
+        if (provider == null || provider.isBlank()) {
+            throw new LinkProofInvalidException();
+        }
+        try {
+            return LinkProofKind.valueOf(provider);
+        } catch (IllegalArgumentException ex) {
+            throw new LinkProofInvalidException();
+        }
+    }
 }

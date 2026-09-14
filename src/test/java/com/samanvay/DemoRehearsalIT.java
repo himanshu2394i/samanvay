@@ -179,7 +179,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
         UUID citizen = profiles.register(new ProfileDraft(
                 "Demo", "डेमो", "Demo", "User", "X", LocalDate.of(2000, 1, 1), "DAY", "M", "11****11"));
         for (String[] link : links) {
-            linking.assertLink(citizen, link[0], link[1], link[2], new com.samanvay.identity.api.AuthProof("idp"));
+            linking.assertLink(citizen, link[0], link[1], link[2], com.samanvay.identity.api.AuthProof.digiLockerSandbox());
         }
         var request = consents.request(new ConsentRequestDraft(citizen, requester, purpose, purpose, cats));
         consents.grant(request.id(), citizen, new AuthProof("session-jti"));

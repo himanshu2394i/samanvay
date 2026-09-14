@@ -12,4 +12,6 @@ public interface IdentityLinking {
     List<Link> activeLinks(UUID citizenId);
 
     void revokeLink(UUID linkId, String reason);
+
+    List<LinkProofProviderInfo> availableProofProviders();
 }
