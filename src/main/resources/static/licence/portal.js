@@ -1,29 +1,14 @@
-const JOURNEY = "POST_MATRIC_SCHOLARSHIP";
-const KEY_CITIZEN = "mhScholarshipCitizen";
-const KEY_REF = "mhScholarshipRef";
-const KEY_OFFICER = "officerDemo";
-const KEY_LANG = "mhScholarshipLang";
-const KEY_CASE = "mhScholarshipOfficerCase";
-const REVENUE_SOURCE = "revenue-rest-mock";
+const JOURNEY = "BUSINESS_NOC";
+const KEY_CITIZEN = "mhLicenceCitizen";
+const KEY_REF = "mhLicenceRef";
+const KEY_OFFICER = "mhLicenceOfficer";
+const KEY_LANG = "mhLicenceLang";
+const KEY_CASE = "mhLicenceOfficerCase";
 const DEPTS = [
-  {
-    code: "REVENUE",
-    name: "Revenue Department",
-    hi: "महसूल विभाग",
-    shares: "income and caste",
-  },
-  {
-    code: "EDUCATION",
-    name: "Education Department",
-    hi: "शिक्षण विभाग",
-    shares: "marks",
-  },
-  {
-    code: "DBT",
-    name: "Direct Benefit Transfer (DBT)",
-    hi: "थेट लाभ हस्तांतरण",
-    shares: "bank account for scholarship payment",
-  },
+  { code: "MUNICIPAL", name: "Municipal Corporation", hi: "नगरपालिका", shares: "property" },
+  { code: "FIRE", name: "Fire Services", hi: "अग्निशमन", shares: "fire NOC" },
+  { code: "POLLUTION", name: "Pollution Control Board", hi: "प्रदूषण नियंत्रण", shares: "pollution clearance" },
+  { code: "REVENUE", name: "Revenue Department", hi: "महसूल विभाग", shares: "land record" },
 ];
 
 const STATUS_COPY = {
@@ -40,10 +25,10 @@ const I18N = {
     "nav.apply": "Apply",
     "nav.status": "Track application",
     "nav.officer": "Officer desk",
-    "scheme.title": "Post-Matric Scholarship",
+    "scheme.title": "Business licence / NOC",
     "scheme.lede":
-      "Post-matric scholarship on the pattern of MahaDBT. Income and caste from Revenue (Aaple Sarkar), marks from Education, bank from MahaDBT. On this laptop those systems are mocks.",
-    "apply.title": "Apply for scholarship",
+      "Trade licence / NOC on the pattern of MAITRI, municipal BPMS, Fire e-approval, and MPCB. This laptop uses mock department systems.",
+    "apply.title": "Apply for licence",
     "officer.title": "Officer desk",
     "officer.lede":
       "Review applications for this scheme. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.",
@@ -53,10 +38,10 @@ const I18N = {
     "nav.apply": "अर्ज",
     "nav.status": "अर्जाचा पाठपुरावा",
     "nav.officer": "अधिकारी कक्ष",
-    "scheme.title": "उत्तर-माध्यमिक शिष्यवृत्ती",
+    "scheme.title": "व्यवसाय परवाना / ना-हरकत",
     "scheme.lede":
-      "१० वी नंतर पात्र विद्यार्थ्यांसाठी आर्थिक मदत. ही सेवा फक्त तुम्ही दिलेली संमती घेते, नंतर इतर विभागांकडे असलेल्या नोंदींवरून पात्रता तपासते. येथे कागदपत्रे अपलोड करू नका.",
-    "apply.title": "शिष्यवृत्तीसाठी अर्ज",
+      "महाराष्ट्रात परिसर सुरू करण्याची परवानगी. संमतीनंतर नगरपालिका, अग्निशमन, प्रदूषण आणि महसूल यांच्या नोंदी वापरल्या जातात.",
+    "apply.title": "परवान्यासाठी अर्ज",
     "officer.title": "अधिकारी कक्ष",
     "officer.lede":
       "या योजनेतील अर्ज तपासा. स्थिती अधिकाऱ्यांसाठी आहे: प्राप्त, प्रगतीत, कृती आवश्यक, किंवा पूर्ण. कोणत्या विभाग नोंदी आल्या हे पाहण्यासाठी अर्ज क्रमांक उघडा.",
@@ -79,10 +64,10 @@ function applyLang(lang) {
 }
 
 const STEP_COPY = {
-  INCOME_CERTIFICATE: "Income record (Revenue)",
-  CASTE_CERTIFICATE: "Caste record (Revenue)",
-  MARKS: "Marks (Education)",
-  BANK_ACCOUNT: "Bank account (DBT)",
+  PROPERTY: "Property record (Municipal)",
+  FIRE_NOC: "Fire NOC (Fire Services)",
+  POLLUTION_CLEARANCE: "Pollution clearance (Pollution)",
+  LAND_RECORD: "Land record (Revenue)",
 };
 
 const STEP_STATUS = {
@@ -415,10 +400,10 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         citizenId: citizenId(),
-        requesterId: "SCHOLARSHIP",
-        purposeCode: "SCHOLARSHIP_ELIGIBILITY",
-        purposeText: "share income & caste from Revenue, marks from Education, bank from DBT for scholarship eligibility",
-        categories: ["INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"],
+        requesterId: "INDUSTRY",
+        purposeCode: "BUSINESS_NOC",
+        purposeText: "share property from Municipal, fire NOC from Fire, pollution clearance, land from Revenue for business licence",
+        categories: ["PROPERTY", "FIRE_NOC", "POLLUTION_CLEARANCE", "LAND_RECORD"],
       }),
     });
     await api("/api/consent/requests/" + req.id + "/grant", {
@@ -445,7 +430,7 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
     markStep("submit");
     announce("Application submitted");
     location.hash = "status";
-    history.replaceState(null, "", "/scholarship/#status");
+    history.replaceState(null, "", "/licence/#status");
     document.getElementById("referenceNo").value = ref;
     showView({ focus: true });
     await loadStatus(ref);
@@ -493,7 +478,7 @@ async function loadStatus(ref) {
     const papers = await loadIssuedPapers(ref);
     card.innerHTML = `<article class="card">
       <p><strong>Application number:</strong> ${esc(app.referenceNo)}</p>
-      <p><strong>Scheme:</strong> Post-matric scholarship</p>
+      <p><strong>Scheme:</strong> Business licence / NOC</p>
       ${submitted ? `<p><strong>Received on:</strong> ${esc(submitted)}</p>` : ""}
       <p><strong>Status:</strong> <span class="chip ${esc(status.kind)}">${esc(status.text)}</span></p>
       <h2>Records requested</h2>
@@ -547,7 +532,7 @@ async function loadOfficer() {
     const apps = await api("/api/applications?size=20");
     const rows = (apps || []).filter((a) => a.journeyCode === JOURNEY);
     if (!rows.length) {
-      box.innerHTML = "<p>No scholarship applications yet. When a citizen submits, the application appears here for review.</p>";
+      box.innerHTML = "<p>No licence applications yet. When a citizen submits, the application appears here for review.</p>";
       setStatus(msg, "", "");
       return;
     }
@@ -560,7 +545,7 @@ async function loadOfficer() {
           const st = humanStatus(a.status);
           const due = when(a.slaDueAt) || "—";
           return `<tr><td><a href="#officer" data-ref="${esc(a.referenceNo)}">${esc(a.referenceNo)}</a></td>
-            <td>Post-matric scholarship</td>
+            <td>Business licence / NOC</td>
             <td><span class="chip ${esc(st.kind)}">${esc(st.text)}</span></td>
             <td>${esc(due)}</td></tr>`;
         })
@@ -593,7 +578,7 @@ async function loadOfficerCase(ref) {
     body.hidden = false;
     body.innerHTML = `<article class="card">
       <p><strong>Application number:</strong> ${esc(app.referenceNo)}</p>
-      <p><strong>Scheme:</strong> Post-matric scholarship</p>
+      <p><strong>Scheme:</strong> Business licence / NOC</p>
       <p><strong>Status:</strong> <span class="chip ${esc(status.kind)}">${esc(status.text)}</span></p>
       <h3>Department records</h3>
       <ol class="timeline">${items || "<li>Waiting for department checks to appear.</li>"}</ol>
@@ -610,29 +595,6 @@ async function loadOfficerCase(ref) {
     }
     body.hidden = true;
     if (retryBtn) retryBtn.hidden = true;
-  }
-}
-
-async function flipRevenue(act, btn) {
-  setBusy(btn, true, act === "kill" ? "Marking unavailable…" : "Restoring…");
-  try {
-    await api("/api/connector/chaos/" + encodeURIComponent(REVENUE_SOURCE) + "/" + act, { method: "POST" });
-    setStatus(
-      document.getElementById("officerMsg"),
-      "ok",
-      act === "kill"
-        ? "Revenue records are marked unavailable for this demonstration."
-        : "Revenue records are available again. Open an application that needs action and Retry."
-    );
-    announce(act === "kill" ? "Revenue records unavailable" : "Revenue records restored");
-  } catch (e) {
-    const msg =
-      e && e.status === 404
-        ? "This demonstration control is not available on this boot. Restart with the demonstration profile, then try again."
-        : friendly(e);
-    setStatus(document.getElementById("officerMsg"), "bad", msg);
-  } finally {
-    setBusy(btn, false);
   }
 }
 
@@ -667,8 +629,6 @@ document.getElementById("officerSignOut").addEventListener("click", () => {
   sessionStorage.removeItem(KEY_CASE);
   renderOfficer();
 });
-document.getElementById("revenueDown").addEventListener("click", (event) => flipRevenue("kill", event.currentTarget));
-document.getElementById("revenueUp").addEventListener("click", (event) => flipRevenue("revive", event.currentTarget));
 document.getElementById("officerRetry").addEventListener("click", async (event) => {
   const btn = event.currentTarget;
   const id = btn.dataset.instance;
@@ -693,7 +653,7 @@ document.getElementById("langMr").addEventListener("click", () => applyLang("mr"
 function friendly(e) {
   const msg = (e && e.message) || "Something went wrong. Try again.";
   if (/Failed to fetch|NetworkError/i.test(msg)) {
-    return "The scholarship service could not be reached. Confirm the application is running.";
+    return "The licence service could not be reached. Confirm the application is running.";
   }
   if (e && e.status === 400) return "That request was not accepted. Check the form and try again.";
   if (e && e.status === 404) return "Nothing matching that request was found.";
