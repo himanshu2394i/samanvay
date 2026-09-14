@@ -513,7 +513,7 @@
         const value = Object.prototype.hasOwnProperty.call(src, r.source)
           ? src[r.source]
           : (Object.prototype.hasOwnProperty.call(src, r.target) ? src[r.target] : "—");
-        return `<tr><th scope="row">${esc(r.target)}</th><td>${esc(value)}</td></tr>`;
+        return `<tr><td class="mono">${esc(r.target)}</td><td>${esc(value)}</td></tr>`;
       }).join("");
       return tableHtml("Normalized sample", ["Field", "Value"], rows);
     }
@@ -584,7 +584,7 @@
         });
         box.innerHTML =
           `<div class="banner show ok"><strong>Published</strong>` +
-          `<p>Connector <code>${esc(state.published.ref)}</code> is available to the control plane. This remains a side tool — not a judge-path surface.</p>` +
+          `<p>Connector <code>${esc(state.connector.ref)}</code> is available to the control plane. This remains a side tool — not a judge-path surface.</p>` +
           `<p class="row"><a class="btn primary" href="/">Demo</a><a class="btn" href="/caller.html">Caller</a></p></div>`;
         setStatus(statusEl, "ok", "Published.");
         announce("Connector published");
