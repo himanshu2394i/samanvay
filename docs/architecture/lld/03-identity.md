@@ -206,13 +206,16 @@ actually predicts a correct match best.
 ### 5.1 Citizen-asserted linking
 
 ```
-Citizen authenticates to the DEPARTMENT's own IdP (brokered via Keycloak)
+Citizen presents a typed proof from a labeled LinkProofProvider
+        (DigiLocker sandbox mock or Local ID + OTP demo; not Keycloak SSO)
         │
-        │ POST /api/identity/links  { departmentCode, localIdType, proof }
+        │ GET  /api/identity/proof-providers
+        │ POST /api/identity/links  { departmentCode, localIdType, localId, provider, proof }
         ▼
 IdentityLinking.assertLink(citizenId, departmentCode, type, localId, proof)
         │
-        ├─▶ verify proof against the department IdP's assertion
+        ├─▶ LinkProofProvider.verify(...) — missing/invalid proof is rejected
+        ├─▶ skip if this citizen already has an ACTIVE link to the department
         ├─▶ INSERT identity_link (provenance = CITIZEN_ASSERTED, status = ACTIVE)
         │      — UNIQUE(department_code, local_id_type, local_id_token) rejects
         │        a second citizen asserting the same local id

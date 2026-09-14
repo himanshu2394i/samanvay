@@ -57,7 +57,8 @@ class ResolutionQueueTest {
                 new CandidateScorer(),
                 mock(ReviewerAuth.class),
                 e -> {},
-                mock(AuditService.class));
+                mock(AuditService.class),
+                List.of());
         var rec = JsonMapper.builder()
                 .build()
                 .readTree(
