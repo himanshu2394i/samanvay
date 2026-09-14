@@ -10,7 +10,7 @@ class ScholarshipPortalWeb implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        registry.addRedirectViewController("/", "/scholarship/");
+        registry.addViewController("/").setViewName("forward:/scholarship/index.html");
         registry.addViewController("/scholarship").setViewName("forward:/scholarship/index.html");
         registry.addViewController("/scholarship/").setViewName("forward:/scholarship/index.html");
         registry.setOrder(Ordered.HIGHEST_PRECEDENCE);

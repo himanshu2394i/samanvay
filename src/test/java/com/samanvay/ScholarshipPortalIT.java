@@ -23,7 +23,7 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
         RestClient http = RestClient.create();
         String landing = http.get().uri(url("/scholarship")).retrieve().body(String.class);
         String indexed = http.get().uri(url("/scholarship/index.html")).retrieve().body(String.class);
-        String root = followHomeToPortal(http);
+        String root = http.get().uri(url("/")).retrieve().body(String.class);
         assertThat(landing).contains("Government of Maharashtra");
         assertThat(landing).contains("Apply for scholarship");
         assertThat(landing).contains("Skip to main content");
@@ -32,6 +32,8 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
         assertThat(indexed).doesNotContain("nav-tools");
         assertThat(root).contains("/scholarship/");
         assertThat(root).contains("Scholarship Portal");
+        assertThat(root).contains("Apply for scholarship");
+        assertThat(root).doesNotContain("Control plane");
     }
 
     @Test
@@ -134,18 +136,6 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
             Thread.sleep(50);
         }
         throw new AssertionError("tracking did not project a scholarship application");
-    }
-
-    private String followHomeToPortal(RestClient http) {
-        var entity = http.get().uri(url("/")).retrieve().toEntity(String.class);
-        if (entity.getStatusCode().is3xxRedirection()) {
-            var loc = entity.getHeaders().getLocation();
-            assertThat(loc).as("GET / should send judges to the portal").isNotNull();
-            assertThat(loc.toString()).contains("/scholarship");
-            String path = loc.isAbsolute() ? loc.getPath() : loc.toString();
-            return http.get().uri(url(path)).retrieve().body(String.class);
-        }
-        return entity.getBody();
     }
 
     private String url(String path) {
