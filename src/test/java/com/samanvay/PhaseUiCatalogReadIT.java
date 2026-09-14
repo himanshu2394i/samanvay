@@ -52,6 +52,8 @@ class PhaseUiCatalogReadIT extends PostgresIntegrationTest {
         assertThat(demo).contains("interoperability");
         assertThat(demo).contains("Start demo (external caller)");
         assertThat(demo).contains("/caller.html");
+        assertThat(demo).contains("/scholarship/");
+        assertThat(demo).contains("Open Scholarship Portal");
         assertThat(demo).doesNotContain("Command Center");
 
         String ops = http.get().uri(url("/command.html")).retrieve().body(String.class);

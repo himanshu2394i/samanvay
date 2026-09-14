@@ -1,0 +1,77 @@
+package com.samanvay;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.api.Test;
+
+class ScholarshipPortalStaticPagesTest {
+
+    @Test
+    void portalIsAGovernmentServiceSkinNotTheControlPlane() {
+        String html = page("scholarship/index.html");
+        String css = page("scholarship/portal.css");
+        String js = page("scholarship/portal.js");
+
+        assertThat(html).contains("Government of Maharashtra");
+        assertThat(html).contains("Scholarship Services");
+        assertThat(html).containsIgnoringCase("महाराष्ट्र");
+        assertThat(html).contains("Apply for scholarship");
+        assertThat(html).contains("Connect accounts");
+        assertThat(html).contains("Revenue");
+        assertThat(html).contains("Education");
+        assertThat(html).contains("DBT");
+        assertThat(html).contains("DigiLocker");
+        assertThat(html).contains("not live");
+        assertThat(html).containsIgnoringCase("OTP");
+        assertThat(html).contains("share income");
+        assertThat(html).contains("caste");
+        assertThat(html).contains("marks");
+        assertThat(html).contains("bank");
+        assertThat(html).contains("Officer");
+        assertThat(html).contains("Skip to content");
+        assertThat(html).contains("<main");
+        assertThat(html).contains("lang=\"hi\"");
+        assertThat(html).doesNotContain("Control plane");
+        assertThat(html).doesNotContain("/api/connector/chaos");
+        assertThat(html).doesNotContain("/api/catalog/import");
+        assertThat(html).doesNotContain("Kill");
+        assertThat(html).doesNotContain("JSON.stringify");
+        assertThat(html).doesNotContain("<pre");
+
+        assertThat(js).contains("/api/identity/links");
+        assertThat(js).contains("/api/identity/citizens");
+        assertThat(js).contains("/api/consent/requests");
+        assertThat(js).contains("/api/journeys/");
+        assertThat(js).contains("POST_MATRIC_SCHOLARSHIP");
+        assertThat(js).contains("/api/applications");
+        assertThat(js).contains("X-Auth-Jti");
+        assertThat(js).contains("digilocker-demo-mock");
+        assertThat(js).contains("local-otp-demo");
+        assertThat(js).contains("In progress");
+        assertThat(js).contains("Needs action");
+        assertThat(js).contains("Completed");
+        assertThat(js).contains("Submitted");
+        assertThat(js).doesNotContain("/api/connector/chaos");
+        assertThat(js).doesNotContain("/api/catalog/import");
+        assertThat(js).doesNotContain("/command.html");
+
+        assertThat(css).contains(":focus-visible");
+        assertThat(css).contains("prefers-reduced-motion");
+        assertThat(css).contains(":user-invalid");
+        assertThat(css).contains("min-height: 48px");
+        assertThat(css).doesNotContain("--olive-980");
+        assertThat(css).doesNotContain("IBM Plex");
+    }
+
+    private static String page(String name) {
+        try (InputStream in = ScholarshipPortalStaticPagesTest.class.getResourceAsStream("/static/" + name)) {
+            assertThat(in).as(name).isNotNull();
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException(name, e);
+        }
+    }
+}

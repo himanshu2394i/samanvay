@@ -40,6 +40,8 @@ class PhaseUiStaticPagesTest {
         }
 
         assertThat(demo).contains("Start demo (external caller)");
+        assertThat(demo).contains("/scholarship/");
+        assertThat(demo).contains("Open Scholarship Portal");
         assertThat(demo).contains("interoperability middle layer");
         assertThat(demo).contains("AUTH STUBBED");
         assertThat(demo).contains("not live Keycloak");

@@ -1,0 +1,15 @@
+package com.samanvay;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+class ScholarshipPortalWeb implements WebMvcConfigurer {
+
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addViewController("/scholarship").setViewName("forward:/scholarship/index.html");
+        registry.addViewController("/scholarship/").setViewName("forward:/scholarship/index.html");
+    }
+}
