@@ -60,28 +60,28 @@
   --gold-950: #242015;
   --ink-on-gold: #1a1c14;
 
-  --color-bg: var(--olive-950);
-  --color-surface: var(--olive-900);
-  --color-raised: var(--olive-800);
-  --color-ink: var(--paper-100);
-  --color-muted: var(--paper-400);
-  --color-line: var(--olive-700);
-  --color-primary: var(--gold-400);
-  --color-primary-ink: var(--ink-on-gold);
-  --color-secondary: var(--olive-800);
-  --color-secondary-ink: var(--paper-100);
-  --color-danger: var(--red-400);
-  --color-danger-ink: var(--red-200);
-  --color-danger-surface: var(--red-950);
-  --color-ok: var(--green-400);
-  --color-ok-ink: var(--green-200);
-  --color-ok-surface: var(--green-950);
-  --color-warn: var(--gold-500);
-  --color-warn-surface: var(--gold-950);
-  --color-focus: var(--gold-200);
-  --color-input: var(--olive-980);
-  --color-scrollbar-thumb: var(--olive-700);
-  --color-scrollbar-track: var(--olive-950);
+  --color-bg: #f4f7fb;
+  --color-surface: #ffffff;
+  --color-raised: #e8f1fb;
+  --color-ink: #1a1a1a;
+  --color-muted: #3d4a5c;
+  --color-line: #c5d0dc;
+  --color-primary: #0a3d91;
+  --color-primary-ink: #ffffff;
+  --color-secondary: #ffffff;
+  --color-secondary-ink: #1a1a1a;
+  --color-danger: #9b1c1c;
+  --color-danger-ink: #6b1010;
+  --color-danger-surface: #fde8e8;
+  --color-ok: #0b5d1e;
+  --color-ok-ink: #0b5d1e;
+  --color-ok-surface: #e7f6ea;
+  --color-warn: #7a4d00;
+  --color-warn-surface: #fff4e0;
+  --color-focus: #000000;
+  --color-input: #ffffff;
+  --color-scrollbar-thumb: #5a6a7a;
+  --color-scrollbar-track: #e8f1fb;
 
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-deva: "IBM Plex Sans Devanagari", "IBM Plex Sans", sans-serif;
@@ -133,6 +133,18 @@ html, body {
   font-size-adjust: from-font;
 }
 body { min-width: 0; }
+.tricolor {
+  height: 8px;
+  background: linear-gradient(to bottom, #ff9933 0 3px, #ffffff 3px 5px, #138808 5px 8px);
+}
+.sandbox {
+  margin: 0;
+  padding: 0.45rem 1.25rem;
+  background: #fff8e8;
+  color: #1a1a1a;
+  border-bottom: 1px solid var(--color-line);
+  font-size: 0.9rem;
+}
 ::selection {
   background: var(--color-primary);
   color: var(--color-primary-ink);
@@ -151,6 +163,9 @@ body { min-width: 0; }
   }
 }
 
+html, body {
+  color-scheme: light;
+}
 a { color: var(--color-primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code, .mono, .metric, .tnum {

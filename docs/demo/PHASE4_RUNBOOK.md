@@ -19,24 +19,26 @@ docker compose up -d
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
 
-**Judge path starts on the Scholarship Portal**, not on Samanvay Ops/console.
+**Judge path starts on the Scholarship Portal**, not on Samanvay operations.
 
-Open `http://localhost:8080/` (redirects to `/scholarship/`, Government of Maharashtra — Scholarship Portal). Apply → connect the three department accounts (Revenue / Education / DBT; labelled DigiLocker sandbox or OTP demo — not live SSO) → consent in plain language → submit. Status uses tracking, with human wording (submitted / in progress / needs action / completed). Officer desk is a review list of applications.
+Open `http://localhost:8080/` (redirects to `/scholarship/`, Government of Maharashtra — Scholarship Portal). Apply → connect the three department accounts (Revenue / Education / DBT; labelled DigiLocker sandbox or OTP demo — not live SSO) → consent in plain language → submit. Track status in everyday words.
 
-Samanvay is the middle layer the portal calls. Optional cutaways after that: Phase-UI Demo `http://localhost:8080/demo.html` → Journey / Incident (`/ops.html`) / Audit. Do **not** open the demo on Ops/Command first. `/caller.html` remains the generic external-caller stand-in (any catalog journey), not the citizen product.
+Then **Officer desk** (`/scholarship/#officer`): labelled demonstration login (`officer` / `demo-2026` — not SSO) → review which department records arrived → optionally **Mark Revenue records unavailable**, restore, then **Retry**. Do not show `PARTIALLY_VERIFIED` or instance UUIDs to judges.
 
-Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tamper/{seq}` and `POST /api/connector/chaos/**` are unregistered (404). **Incident kill/revive and Audit tamper need `--spring.profiles.active=demo`.**
+Optional 60-second Samanvay cutaway after that: `/demo.html` (operations script) → `/audit.html` and `/schemes.html` (farmer subsidy as configuration). Do **not** open Command/Caller first. Those stay under **Staff tools**.
+
+Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tamper/{seq}` and `POST /api/connector/chaos/**` are unregistered (404). **Officer Revenue unavailable/restore and Audit tamper need `--spring.profiles.active=demo`.**
 
 | Beat | Where | How it is proven |
 |---|---|---|
 | 1 | Three portals / same form | Problem statement. **Start at `/scholarship/`** — citizen scholarship apply on a government portal. Samanvay is not on screen. |
-| 2 | Connect department accounts | Portal **Connect accounts** checklist (Revenue / Education / DBT): missing departments only, one connect per dept via labeled DigiLocker sandbox or Local ID + OTP demo (`LinkProofProvider`). Consent grant still uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** Optional: `/caller.html` has the same checklist for any catalog journey. |
-| 3 | Scholarship fan-out | Portal submit starts `POST_MATRIC_SCHOLARSHIP` (`ScholarshipPortalIT` + `ScholarshipJourneyIT`). Optional: `/caller.html` still starts any catalog journey. |
-| 4 | Revenue killed mid-flight | Incident (`/ops.html`): Kill `revenue-rest-mock` → start a journey → `PARTIALLY_VERIFIED` + open exception → Revive → one-click Retry |
-| 5 | Consent revoke | `POST /api/consent/{id}/revoke` → next `AccessAuthority.authorize` is `DENIED` (`GRANT_DENIED` on Incident denials) |
-| 6 | Audit verifier | `/audit.html`: Verify range (green) → Tamper head → spectacular fail. Tamper uses the **migrate** role; `samanvay_app` still cannot `UPDATE` |
-| 7 | Onboard from spec | `/onboard.html`: Suggest mappings (advisory) → check boxes → Save approved only |
-| 8 | Journey 3 is configuration | `FarmerSubsidyJourneyIT` + `git log` / Phase 3 tag: farmer subsidy landed as catalog/BPMN/policy, not Java |
+| 2 | Connect department accounts | Portal **Connect accounts** checklist. Consent grant still uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
+| 3 | Scholarship fan-out | Portal submit starts `POST_MATRIC_SCHOLARSHIP`. |
+| 4 | Revenue unavailable mid-flight | **Officer desk**: Mark Revenue records unavailable → application needs action → Restore → Retry. Optional staff cutaway: `/ops.html`. |
+| 5 | Consent revoke | `POST /api/consent/{id}/revoke` → next authorize denied |
+| 6 | Audit verifier | `/audit.html`: Verify range → Tamper head → fail |
+| 7 | Onboard from spec | `/onboard.html` (staff tool, not judge path) |
+| 8 | Journey 3 is configuration | `/schemes.html` live catalog list: Farmer subsidy as configuration — no new Java (`FarmerSubsidyJourneyIT`) |
 
 ### Phase-UI surfaces
 
@@ -44,10 +46,12 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 |---|---|
 | `/` | Redirects to `/scholarship/` — judge entry |
 | `/scholarship/` | **Judge entry** — Scholarship Portal (gov service). Calls identity, consent, journeys, tracking. Not the control plane. |
-| `/demo.html` | Control-plane demo cutaway — interoperability middle-layer framing; links to portal + Caller |
-| `/caller.html` | External caller demo (generic catalog start, not the citizen product). After start: open Journey / Incident / Audit |
-| `/journey.html?ref=…` | Journey timeline cutaway (Identity → Consent → departments → recovery) |
-| `/ops.html` | Incident cutaway: affected connector, impacted apps, open exceptions with one-click Retry, recovery spine. Chaos kill/revive is secondary (demo). |
+| `/scholarship/#officer` | Officer desk — demonstration login, department records, Retry |
+| `/demo.html` | Optional operations cutaway — judge script; not the entry |
+| `/schemes.html` | Published catalog journeys — farmer subsidy as configuration |
+| `/journey.html?ref=…` | Journey timeline cutaway |
+| `/ops.html` | Exceptions cutaway (staff). Prefer Officer desk for beat 4 |
+| `/caller.html` | Staff tool: generic external caller, not the judge path |
 | `/audit.html` | Audit ledger cutaway — verify, entries, demo tamper |
 | `/command.html` | Ops console (former Command Center) — live catalog, applications, exceptions, ledger |
 | `/onboard.html` | Supporting OpenAPI import tool (side tool) |

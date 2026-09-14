@@ -32,6 +32,17 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("bank");
         assertThat(html).contains("Officer");
         assertThat(html).contains("Review applications");
+        assertThat(html).contains("Officer login");
+        assertThat(html).contains("demonstration — not SSO");
+        assertThat(html).contains("Retry");
+        assertThat(html).contains("Mark Revenue records unavailable");
+        assertThat(html).contains("Restore Revenue records");
+        assertThat(html).contains("department records");
+        assertThat(html).contains("id=\"officerLogin\"");
+        assertThat(html).contains("id=\"officerCase\"");
+        assertThat(html).contains("id=\"langEn\"");
+        assertThat(html).contains("id=\"langMr\"");
+        assertThat(html).contains("data-i18n");
         assertThat(html).contains("Skip to main content");
         assertThat(html).contains("<main");
         assertThat(html).contains("lang=\"hi\"");
@@ -39,10 +50,14 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("not live SSO");
         assertThat(html).contains("Linked");
         assertThat(html).contains("of 3");
+        assertThat(html).contains("/demo.html");
         assertThat(html).doesNotContain("Control plane");
         assertThat(html).doesNotContain("/api/connector/chaos");
         assertThat(html).doesNotContain("/api/catalog/import");
         assertThat(html).doesNotContain("Kill");
+        assertThat(html).doesNotContain("PARTIALLY_VERIFIED");
+        assertThat(html).doesNotContain("/caller.html");
+        assertThat(html).doesNotContain("/command.html");
         assertThat(html).doesNotContain("JSON.stringify");
         assertThat(html).doesNotContain("<pre");
         assertThat(html).doesNotContain("X-Auth-Jti");
@@ -66,9 +81,16 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(js).contains("Completed");
         assertThat(js).contains("Submitted");
         assertThat(js).contains("Linked ");
-        assertThat(js).doesNotContain("/api/connector/chaos");
+        assertThat(js).contains("/api/journeys/instances/");
+        assertThat(js).contains("/retry");
+        assertThat(js).contains("/api/connector/chaos/");
+        assertThat(js).contains("revenue-rest-mock");
+        assertThat(js).contains("applyLang");
+        assertThat(js).contains("officerDemo");
+        assertThat(js).doesNotContain("PARTIALLY_VERIFIED");
         assertThat(js).doesNotContain("/api/catalog/import");
         assertThat(js).doesNotContain("/command.html");
+        assertThat(js).doesNotContain("/caller.html");
 
         assertThat(css).contains(":focus-visible");
         assertThat(css).contains("prefers-reduced-motion");
@@ -88,6 +110,24 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(root).doesNotContain("Control plane");
         assertThat(root).doesNotContain("nav-tools");
         assertThat(root).doesNotContain("IBM Plex");
+        assertThat(root).doesNotContain("/caller.html");
+        assertThat(root).doesNotContain("/command.html");
+    }
+
+    @Test
+    void publishedSchemesCutawayShowsFarmerSubsidyAsConfiguration() {
+        String html = page("schemes.html");
+        assertThat(html).contains("Published schemes");
+        assertThat(html).contains("Government of Maharashtra");
+        assertThat(html).contains("State operations");
+        assertThat(html).contains("/api/catalog/journeys");
+        assertThat(html).contains("FARMER_SUBSIDY");
+        assertThat(html).contains("configuration");
+        assertThat(html).contains("no new Java");
+        assertThat(html).contains("/scholarship/");
+        assertThat(html).doesNotContain("Apply for scholarship");
+        assertThat(html).contains("AUTH STUBBED");
+        assertThat(html).contains("not live Keycloak");
     }
 
     private static String page(String name) {

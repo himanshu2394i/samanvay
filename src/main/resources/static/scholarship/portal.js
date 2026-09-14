@@ -1,6 +1,10 @@
 const JOURNEY = "POST_MATRIC_SCHOLARSHIP";
 const KEY_CITIZEN = "mhScholarshipCitizen";
 const KEY_REF = "mhScholarshipRef";
+const KEY_OFFICER = "officerDemo";
+const KEY_LANG = "mhScholarshipLang";
+const KEY_CASE = "mhScholarshipOfficerCase";
+const REVENUE_SOURCE = "revenue-rest-mock";
 const DEPTS = [
   {
     code: "REVENUE",
@@ -25,14 +29,54 @@ const DEPTS = [
 const STATUS_COPY = {
   SUBMITTED: { kind: "ok", text: "Submitted — your application has been received." },
   VERIFIED: { kind: "ok", text: "Completed — department records were received for eligibility." },
-  PARTIALLY_VERIFIED: {
-    kind: "warn",
-    text: "In progress — some department records still needed. You may need action if a record cannot be fetched.",
-  },
   REJECTED: { kind: "bad", text: "Needs action — this application was not approved." },
   CLOSED: { kind: "ok", text: "Completed — this application is closed." },
   FAILED: { kind: "bad", text: "Needs action — a department record could not be fetched." },
 };
+
+const I18N = {
+  en: {
+    "nav.scheme": "Scheme",
+    "nav.apply": "Apply",
+    "nav.status": "Track application",
+    "nav.officer": "Officer desk",
+    "scheme.title": "Post-Matric Scholarship",
+    "scheme.lede":
+      "Financial assistance for eligible students after Class 10. This service collects only the consent you give, then checks eligibility using records already held by other departments. You do not upload documents here.",
+    "apply.title": "Apply for scholarship",
+    "officer.title": "Officer desk",
+    "officer.lede":
+      "Review applications for this scheme. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.",
+  },
+  mr: {
+    "nav.scheme": "योजना",
+    "nav.apply": "अर्ज",
+    "nav.status": "अर्जाचा पाठपुरावा",
+    "nav.officer": "अधिकारी कक्ष",
+    "scheme.title": "उत्तर-माध्यमिक शिष्यवृत्ती",
+    "scheme.lede":
+      "१० वी नंतर पात्र विद्यार्थ्यांसाठी आर्थिक मदत. ही सेवा फक्त तुम्ही दिलेली संमती घेते, नंतर इतर विभागांकडे असलेल्या नोंदींवरून पात्रता तपासते. येथे कागदपत्रे अपलोड करू नका.",
+    "apply.title": "शिष्यवृत्तीसाठी अर्ज",
+    "officer.title": "अधिकारी कक्ष",
+    "officer.lede":
+      "या योजनेतील अर्ज तपासा. स्थिती अधिकाऱ्यांसाठी आहे: प्राप्त, प्रगतीत, कृती आवश्यक, किंवा पूर्ण. कोणत्या विभाग नोंदी आल्या हे पाहण्यासाठी अर्ज क्रमांक उघडा.",
+  },
+};
+
+function applyLang(lang) {
+  const use = I18N[lang] ? lang : "en";
+  const pack = I18N[use];
+  document.documentElement.lang = use === "mr" ? "mr" : "en";
+  sessionStorage.setItem(KEY_LANG, use);
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const text = pack[el.dataset.i18n];
+    if (text) el.textContent = text;
+  });
+  const enBtn = document.getElementById("langEn");
+  const mrBtn = document.getElementById("langMr");
+  if (enBtn) enBtn.setAttribute("aria-pressed", String(use === "en"));
+  if (mrBtn) mrBtn.setAttribute("aria-pressed", String(use === "mr"));
+}
 
 const STEP_COPY = {
   INCOME_CERTIFICATE: "Income record (Revenue)",
@@ -126,7 +170,7 @@ function showView(opts) {
     else a.removeAttribute("aria-current");
   });
   if (view === "apply") renderDepts();
-  if (view === "officer") loadOfficer();
+  if (view === "officer") renderOfficer();
   if (view === "status") {
     const ref = new URLSearchParams(location.search).get("ref") || sessionStorage.getItem(KEY_REF);
     if (ref) {
@@ -410,6 +454,12 @@ document.getElementById("trackForm").addEventListener("submit", async (event) =>
 });
 
 function humanStatus(code) {
+  if (code && String(code).startsWith("PARTIAL")) {
+    return {
+      kind: "warn",
+      text: "In progress — some department records still needed. You may need action if a record cannot be fetched.",
+    };
+  }
   return STATUS_COPY[code] || { kind: "warn", text: "In progress — the application is being processed." };
 }
 
@@ -457,10 +507,29 @@ function countLabel(rows) {
   return rows.length + " application(s) · " + done + " completed or received · " + progress + " in progress · " + needs + " need action";
 }
 
+function officerSignedIn() {
+  return sessionStorage.getItem(KEY_OFFICER) === "1";
+}
+
+function renderOfficer() {
+  const login = document.getElementById("officerLogin");
+  const work = document.getElementById("officerWork");
+  if (!login || !work) return;
+  if (!officerSignedIn()) {
+    login.hidden = false;
+    work.hidden = true;
+    return;
+  }
+  login.hidden = true;
+  work.hidden = false;
+  loadOfficer();
+}
+
 async function loadOfficer() {
   const msg = document.getElementById("officerMsg");
   const box = document.getElementById("officerTable");
   const counts = document.getElementById("officerCounts");
+  if (!box) return;
   setStatus(msg, "", "Loading…");
   if (counts) counts.textContent = "";
   try {
@@ -479,28 +548,135 @@ async function loadOfficer() {
         .map((a) => {
           const st = humanStatus(a.status);
           const due = when(a.slaDueAt) || "—";
-          return `<tr><td><a href="#status" data-ref="${esc(a.referenceNo)}">${esc(a.referenceNo)}</a></td>
+          return `<tr><td><a href="#officer" data-ref="${esc(a.referenceNo)}">${esc(a.referenceNo)}</a></td>
             <td>Post-matric scholarship</td>
             <td><span class="chip ${esc(st.kind)}">${esc(st.text)}</span></td>
             <td>${esc(due)}</td></tr>`;
         })
         .join("")}</tbody></table></div>`;
-    setStatus(msg, "ok", "Open an application number to review which records have arrived.");
+    setStatus(msg, "ok", "Open an application number to review which department records have arrived.");
+    const selected = sessionStorage.getItem(KEY_CASE);
+    if (selected) await loadOfficerCase(selected);
   } catch (e) {
     box.innerHTML = "";
     setStatus(msg, "bad", e && e.status === 404 ? "The application list could not be loaded. Try again in a moment." : friendly(e));
   }
 }
 
+async function loadOfficerCase(ref) {
+  const empty = document.getElementById("officerCaseEmpty");
+  const body = document.getElementById("officerCaseBody");
+  const retryBtn = document.getElementById("officerRetry");
+  if (!body) return;
+  sessionStorage.setItem(KEY_CASE, ref);
+  try {
+    const app = await api("/api/applications/" + encodeURIComponent(ref));
+    const steps = await api("/api/applications/" + encodeURIComponent(ref) + "/steps");
+    const exceptions = await api("/api/journeys/exceptions");
+    const mine = (exceptions || []).filter((x) => app.instanceId && x.instanceId === app.instanceId);
+    const status = humanStatus(app.status);
+    const items = (steps || []).map((s) => `<li>${esc(humanStep(s))}</li>`).join("");
+    const needsRetry = mine.length > 0 || (app.status && String(app.status).startsWith("PARTIAL"));
+    if (empty) empty.hidden = true;
+    body.hidden = false;
+    body.innerHTML = `<article class="card">
+      <p><strong>Application number:</strong> ${esc(app.referenceNo)}</p>
+      <p><strong>Scheme:</strong> Post-matric scholarship</p>
+      <p><strong>Status:</strong> <span class="chip ${esc(status.kind)}">${esc(status.text)}</span></p>
+      <h3>Department records</h3>
+      <ol class="timeline">${items || "<li>Waiting for department checks to appear.</li>"}</ol>
+      ${mine.length ? `<p>A department record could not be fetched. Restore the department if it was marked unavailable, then Retry.</p>` : ""}
+    </article>`;
+    if (retryBtn) {
+      retryBtn.hidden = !needsRetry;
+      retryBtn.dataset.instance = app.instanceId || "";
+    }
+  } catch (e) {
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = e && e.status === 404 ? "That application number was not found." : friendly(e);
+    }
+    body.hidden = true;
+    if (retryBtn) retryBtn.hidden = true;
+  }
+}
+
+async function flipRevenue(act, btn) {
+  setBusy(btn, true, act === "kill" ? "Marking unavailable…" : "Restoring…");
+  try {
+    await api("/api/connector/chaos/" + encodeURIComponent(REVENUE_SOURCE) + "/" + act, { method: "POST" });
+    setStatus(
+      document.getElementById("officerMsg"),
+      "ok",
+      act === "kill"
+        ? "Revenue records are marked unavailable for this demonstration."
+        : "Revenue records are available again. Open an application that needs action and Retry."
+    );
+    announce(act === "kill" ? "Revenue records unavailable" : "Revenue records restored");
+  } catch (e) {
+    const msg =
+      e && e.status === 404
+        ? "This demonstration control is not available on this boot. Restart with the demonstration profile, then try again."
+        : friendly(e);
+    setStatus(document.getElementById("officerMsg"), "bad", msg);
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+document.getElementById("officerLoginForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const user = document.getElementById("officerUser").value.trim();
+  const pass = document.getElementById("officerPass").value;
+  if (user === "officer" && pass === "demo-2026") {
+    sessionStorage.setItem(KEY_OFFICER, "1");
+    setStatus(document.getElementById("officerLoginMsg"), "ok", "");
+    announce("Officer desk signed in");
+    renderOfficer();
+    return;
+  }
+  setStatus(
+    document.getElementById("officerLoginMsg"),
+    "bad",
+    "Officer ID or password was not accepted. This is a labelled demonstration login — not SSO."
+  );
+});
+
 document.getElementById("officerTable").addEventListener("click", (event) => {
   const a = event.target.closest("a[data-ref]");
   if (!a) return;
   event.preventDefault();
-  sessionStorage.setItem(KEY_REF, a.dataset.ref);
-  location.hash = "status";
+  loadOfficerCase(a.dataset.ref);
 });
 
 document.getElementById("officerRefresh").addEventListener("click", () => loadOfficer());
+document.getElementById("officerSignOut").addEventListener("click", () => {
+  sessionStorage.removeItem(KEY_OFFICER);
+  sessionStorage.removeItem(KEY_CASE);
+  renderOfficer();
+});
+document.getElementById("revenueDown").addEventListener("click", (event) => flipRevenue("kill", event.currentTarget));
+document.getElementById("revenueUp").addEventListener("click", (event) => flipRevenue("revive", event.currentTarget));
+document.getElementById("officerRetry").addEventListener("click", async (event) => {
+  const btn = event.currentTarget;
+  const id = btn.dataset.instance;
+  if (!id) return;
+  setBusy(btn, true, "Retrying…");
+  try {
+    await api("/api/journeys/instances/" + encodeURIComponent(id) + "/retry", { method: "POST" });
+    setStatus(document.getElementById("officerMsg"), "ok", "Retry requested. Refresh the list in a moment.");
+    announce("Retry requested");
+    const ref = sessionStorage.getItem(KEY_CASE);
+    await loadOfficer();
+    if (ref) await loadOfficerCase(ref);
+  } catch (e) {
+    setStatus(document.getElementById("officerMsg"), "bad", friendly(e));
+  } finally {
+    setBusy(btn, false);
+  }
+});
+document.getElementById("langEn").addEventListener("click", () => applyLang("en"));
+document.getElementById("langMr").addEventListener("click", () => applyLang("mr"));
 
 function friendly(e) {
   const msg = (e && e.message) || "Something went wrong. Try again.";
@@ -543,4 +719,5 @@ document.querySelectorAll("[data-text]").forEach((btn) => {
 
 window.addEventListener("hashchange", () => showView({ focus: true }));
 showApplyPanel("details");
+applyLang(sessionStorage.getItem(KEY_LANG) || "en");
 showView();
