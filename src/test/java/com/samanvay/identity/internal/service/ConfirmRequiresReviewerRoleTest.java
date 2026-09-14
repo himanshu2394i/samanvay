@@ -29,7 +29,9 @@ class ConfirmRequiresReviewerRoleTest {
                 auth,
                 e -> {},
                 mock(AuditService.class),
-                List.of());
+                List.of(),
+                mock(com.samanvay.catalog.api.JourneyCatalog.class),
+                mock(com.samanvay.catalog.api.DepartmentCatalog.class));
         assertThatThrownBy(() -> svc.confirm(UUID.randomUUID(), "officer", "ok"))
                 .isInstanceOf(ReviewerRequiredException.class);
     }

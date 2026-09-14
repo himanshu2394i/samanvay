@@ -26,7 +26,7 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 | Beat | Where | How it is proven |
 |---|---|---|
 | 1 | Three portals / same form | Problem statement; not automated. Start at `/` then `/caller.html` — the **external caller** that can start any catalog journey. |
-| 2 | Link department IDs + SSO | Linking works via `/api/identity/links` with a labeled `LinkProofProvider` (DigiLocker sandbox mock or Local ID + OTP demo). Consent grant still uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
+| 2 | Connect department accounts | Caller **Connect accounts** checklist: missing departments only, one connect per dept via labeled `LinkProofProvider` (DigiLocker sandbox mock or Local ID + OTP demo). Consent grant still uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
 | 3 | Scholarship fan-out | `ScholarshipJourneyIT` + caller starts `POST_MATRIC_SCHOLARSHIP` (one catalog code among others) |
 | 4 | Revenue killed mid-flight | Incident (`/ops.html`): Kill `revenue-rest-mock` → start a journey from Caller → `PARTIALLY_VERIFIED` + open exception → Revive → one-click Retry |
 | 5 | Consent revoke | `POST /api/consent/{id}/revoke` → next `AccessAuthority.authorize` is `DENIED` (`GRANT_DENIED` on Incident denials) |
@@ -49,7 +49,7 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 ## Known gaps
 
 - No React SPA (HLD §11). Thin static HTML Phase-UI against existing APIs.
-- Keycloak identity brokering is stubbed, not a live IdP hop.
+- Keycloak identity brokering is stubbed (`X-Auth-Jti` for consent). Department linking uses labeled demo/sandbox proof providers, not a fake live SSO hop.
 - Flowable Boot 4 remains optional behind `WorkflowEngine`.
 - Semantic/model mapping pass is omitted; suggestions are lexical only (HLD §8.2).
 - Connector-health p50/p95 Micrometer charts are not built; SLA is due-at vs now on the ops table.

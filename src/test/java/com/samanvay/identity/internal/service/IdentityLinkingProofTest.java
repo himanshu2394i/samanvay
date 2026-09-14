@@ -108,7 +108,9 @@ class IdentityLinkingProofTest {
                 mock(ReviewerAuth.class),
                 e -> {},
                 mock(AuditService.class),
-                List.of(digiLocker(), otp()));
+                List.of(digiLocker(), otp()),
+                mock(com.samanvay.catalog.api.JourneyCatalog.class),
+                mock(com.samanvay.catalog.api.DepartmentCatalog.class));
     }
 
     private static LinkProofProvider digiLocker() {

@@ -73,6 +73,9 @@ function friendlyError(e, hint) {
   if (e && e.status === 400) {
     return "The request was rejected. Check the fields and try again.";
   }
+  if (e && e.status === 409 && e.body && e.body.reason === "MISSING_DEPARTMENT_LINKS") {
+    return "Connect the missing department accounts first, then start the journey.";
+  }
   if (e && e.status === 409) {
     return "The control plane refused a conflicting change. Refresh and retry.";
   }

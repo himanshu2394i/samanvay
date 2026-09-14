@@ -14,4 +14,6 @@ public interface IdentityLinking {
     void revokeLink(UUID linkId, String reason);
 
     List<LinkProofProviderInfo> availableProofProviders();
+
+    ConnectAccounts connectAccounts(UUID citizenId, String journeyCode);
 }

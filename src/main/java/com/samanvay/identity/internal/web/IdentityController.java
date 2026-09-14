@@ -3,6 +3,7 @@ package com.samanvay.identity.internal.web;
 import com.samanvay.identity.api.AuthProof;
 import com.samanvay.identity.api.Candidate;
 import com.samanvay.identity.api.CitizenProfiles;
+import com.samanvay.identity.api.ConnectAccounts;
 import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.identity.api.IdentityResolution;
 import com.samanvay.identity.api.Link;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -65,6 +67,11 @@ class IdentityController {
     @GetMapping("/citizens/{id}/links")
     List<Link> links(@PathVariable UUID id) {
         return linking.activeLinks(id);
+    }
+
+    @GetMapping("/citizens/{id}/connect-accounts")
+    ConnectAccounts connectAccounts(@PathVariable UUID id, @RequestParam String journeyCode) {
+        return linking.connectAccounts(id, journeyCode);
     }
 
     @GetMapping("/review-queue")
