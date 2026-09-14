@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Onboard tool | Samanvay</title>
+  <title>Onboard wizard | Samanvay</title>
   <link rel="preload" href="/fonts/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/console.css"/>
 </head>
@@ -13,7 +13,7 @@
   <div class="shell">
     <header class="mast">
       <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">Control plane</span></div>
-      <p class="tag">Side tool. Interoperability onboarding from OpenAPI is advisory; humans still approve.</p>
+      <p class="tag">Side tool. Interoperability onboarding; humans still approve.</p>
     </header>
     <nav class="bar" aria-label="Console">
       <ul class="nav-primary" role="list">
@@ -33,98 +33,450 @@
     </nav>
     <main id="content" tabindex="-1">
       <div class="page-head">
-        <h1 class="page-title">Onboard connector</h1>
+        <h1 class="page-title">Onboard wizard</h1>
         <span class="pill">Side tool</span>
       </div>
-      <p class="lede">Supporting interoperability tool, not a primary judge surface. Suggestions are lexical. Nothing is saved until you tick a row and save.</p>
-      <div class="callout tool">Beat 7 of the demo runbook: suggest mappings, approve at least one, save. Unchecked rows stay unpublished.</div>
-      <label for="spec">OpenAPI JSON</label>
-      <textarea id="spec">{
-  "openapi": "3.0.0",
-  "paths": {
-    "/income": {
-      "get": {
-        "operationId": "getIncome",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "annual_income": { "type": "number" },
-                    "holder_name": { "type": "string" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}</textarea>
-      <label for="op">Operation id <input id="op" value="getIncome" required/></label>
-      <label for="schema">Target schema <input id="schema" value="Credential/IncomeCertificate@1" required/></label>
-      <label for="mapRef">Mapping ref <input id="mapRef" value="map-import-demo@1" required/></label>
-      <label for="connRef">Connector ref <input id="connRef" value="rev-income@1" required/></label>
-      <div class="row">
-        <button type="button" class="primary" id="previewBtn">Suggest mappings</button>
-        <button type="button" class="secondary" id="saveBtn">Save approved only</button>
-      </div>
-      <p id="status" class="status" aria-live="polite"></p>
-      <div id="suggestions"></div>
-      <details class="tech">
-        <summary>Technical detail</summary>
-        <pre id="out"></pre>
-      </details>
+      <p class="lede">Supporting interoperability tool, not a primary judge surface. Suggestions are lexical guesses. OpenAPI never auto-publishes. Nothing is saved until you approve field matches and continue steps that write to the catalog.</p>
+      <div class="callout tool">Side tool. Humans still approve AccessGrant-style publish. Publish is the last explicit step after a passing test.</div>
+
+      <p id="progressLabel" class="progress-label">Step 1 of 6 — Which department are you onboarding?</p>
+      <ol class="spine" id="progress" aria-label="Onboard wizard progress">
+        <li data-step="1" aria-current="step">Department</li>
+        <li data-step="2">Source</li>
+        <li data-step="3">Document types</li>
+        <li data-step="4">Field matches</li>
+        <li data-step="5">Test</li>
+        <li data-step="6">Publish</li>
+      </ol>
+
+      <section id="step-1" class="wizard-step" data-step="1">
+        <h2 id="step-1-title" tabindex="-1">Which department are you onboarding?</h2>
+        <p class="wizard-help" id="dept-help">Register the government department that owns this data source. You’ll need a short code and contact.</p>
+        <form id="form-dept">
+          <label for="deptCode">Department code
+            <input id="deptCode" name="deptCode" required maxlength="60" autocomplete="off" aria-describedby="dept-help deptCode-hint"/>
+            <span id="deptCode-hint" class="hint">e.g. FIRE</span>
+          </label>
+          <label for="deptName">Display name
+            <input id="deptName" name="deptName" required maxlength="200" autocomplete="organization" value="Department of Revenue"/>
+            <span class="hint">e.g. Fire &amp; Emergency Services</span>
+          </label>
+          <label for="idpRealm">IdP realm
+            <input id="idpRealm" name="idpRealm" required maxlength="100" autocomplete="off" value="revenue"/>
+            <span class="hint">e.g. fire</span>
+          </label>
+          <label for="contactEmail">Contact email
+            <input id="contactEmail" name="contactEmail" type="email" required maxlength="200" autocomplete="email" value="revenue@example.gov"/>
+          </label>
+          <details class="tech">
+            <summary>Advanced</summary>
+            <label for="defaultSlaMs">Default SLA (ms)
+              <input id="defaultSlaMs" name="defaultSlaMs" inputmode="numeric" maxlength="8" value="3000"/>
+            </label>
+          </details>
+          <p id="status-1" class="status" aria-live="polite"></p>
+          <div class="row">
+            <button type="submit" class="primary" id="continue1">Continue</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="step-2" class="wizard-step" data-step="2" hidden>
+        <h2 id="step-2-title" tabindex="-1">Where does the data live?</h2>
+        <p class="wizard-help">Tell Samanvay how to reach the department’s system. Host must be allowed by policy.</p>
+        <form id="form-source">
+          <label for="sourceCode">Source code
+            <input id="sourceCode" name="sourceCode" required maxlength="60" autocomplete="off"/>
+          </label>
+          <label for="protocol">Protocol
+            <select id="protocol" name="protocol" required>
+              <option value="REST" selected>REST</option>
+              <option value="SOAP">SOAP</option>
+              <option value="SFTP_CSV">SFTP_CSV</option>
+              <option value="JDBC">JDBC</option>
+            </select>
+          </label>
+          <label for="baseHost">Base host
+            <input id="baseHost" name="baseHost" required maxlength="300" autocomplete="off" value="dept.example.gov" aria-describedby="baseHost-hint"/>
+            <span id="baseHost-hint" class="hint">Hostname only, e.g. dept.example.gov</span>
+          </label>
+          <label for="authType">Auth type
+            <select id="authType" name="authType" required>
+              <option value="NONE" selected>NONE</option>
+            </select>
+          </label>
+          <label for="authConfigRef">Where credentials are stored
+            <input id="authConfigRef" name="authConfigRef" required maxlength="200" autocomplete="off" value="secret:none" aria-describedby="authConfig-hint"/>
+            <span id="authConfig-hint" class="hint">e.g. secret:none</span>
+          </label>
+          <label for="sourceDeptCode">Department code
+            <input id="sourceDeptCode" name="sourceDeptCode" readonly/>
+          </label>
+          <p id="status-2" class="status" aria-live="polite"></p>
+          <div class="row">
+            <button type="button" class="secondary" data-back>Back</button>
+            <button type="submit" class="primary" id="continue2">Continue</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="step-3" class="wizard-step" data-step="3" hidden>
+        <h2 id="step-3-title" tabindex="-1">What document types will this connector fetch?</h2>
+        <p class="wizard-help">Create a draft connector. It stays unpublished until you test and publish later.</p>
+        <form id="form-connector">
+          <label for="connectorId">Connector id
+            <input id="connectorId" name="connectorId" required maxlength="60" autocomplete="off"/>
+          </label>
+          <label for="category">Document type
+            <select id="category" name="category" required>
+              <option value="INCOME_CERTIFICATE" selected>Income certificate (INCOME_CERTIFICATE)</option>
+              <option value="CASTE_CERTIFICATE">Caste certificate (CASTE_CERTIFICATE)</option>
+              <option value="MARKS">Marks (MARKS)</option>
+              <option value="BANK_ACCOUNT">Bank account (BANK_ACCOUNT)</option>
+            </select>
+          </label>
+          <label for="connectorSourceCode">Data source code
+            <input id="connectorSourceCode" name="connectorSourceCode" readonly/>
+          </label>
+          <details class="tech">
+            <summary>Technical detail</summary>
+            <label for="capabilitiesJson">Capabilities JSON
+              <textarea id="capabilitiesJson" name="capabilitiesJson" required></textarea>
+            </label>
+            <label for="inputsJson">Inputs JSON
+              <textarea id="inputsJson" name="inputsJson" required></textarea>
+            </label>
+            <label for="slaMs">SLA (ms)
+              <input id="slaMs" name="slaMs" inputmode="numeric" maxlength="8" value="3000"/>
+            </label>
+          </details>
+          <p id="status-3" class="status" aria-live="polite"></p>
+          <div class="row">
+            <button type="button" class="secondary" data-back>Back</button>
+            <button type="submit" class="primary" id="continue3">Continue</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="step-4" class="wizard-step" data-step="4" hidden>
+        <h2 id="step-4-title" tabindex="-1">Approve field matches</h2>
+        <p class="wizard-help">Suggestions are lexical guesses from an OpenAPI import. Tick only rows you’re sure about. Unchecked rows are not saved. OpenAPI never auto-publishes.</p>
+        <p class="note">Ask for suggestions, then approve the rows you trust. Saved approved only — nothing else is written.</p>
+        <div class="row">
+          <button type="button" class="primary" id="previewBtn">Suggest matches</button>
+        </div>
+        <div id="suggestions"></div>
+        <label for="mapRef">Mapping ref
+          <input id="mapRef" name="mapRef" required maxlength="120" autocomplete="off"/>
+        </label>
+        <label for="connRef">Connector ref
+          <input id="connRef" name="connRef" readonly/>
+        </label>
+        <details class="tech">
+          <summary>Import suggestions from OpenAPI (optional)</summary>
+          <p class="note">Paste is optional. Suggest matches uses a Revenue demo spec unless you replace it. Preview only — this never publishes.</p>
+          <label for="spec">OpenAPI JSON
+            <textarea id="spec" name="spec"></textarea>
+          </label>
+          <label for="op">Operation id
+            <input id="op" name="op" value="getIncome" required/>
+          </label>
+          <label for="schema">Target schema
+            <input id="schema" name="schema" value="Credential/IncomeCertificate@1" required/>
+          </label>
+        </details>
+        <p id="status-4" class="status" aria-live="polite"></p>
+        <div class="row">
+          <button type="button" class="secondary" data-back>Back</button>
+          <button type="button" class="secondary" id="saveBtn">Save approved matches</button>
+          <button type="button" class="primary" id="continue4" disabled>Continue</button>
+        </div>
+      </section>
+
+      <section id="step-5" class="wizard-step" data-step="5" hidden>
+        <h2 id="step-5-title" tabindex="-1">Test the connector</h2>
+        <p class="wizard-help">Run a dry check before anything goes live. Publish is blocked until this passes.</p>
+        <div class="row">
+          <button type="button" class="primary" id="testBtn">Run test</button>
+        </div>
+        <p id="status-5" class="status" aria-live="polite"></p>
+        <div id="testResult"></div>
+        <div id="sampleBox"></div>
+        <div class="row">
+          <button type="button" class="secondary" data-back>Back</button>
+          <button type="button" class="primary" id="continue5" disabled>Continue</button>
+        </div>
+      </section>
+
+      <section id="step-6" class="wizard-step" data-step="6" hidden>
+        <h2 id="step-6-title" tabindex="-1">Publish connector</h2>
+        <p class="wizard-help">This makes the connector available to the control plane. Requires the test report from step 5. Human decision — not automatic.</p>
+        <div class="row">
+          <button type="button" class="primary" id="publishBtn">Publish</button>
+        </div>
+        <p id="status-6" class="status" aria-live="polite"></p>
+        <div id="publishResult"></div>
+        <div class="row">
+          <button type="button" class="secondary" data-back>Back</button>
+        </div>
+      </section>
     </main>
   </div>
   <script src="/console.js"></script>
   <script>
-    let previewData = null;
-    const statusEl = document.getElementById("status");
-    const log = (x) => { document.getElementById("out").textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2); };
-    document.getElementById("previewBtn").onclick = async () => {
+    const suffix = Date.now().toString(36);
+    const TITLES = [
+      "Which department are you onboarding?",
+      "Where does the data live?",
+      "What document types will this connector fetch?",
+      "Approve field matches",
+      "Test the connector",
+      "Publish connector"
+    ];
+    const SCHEMAS = {
+      INCOME_CERTIFICATE: "Credential/IncomeCertificate@1",
+      CASTE_CERTIFICATE: "Credential/CasteCertificate@1",
+      MARKS: "Credential/Marks@1",
+      BANK_ACCOUNT: "Credential/BankAccount@1"
+    };
+    const OPS = {
+      INCOME_CERTIFICATE: "getIncome",
+      CASTE_CERTIFICATE: "getCaste",
+      MARKS: "getMarks",
+      BANK_ACCOUNT: "getBank"
+    };
+    const SAMPLE_SRC = {
+      INCOME_CERTIFICATE: { annual_income: 480000, annualIncome: 480000, holder_name: "Asha Devi", holderName: "Asha Devi" },
+      CASTE_CERTIFICATE: { caste_category: "OBC", casteCategory: "OBC" },
+      MARKS: { percentage: 86.5 },
+      BANK_ACCOUNT: { account_ref: "XXXX4312", accountRef: "XXXX4312" }
+    };
+    const state = {
+      step: 1,
+      department: null,
+      dataSource: null,
+      connector: null,
+      preview: null,
+      savedRules: null,
+      testReport: null,
+      sampleReady: false,
+      published: null
+    };
+
+    document.getElementById("deptCode").value = "REV" + suffix;
+    document.getElementById("sourceCode").value = "rev-ds-" + suffix;
+    document.getElementById("connectorId").value = "rev-conn-" + suffix;
+    document.getElementById("mapRef").value = "map-rev-" + suffix + "@1";
+    document.getElementById("inputsJson").value = "[]";
+    fillCaps();
+    fillSpec();
+
+    function fillCaps() {
+      const mapRef = document.getElementById("mapRef").value;
+      const cat = document.getElementById("category").value;
+      const endpoint = { INCOME_CERTIFICATE: "/income", CASTE_CERTIFICATE: "/caste", MARKS: "/marks", BANK_ACCOUNT: "/bank" }[cat] || "/x";
+      document.getElementById("capabilitiesJson").value =
+        JSON.stringify({ FETCH: { endpoint, mapping_ref: mapRef } });
+    }
+    function defaultSpec(cat) {
+      const fields = {
+        INCOME_CERTIFICATE: { annual_income: { type: "number" }, holder_name: { type: "string" } },
+        CASTE_CERTIFICATE: { caste_category: { type: "string" } },
+        MARKS: { percentage: { type: "number" } },
+        BANK_ACCOUNT: { account_ref: { type: "string" } }
+      };
+      const path = { INCOME_CERTIFICATE: "/income", CASTE_CERTIFICATE: "/caste", MARKS: "/marks", BANK_ACCOUNT: "/bank" }[cat];
+      const op = OPS[cat];
+      return JSON.stringify({
+        openapi: "3.0.0",
+        paths: { [path]: { get: { operationId: op, responses: { "200": { content: { "application/json": { schema: { type: "object", properties: fields[cat] } } } } } } } }
+      }, null, 2);
+    }
+    function fillSpec() {
+      const cat = document.getElementById("category").value;
+      document.getElementById("spec").value = defaultSpec(cat);
+      document.getElementById("op").value = OPS[cat];
+      document.getElementById("schema").value = SCHEMAS[cat];
+    }
+    function sla(id) {
+      const raw = document.getElementById(id).value.trim();
+      if (!raw) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    }
+    function jsonHeaders() {
+      return { method: "POST", headers: { "Content-Type": "application/json" } };
+    }
+    function go(n) {
+      state.step = n;
+      document.querySelectorAll(".wizard-step").forEach((el) => {
+        el.hidden = Number(el.dataset.step) !== n;
+      });
+      document.querySelectorAll("#progress [data-step]").forEach((li) => {
+        const i = Number(li.dataset.step);
+        li.className = i < n ? "done" : i === n ? "now" : "";
+        if (i === n) li.setAttribute("aria-current", "step");
+        else li.removeAttribute("aria-current");
+      });
+      document.getElementById("progressLabel").textContent = "Step " + n + " of 6 — " + TITLES[n - 1];
+      const heading = document.getElementById("step-" + n + "-title");
+      heading.focus({ preventScroll: true });
+      announce("Step " + n + " of 6. " + TITLES[n - 1]);
+    }
+    function lock(ids) {
+      ids.forEach((id) => { document.getElementById(id).readOnly = true; });
+    }
+
+    document.getElementById("category").addEventListener("change", () => {
+      if (!state.connector) {
+        fillCaps();
+        fillSpec();
+      }
+    });
+    document.querySelectorAll("[data-back]").forEach((btn) => {
+      btn.addEventListener("click", () => go(Math.max(1, state.step - 1)));
+    });
+
+    document.getElementById("form-dept").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("continue1");
+      const statusEl = document.getElementById("status-1");
+      if (state.department) { go(2); return; }
+      setBusy(btn, true, "Registering…");
+      try {
+        state.department = await api("/api/catalog/departments", {
+          ...jsonHeaders(),
+          body: JSON.stringify({
+            code: document.getElementById("deptCode").value.trim(),
+            name: document.getElementById("deptName").value.trim(),
+            idpRealm: document.getElementById("idpRealm").value.trim(),
+            contactEmail: document.getElementById("contactEmail").value.trim(),
+            defaultSlaMs: sla("defaultSlaMs")
+          })
+        });
+        document.getElementById("sourceDeptCode").value = state.department.code;
+        lock(["deptCode", "deptName", "idpRealm", "contactEmail", "defaultSlaMs"]);
+        setStatus(statusEl, "ok", "Department registered. Next you’ll point at their system.");
+        announce("Department registered");
+        go(2);
+      } catch (err) {
+        setStatus(statusEl, "bad", friendlyError(err));
+      } finally {
+        setBusy(btn, false);
+      }
+    });
+
+    document.getElementById("form-source").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("continue2");
+      const statusEl = document.getElementById("status-2");
+      if (state.dataSource) { go(3); return; }
+      setBusy(btn, true, "Registering…");
+      try {
+        state.dataSource = await api("/api/catalog/data-sources", {
+          ...jsonHeaders(),
+          body: JSON.stringify({
+            code: document.getElementById("sourceCode").value.trim(),
+            departmentCode: document.getElementById("sourceDeptCode").value.trim(),
+            protocol: document.getElementById("protocol").value,
+            baseHost: document.getElementById("baseHost").value.trim(),
+            authType: document.getElementById("authType").value,
+            authConfigRef: document.getElementById("authConfigRef").value.trim()
+          })
+        });
+        document.getElementById("connectorSourceCode").value = state.dataSource.code;
+        lock(["sourceCode", "baseHost", "authConfigRef"]);
+        document.getElementById("protocol").disabled = true;
+        document.getElementById("authType").disabled = true;
+        setStatus(statusEl, "ok", "Source registered. Next choose what document types this connector covers.");
+        announce("Source registered");
+        go(3);
+      } catch (err) {
+        setStatus(statusEl, "bad", friendlyError(err));
+      } finally {
+        setBusy(btn, false);
+      }
+    });
+
+    document.getElementById("form-connector").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("continue3");
+      const statusEl = document.getElementById("status-3");
+      if (state.connector) { go(4); return; }
+      setBusy(btn, true, "Creating draft…");
+      try {
+        fillCaps();
+        state.connector = await api("/api/catalog/connectors", {
+          ...jsonHeaders(),
+          body: JSON.stringify({
+            connectorId: document.getElementById("connectorId").value.trim(),
+            dataSourceCode: document.getElementById("connectorSourceCode").value.trim(),
+            category: { code: document.getElementById("category").value },
+            capabilitiesJson: document.getElementById("capabilitiesJson").value.trim(),
+            inputsJson: document.getElementById("inputsJson").value.trim(),
+            slaMs: sla("slaMs")
+          })
+        });
+        document.getElementById("connRef").value = state.connector.ref;
+        try {
+          const caps = JSON.parse(state.connector.capabilitiesJson);
+          if (caps.FETCH && caps.FETCH.mapping_ref) document.getElementById("mapRef").value = caps.FETCH.mapping_ref;
+        } catch { /* keep generated mapping ref */ }
+        lock(["connectorId", "capabilitiesJson", "inputsJson", "slaMs", "mapRef"]);
+        document.getElementById("category").disabled = true;
+        setStatus(statusEl, "ok", "Draft connector created. Next approve how fields map.");
+        announce("Draft connector created");
+        go(4);
+      } catch (err) {
+        setStatus(statusEl, "bad", friendlyError(err));
+      } finally {
+        setBusy(btn, false);
+      }
+    });
+
+    document.getElementById("previewBtn").addEventListener("click", async () => {
       const btn = document.getElementById("previewBtn");
       const box = document.getElementById("suggestions");
+      const statusEl = document.getElementById("status-4");
       setBusy(btn, true, "Suggesting…");
       box.innerHTML = loading("Asking the catalog importer…");
       try {
-        previewData = await api("/api/catalog/import/openapi", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
+        state.preview = await api("/api/catalog/import/openapi", {
+          ...jsonHeaders(),
           body: JSON.stringify({
             spec: document.getElementById("spec").value,
             operationId: document.getElementById("op").value,
             targetSchemaRef: document.getElementById("schema").value
           })
         });
-        const suggestions = previewData.suggestions || [];
+        const suggestions = state.preview.suggestions || [];
         box.innerHTML = suggestions.length
-          ? suggestions.map((s, i) =>
+          ? `<div class="checklist">` + suggestions.map((s, i) =>
               `<label for="sug-${i}"><input type="checkbox" id="sug-${i}" data-i="${i}"/> ${esc(s.source)} → ${esc(s.target)} (${esc(s.confidence)}, ${esc(s.rationale)})</label>`
-            ).join("")
-          : emptyBox("No suggestions", "The importer only proposes lexical matches. It does not persist anything until you approve a row.");
-        setStatus(statusEl, suggestions.length ? "ok" : "warn", suggestions.length ? suggestions.length + " suggestion(s). Tick rows to approve." : "No lexical suggestions.");
-        log(suggestions.length + " suggestion(s)");
+            ).join("") + `</div>`
+          : emptyBox("No suggestions", "The importer only proposes lexical matches. Tick a suggested row to approve it. Unchecked rows are not saved.");
+        setStatus(statusEl, suggestions.length ? "ok" : "warn",
+          suggestions.length ? suggestions.length + " suggestion(s). Tick rows to approve." : "No lexical suggestions. Re-suggest after adjusting the optional OpenAPI import.");
         announce("Mapping suggestions loaded");
-      } catch (e) {
-        showErr(box, e);
-        setStatus(statusEl, "bad", friendlyError(e));
+      } catch (err) {
+        showErr(box, err);
+        setStatus(statusEl, "bad", friendlyError(err));
       } finally {
         setBusy(btn, false);
       }
-    };
-    document.getElementById("saveBtn").onclick = async () => {
+    });
+
+    document.getElementById("saveBtn").addEventListener("click", async () => {
       const btn = document.getElementById("saveBtn");
-      if (!previewData) {
-        setStatus(statusEl, "warn", "Suggest mappings first, then approve at least one row.");
+      const statusEl = document.getElementById("status-4");
+      const cont = document.getElementById("continue4");
+      if (!state.preview) {
+        setStatus(statusEl, "warn", "Suggest matches first, then approve at least one row.");
         return;
       }
-      const rules = [...document.querySelectorAll("#suggestions input:checked")].map(cb => {
-        const s = previewData.suggestions[Number(cb.dataset.i)];
-        return {source: s.source, target: s.target, transforms: []};
+      const rules = [...document.querySelectorAll("#suggestions input:checked")].map((cb) => {
+        const s = state.preview.suggestions[Number(cb.dataset.i)];
+        return { source: s.source, target: s.target, transforms: [] };
       });
       if (!rules.length) {
         setStatus(statusEl, "warn", "Approve at least one suggestion before saving.");
@@ -133,24 +485,115 @@
       setBusy(btn, true, "Saving…");
       try {
         await api("/api/catalog/mappings", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
+          ...jsonHeaders(),
           body: JSON.stringify({
             ref: document.getElementById("mapRef").value,
             connectorRef: document.getElementById("connRef").value,
             rules
           })
         });
-        setStatus(statusEl, "ok", "Saved " + rules.length + " approved mapping rule(s). Unchecked suggestions were not written.");
-        log("saved " + rules.length + " rule(s)");
-        announce("Approved mappings saved");
-      } catch (e) {
-        setStatus(statusEl, "bad", friendlyError(e));
-        log(friendlyError(e));
+        state.savedRules = rules;
+        cont.disabled = false;
+        setStatus(statusEl, "ok", "Saved " + rules.length + " approved mapping rule(s). Unchecked suggestions were not written. Saved approved only.");
+        announce("Approved matches saved");
+      } catch (err) {
+        setStatus(statusEl, "bad", friendlyError(err));
       } finally {
         setBusy(btn, false);
       }
-    };
+    });
+
+    document.getElementById("continue4").addEventListener("click", () => {
+      if (state.savedRules && state.savedRules.length) go(5);
+    });
+
+    function renderSample(rules, category) {
+      const src = SAMPLE_SRC[category] || {};
+      const rows = rules.map((r) => {
+        const value = Object.prototype.hasOwnProperty.call(src, r.source)
+          ? src[r.source]
+          : (Object.prototype.hasOwnProperty.call(src, r.target) ? src[r.target] : "—");
+        return `<tr><td class="mono">${esc(r.target)}</td><td>${esc(value)}</td></tr>`;
+      }).join("");
+      return tableHtml("Normalized sample", ["Field", "Value"], rows);
+    }
+
+    document.getElementById("testBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("testBtn");
+      const statusEl = document.getElementById("status-5");
+      const result = document.getElementById("testResult");
+      const sampleBox = document.getElementById("sampleBox");
+      const cont = document.getElementById("continue5");
+      const ref = state.connector && state.connector.ref;
+      if (!ref) {
+        setStatus(statusEl, "warn", "Create the draft connector before testing.");
+        return;
+      }
+      setBusy(btn, true, "Testing…");
+      result.innerHTML = loading("Running connector test…");
+      sampleBox.innerHTML = "";
+      state.sampleReady = false;
+      cont.disabled = true;
+      try {
+        state.testReport = await api("/api/catalog/connectors/" + encodeURIComponent(ref) + "/test", { method: "POST" });
+        const passed = state.testReport.passed === true;
+        const failures = state.testReport.failures || [];
+        result.innerHTML = passed
+          ? `<p class="ok">Test passed.</p>`
+          : `<p class="bad">Test failed.</p>` + (failures.length
+            ? `<ul>${failures.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>`
+            : "");
+        setStatus(statusEl, passed ? "ok" : "bad", passed ? "Dry check passed. Review the sample before publish." : "Dry check failed. Publish stays blocked.");
+        if (passed && state.savedRules && state.savedRules.length) {
+          const cat = (state.connector.category && state.connector.category.code) || document.getElementById("category").value;
+          sampleBox.innerHTML = `<h3>Normalized sample</h3><p class="note">Readable fields from the approved matches. This is not a raw dump and not a publish.</p>` + renderSample(state.savedRules, cat);
+          state.sampleReady = true;
+          cont.disabled = false;
+        }
+        announce(passed ? "Connector test passed" : "Connector test failed");
+      } catch (err) {
+        showErr(result, err);
+        setStatus(statusEl, "bad", friendlyError(err));
+      } finally {
+        setBusy(btn, false);
+      }
+    });
+
+    document.getElementById("continue5").addEventListener("click", () => {
+      if (state.testReport && state.testReport.passed && state.sampleReady) go(6);
+    });
+
+    document.getElementById("publishBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("publishBtn");
+      const statusEl = document.getElementById("status-6");
+      const box = document.getElementById("publishResult");
+      const ref = state.connector && state.connector.ref;
+      if (!ref || !state.testReport || !state.testReport.passed || !state.sampleReady) {
+        setStatus(statusEl, "warn", "Publish needs a passing test and a normalized sample from step 5.");
+        return;
+      }
+      if (state.published) {
+        setStatus(statusEl, "ok", "Already published.");
+        return;
+      }
+      setBusy(btn, true, "Publishing…");
+      try {
+        state.published = await api("/api/catalog/connectors/" + encodeURIComponent(ref) + "/publish", {
+          ...jsonHeaders(),
+          body: JSON.stringify(state.testReport)
+        });
+        box.innerHTML =
+          `<div class="banner show ok"><strong>Published</strong>` +
+          `<p>Connector <code>${esc(state.connector.ref)}</code> is available to the control plane. This remains a side tool — not a judge-path surface.</p>` +
+          `<p class="row"><a class="btn primary" href="/">Demo</a><a class="btn" href="/caller.html">Caller</a></p></div>`;
+        setStatus(statusEl, "ok", "Published.");
+        announce("Connector published");
+      } catch (err) {
+        setStatus(statusEl, "bad", friendlyError(err));
+      } finally {
+        setBusy(btn, false);
+      }
+    });
   </script>
 </body>
 </html>

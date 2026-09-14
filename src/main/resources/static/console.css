@@ -446,7 +446,18 @@ input, textarea, select {
   font: inherit;
 }
 textarea { min-height: 12rem; font-family: var(--font-mono); }
+input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 1.15rem;
+  max-width: none;
+  accent-color: var(--color-primary);
+}
 input:user-invalid, textarea:user-invalid, select:user-invalid { border-color: var(--color-danger); }
+.progress-label { margin: 0 0 0.55rem; font-weight: var(--weight-semibold); }
+.wizard-help { color: var(--color-muted); margin: 0 0 1rem; max-width: 52rem; }
+.hint { display: block; margin-top: 0.2rem; font-size: 0.82rem; }
+.checklist label { display: flex; align-items: flex-start; gap: 0.5rem; }
 .field-row {
   display: flex;
   flex-wrap: wrap;
