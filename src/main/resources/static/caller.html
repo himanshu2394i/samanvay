@@ -164,7 +164,7 @@
           localIdType: departmentCode,
           localId: "DEMO-" + departmentCode,
           provider,
-          proof: provider === "LOCAL_ID_OTP" ? "000000" : "sandbox"
+          proof: provider === "DIGILOCKER" ? "sandbox" : "000000"
         };
         await api("/api/identity/links", {
           method: "POST",
