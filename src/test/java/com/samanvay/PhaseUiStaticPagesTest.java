@@ -57,6 +57,15 @@ class PhaseUiStaticPagesTest {
         assertThat(audit).contains("Tamper");
         assertThat(onboard).contains("/api/catalog/import/openapi");
         assertThat(onboard).contains("Side tool");
+        assertThat(onboard).contains("Which department are you onboarding?");
+        assertThat(onboard).contains("Approve field matches");
+        assertThat(onboard).contains("Suggest matches");
+        assertThat(onboard).contains("Save approved matches");
+        assertThat(onboard).contains("Import suggestions from OpenAPI (optional)");
+        assertThat(onboard).contains("Normalized sample");
+        assertThat(onboard).contains("INCOME_CERTIFICATE");
+        assertThat(onboard).contains("Step 1 of 6");
+        assertThat(onboard).doesNotContain("auto-mapped");
         assertThat(caller).contains("external caller");
         assertThat(caller).doesNotContain("Apply for scholarship");
         assertThat(caller).contains("nav-tools");
