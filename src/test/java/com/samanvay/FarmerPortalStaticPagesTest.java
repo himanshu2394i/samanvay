@@ -44,6 +44,8 @@ class FarmerPortalStaticPagesTest {
         assertThat(js).contains("/connect-accounts");
         assertThat(js).contains("/api/consent/requests");
         assertThat(js).contains("/api/journeys/");
+        assertThat(page("shared/records.js")).contains("/issued-records");
+        assertThat(html).contains("/shared/records.js");
         assertThat(js).contains("AGRICULTURE");
         assertThat(js).contains("LAND_PARCEL");
         assertThat(js).contains("CROP_RECORD");

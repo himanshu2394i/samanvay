@@ -71,6 +71,12 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(js).contains("/api/journeys/");
         assertThat(js).contains("POST_MATRIC_SCHOLARSHIP");
         assertThat(js).contains("/api/applications");
+        String shared = page("shared/records.js");
+        assertThat(shared).contains("/issued-records");
+        assertThat(shared).contains("/api/connector/issued-documents");
+        assertThat(shared).contains("DigiLocker");
+        assertThat(shared).contains("not stored");
+        assertThat(html).contains("/shared/records.js");
         assertThat(js).contains("X-Auth-Jti");
         assertThat(js).contains("DIGILOCKER");
         assertThat(js).contains("LOCAL_ID_OTP");

@@ -44,6 +44,8 @@ class LicencePortalStaticPagesTest {
         assertThat(js).contains("/connect-accounts");
         assertThat(js).contains("/api/consent/requests");
         assertThat(js).contains("/api/journeys/");
+        assertThat(page("shared/records.js")).contains("/issued-records");
+        assertThat(html).contains("/shared/records.js");
         assertThat(js).contains("INDUSTRY");
         assertThat(js).contains("X-Auth-Jti");
         assertThat(js).contains("/retry");
