@@ -64,6 +64,11 @@ class PhaseUiStaticPagesTest {
         assertThat(onboard).contains("Import suggestions from OpenAPI (optional)");
         assertThat(onboard).contains("Normalized sample");
         assertThat(onboard).contains("INCOME_CERTIFICATE");
+        assertThat(onboard).contains("CASTE_CERTIFICATE");
+        assertThat(onboard).contains("MARKS");
+        assertThat(onboard).contains("BANK_ACCOUNT");
+        assertThat(onboard).contains("category: { code:");
+        assertThat(onboard).doesNotContain("FIRE_NOC");
         assertThat(onboard).contains("Step 1 of 6");
         assertThat(onboard).doesNotContain("auto-mapped");
         assertThat(caller).contains("external caller");
