@@ -93,6 +93,13 @@ class PhaseUiStaticPagesTest {
         assertThat(caller).contains("X-Auth-Jti");
         assertThat(caller).contains("connect-accounts");
         assertThat(caller).contains("Connect accounts");
+        assertThat(caller).contains("Connect each missing department once. Already linked departments are skipped.");
+        assertThat(caller).contains("departments connected");
+        assertThat(caller).contains("id=\"checklistProgress\"");
+        assertThat(caller).contains("aria-live");
+        assertThat(caller).contains("Already linked — skipped");
+        assertThat(caller).contains("p.label");
+        assertThat(caller).contains("p.kind");
         assertThat(caller).contains("DIGILOCKER");
         assertThat(caller).contains("sandbox");
         assertThat(caller).contains("LOCAL_ID_OTP");

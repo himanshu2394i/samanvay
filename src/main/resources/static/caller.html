@@ -48,16 +48,27 @@
       <div class="row">
         <button type="button" class="secondary" id="regBtn">Register demo citizen</button>
       </div>
-      <h2>Connect accounts</h2>
-      <p class="note" id="checklistHint">Register a citizen to see missing department links for the selected journey.</p>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Department</th><th>Documents in this journey</th><th>Status</th><th>Connect</th></tr>
-          </thead>
-          <tbody id="checklist"></tbody>
-        </table>
-      </div>
+      <section aria-labelledby="connectHeading">
+        <h2 id="connectHeading">Connect accounts</h2>
+        <p class="note" id="checklistHelp">Connect each missing department once. Already linked departments are skipped.</p>
+        <p class="health" id="checklistProgress" role="status" aria-live="polite">Register a demo citizen to see department progress.</p>
+        <div class="table-wrap">
+          <table aria-describedby="checklistHelp checklistProgress">
+            <caption class="visually-hidden">Department accounts for the selected journey</caption>
+            <thead>
+              <tr>
+                <th scope="col">Department</th>
+                <th scope="col">Documents in this journey</th>
+                <th scope="col">Status</th>
+                <th scope="col">Connect</th>
+              </tr>
+            </thead>
+            <tbody id="checklist">
+              <tr><td colspan="4"><p class="empty">Register a demo citizen to see missing department links for the selected journey.</p></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
       <div class="row">
         <button type="button" class="secondary" id="consentBtn">Grant consent from policy</button>
         <button type="button" class="primary" id="startBtn">Start selected journey</button>
@@ -85,6 +96,11 @@
     const statusEl = document.getElementById("status");
     const log = (x) => { document.getElementById("out").textContent = typeof x === "string" ? x : JSON.stringify(x, null, 2); };
     let journeys = [];
+    let lastProviders = [];
+    function providerLabel(kind) {
+      const found = lastProviders.find(p => p.kind === kind);
+      return (found && found.label) || kind;
+    }
     async function boot() {
       try {
         journeys = await api("/api/catalog/journeys");
@@ -113,41 +129,53 @@
       const citizenId = document.getElementById("citizenId").value;
       const j = selected();
       const body = document.getElementById("checklist");
-      const hint = document.getElementById("checklistHint");
+      const progress = document.getElementById("checklistProgress");
       if (!citizenId || !j) {
-        body.innerHTML = "";
-        hint.textContent = "Register a citizen to see missing department links for the selected journey.";
+        lastProviders = [];
+        body.innerHTML = `<tr><td colspan="4"><p class="empty">Register a demo citizen to see missing department links for the selected journey.</p></td></tr>`;
+        progress.className = "health";
+        progress.textContent = "Register a demo citizen to see department progress.";
         return;
       }
+      progress.className = "health loading";
+      progress.textContent = "Loading department checklist…";
       try {
         const view = await api("/api/identity/citizens/" + encodeURIComponent(citizenId) + "/connect-accounts?journeyCode=" + encodeURIComponent(j.code));
-        const missing = (view.departments || []).filter(d => !d.linked);
-        hint.textContent = missing.length
-          ? "Missing " + missing.length + " department link(s). Connect one department at a time. Already-linked departments are skipped."
-          : "All required departments are linked. Grant consent, then start the journey.";
-        body.innerHTML = (view.departments || []).map(d => {
+        lastProviders = view.providers || [];
+        const depts = view.departments || [];
+        const linked = depts.filter(d => d.linked).length;
+        const total = depts.length;
+        progress.className = "health" + (total && linked === total ? " ok" : linked ? " warn" : "");
+        progress.textContent = linked + " of " + total + " departments connected";
+        if (!depts.length) {
+          body.innerHTML = `<tr><td colspan="4"><p class="empty">This journey has no department links.</p></td></tr>`;
+          return;
+        }
+        body.innerHTML = depts.map(d => {
           const docs = (d.categories || []).join(", ");
           const status = d.linked
-            ? `<span class="pill ok">Linked ${esc(d.localIdType || "")}</span>`
+            ? `<span class="pill ok">Linked${d.localIdType ? " · " + esc(d.localIdType) : ""}</span>`
             : `<span class="pill warn">Missing</span>`;
           const actions = d.linked
-            ? `<span class="note">Already linked</span>`
-            : (view.providers || []).map(p =>
-                `<button type="button" class="secondary" data-connect="${esc(d.departmentCode)}" data-provider="${esc(p.kind)}">${esc(p.label)}</button>`
-              ).join(" ");
+            ? `<span class="note">Already linked — skipped</span>`
+            : lastProviders.map(p =>
+                `<button type="button" class="secondary" data-connect="${esc(d.departmentCode)}" data-provider="${esc(p.kind)}" aria-label="Connect ${esc(d.departmentName || d.departmentCode)} with ${esc(p.label)}">${esc(p.label)}</button>`
+              ).join("");
           return `<tr>
             <td><strong>${esc(d.departmentCode)}</strong><div class="note">${esc(d.departmentName || "")}</div></td>
             <td>${esc(docs)}</td>
             <td>${status}</td>
-            <td class="row">${actions}</td>
+            <td><div class="row connect-actions">${actions}</div></td>
           </tr>`;
         }).join("");
         body.querySelectorAll("[data-connect]").forEach(btn => {
           btn.onclick = () => connectDept(btn.getAttribute("data-connect"), btn.getAttribute("data-provider"), btn);
         });
       } catch (e) {
-        body.innerHTML = "";
-        hint.textContent = friendlyError(e);
+        body.innerHTML = `<tr><td colspan="4"><p class="empty">Department checklist could not load.</p></td></tr>`;
+        progress.className = "health bad";
+        progress.textContent = "";
+        setStatus(statusEl, "bad", friendlyError(e));
       }
     }
     async function connectDept(departmentCode, provider, btn) {
@@ -171,10 +199,13 @@
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify(body)
         });
-        setStatus(statusEl, "ok", "Linked " + departmentCode + " via " + provider + ".");
+        setStatus(statusEl, "ok", "Linked " + departmentCode + " via " + providerLabel(provider) + ".");
         log("linked " + departmentCode + " via " + provider);
-        announce("Linked " + departmentCode);
         await refreshChecklist();
+        announce("Linked " + departmentCode + ". " + document.getElementById("checklistProgress").textContent);
+        const next = document.getElementById("checklist").querySelector("[data-connect]");
+        if (next) next.focus();
+        else document.getElementById("consentBtn").focus();
       } catch (e) {
         setStatus(statusEl, "bad", friendlyError(e));
       } finally {
