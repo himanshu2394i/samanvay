@@ -11,7 +11,7 @@ class PhaseUiStaticPagesTest {
 
     @Test
     void fourSurfacesFrameInteroperabilityNotAScholarshipPortal() {
-        String demo = page("index.html");
+        String demo = page("demo.html");
         String command = page("command.html");
         String journey = page("journey.html");
         String incident = page("ops.html");
@@ -35,6 +35,7 @@ class PhaseUiStaticPagesTest {
             assertThat(html).contains("nav-primary");
             assertThat(html).contains("nav-tools");
             assertThat(html).contains(">Demo<");
+            assertThat(html).contains("/demo.html");
             assertThat(html).contains(">Caller<");
             assertThat(html).contains(">Ops<");
         }

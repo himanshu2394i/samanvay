@@ -103,12 +103,19 @@ function citizenId() {
   return sessionStorage.getItem(KEY_CITIZEN);
 }
 
+function when(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 function currentView() {
   const h = (location.hash || "#scheme").replace("#", "");
   return ["scheme", "apply", "status", "officer"].includes(h) ? h : "scheme";
 }
 
-function showView() {
+function showView(opts) {
   const view = currentView();
   ["scheme", "apply", "status", "officer"].forEach((name) => {
     const el = document.getElementById("view-" + name);
@@ -127,11 +134,24 @@ function showView() {
       loadStatus(ref);
     }
   }
+  if (opts && opts.focus) {
+    const heading = document.querySelector("#view-" + view + " h1");
+    if (heading) {
+      heading.setAttribute("tabindex", "-1");
+      heading.focus();
+    }
+  }
 }
 
 function markStep(name) {
+  const order = ["details", "connect", "consent", "submit"];
+  const idx = order.indexOf(name);
   document.querySelectorAll(".steps [data-step]").forEach((li) => {
+    const i = order.indexOf(li.dataset.step);
     li.classList.toggle("now", li.dataset.step === name);
+    li.classList.toggle("done", i >= 0 && i < idx);
+    if (li.dataset.step === name) li.setAttribute("aria-current", "step");
+    else li.removeAttribute("aria-current");
   });
 }
 
@@ -146,6 +166,7 @@ function showApplyPanel(name) {
 document.getElementById("detailsForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const btn = event.target.querySelector("[type=submit]");
+  const statusEl = document.getElementById("detailsStatus");
   setBusy(btn, true, "Saving…");
   try {
     const given = document.getElementById("givenName").value.trim();
@@ -166,11 +187,12 @@ document.getElementById("detailsForm").addEventListener("submit", async (event) 
       }),
     });
     sessionStorage.setItem(KEY_CITIZEN, id);
+    setStatus(statusEl, "ok", "");
     announce("Applicant saved. Connect department accounts next.");
     showApplyPanel("connect");
     await renderDepts();
   } catch (e) {
-    setStatus(document.getElementById("connectStatus"), "bad", friendly(e));
+    setStatus(statusEl, "bad", friendly(e));
   } finally {
     setBusy(btn, false);
   }
@@ -183,6 +205,14 @@ async function linkedCodes() {
   return new Set((links || []).map((l) => l.departmentCode));
 }
 
+function setConnectProgress(n) {
+  const total = DEPTS.length;
+  const el = document.getElementById("connectProgress");
+  const meter = document.getElementById("connectMeter");
+  if (el) el.textContent = "Linked " + n + " of " + total + " departments";
+  if (meter) meter.style.width = Math.round((n / total) * 100) + "%";
+}
+
 async function renderDepts() {
   const list = document.getElementById("deptList");
   if (!list) return;
@@ -192,17 +222,18 @@ async function renderDepts() {
   } catch (e) {
     setStatus(document.getElementById("connectStatus"), "bad", friendly(e));
   }
+  setConnectProgress(linked.size);
   list.innerHTML = DEPTS.map((d) => {
     const ok = linked.has(d.code);
-    return `<li class="dept-card" data-dept="${esc(d.code)}">
+    return `<li class="dept-card${ok ? " ok" : ""}" data-dept="${esc(d.code)}">
       <h3>${esc(d.name)} <span lang="hi" class="hi">/ ${esc(d.hi)}</span>
         <span class="badge ${ok ? "ok" : ""}">${ok ? "Connected" : "Not connected"}</span></h3>
       <p>Needed for this scheme: ${esc(d.shares)}.</p>
       ${
         ok
-          ? ""
+          ? "<p class=\"hint\">This department account is linked for this application.</p>"
           : `<div class="row">
-        <button type="button" class="btn primary" data-proof="digilocker">Connect with DigiLocker demo</button>
+        <button type="button" class="btn primary" data-proof="digilocker">Connect with DigiLocker sandbox</button>
         <button type="button" class="btn" data-proof="otp">Connect with local ID + OTP (demo)</button>
       </div>`
       }
@@ -231,25 +262,27 @@ function openProof(dept, kind) {
   const otp = document.getElementById("otpFields");
   const title = document.getElementById("proofTitle");
   const body = document.getElementById("proofBody");
+  const err = document.getElementById("otpError");
+  if (err) err.hidden = true;
   const deptName = DEPTS.find((d) => d.code === dept).name;
   if (kind === "digilocker") {
     otp.hidden = true;
-    title.textContent = "DigiLocker-shaped demo";
+    title.textContent = "DigiLocker sandbox";
     body.textContent =
-      "This is a DigiLocker-shaped mock for " +
+      "This is a DigiLocker sandbox mock for " +
       deptName +
       ". It is not live DigiLocker and not live SSO. No DigiLocker credentials are sent.";
-    document.getElementById("proofConfirm").textContent = "Connect with demo proof";
+    document.getElementById("proofConfirm").textContent = "Connect with sandbox proof";
   } else {
     otp.hidden = false;
-    title.textContent = "Local ID + OTP (demo)";
+    title.textContent = "Local ID + OTP demo";
     body.textContent =
       "Verify " +
       deptName +
-      " with a local ID and OTP. This is a labelled demo — not a live telecom OTP and not live SSO.";
+      " with a local ID and OTP demo. This is a labelled demo — not a live telecom OTP and not live SSO.";
     document.getElementById("localId").value = "MH-" + dept + "-DEMO";
     document.getElementById("otp").value = "";
-    document.getElementById("proofConfirm").textContent = "Verify demo OTP";
+    document.getElementById("proofConfirm").textContent = "Verify OTP demo";
   }
   dlg.showModal();
 }
@@ -261,11 +294,14 @@ document.getElementById("proofForm").addEventListener("submit", async (event) =>
   const { dept, kind } = pendingProof;
   if (kind === "otp") {
     const otp = document.getElementById("otp").value.trim();
+    const err = document.getElementById("otpError");
     if (!/^\d{6}$/.test(otp)) {
       document.getElementById("otp").setAttribute("aria-invalid", "true");
+      if (err) err.hidden = false;
       return;
     }
     document.getElementById("otp").removeAttribute("aria-invalid");
+    if (err) err.hidden = true;
   }
   const localId =
     kind === "otp"
@@ -349,7 +385,7 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
     location.hash = "status";
     history.replaceState(null, "", "/scholarship/#status");
     document.getElementById("referenceNo").value = ref;
-    showView();
+    showView({ focus: true });
     await loadStatus(ref);
   } catch (e) {
     setStatus(statusEl, "bad", friendly(e));
@@ -384,13 +420,15 @@ async function loadStatus(ref) {
     const steps = await api("/api/applications/" + encodeURIComponent(ref) + "/steps");
     const status = humanStatus(app.status);
     setStatus(msg, status.kind, status.text);
+    const submitted = when(app.submittedAt);
     const items = (steps || []).map((s) => `<li>${esc(humanStep(s))}</li>`).join("");
     card.innerHTML = `<article class="card">
       <p><strong>Application number:</strong> ${esc(app.referenceNo)}</p>
       <p><strong>Scheme:</strong> Post-matric scholarship</p>
-      <p><strong>Status:</strong> ${esc(status.text)}</p>
+      ${submitted ? `<p><strong>Received on:</strong> ${esc(submitted)}</p>` : ""}
+      <p><strong>Status:</strong> <span class="chip ${esc(status.kind)}">${esc(status.text)}</span></p>
       <h2>Records requested</h2>
-      <ul>${items || "<li>Waiting for department checks to appear.</li>"}</ul>
+      <ol class="timeline">${items || "<li>Waiting for department checks to appear.</li>"}</ol>
     </article>`;
   } catch (e) {
     card.innerHTML = "";
@@ -398,29 +436,48 @@ async function loadStatus(ref) {
   }
 }
 
+function countLabel(rows) {
+  let needs = 0;
+  let progress = 0;
+  let done = 0;
+  rows.forEach((a) => {
+    const st = humanStatus(a.status);
+    if (st.kind === "bad") needs += 1;
+    else if (st.kind === "warn") progress += 1;
+    else done += 1;
+  });
+  return rows.length + " application(s) · " + done + " completed or received · " + progress + " in progress · " + needs + " need action";
+}
+
 async function loadOfficer() {
   const msg = document.getElementById("officerMsg");
   const box = document.getElementById("officerTable");
+  const counts = document.getElementById("officerCounts");
   setStatus(msg, "", "Loading…");
+  if (counts) counts.textContent = "";
   try {
     const apps = await api("/api/applications?size=20");
     const rows = (apps || []).filter((a) => a.journeyCode === JOURNEY);
     if (!rows.length) {
-      box.innerHTML = "<p>No scholarship applications yet.</p>";
+      box.innerHTML = "<p>No scholarship applications yet. When a citizen submits, the application appears here for review.</p>";
       setStatus(msg, "", "");
       return;
     }
+    if (counts) counts.textContent = countLabel(rows);
     box.innerHTML = `<div class="table-wrap"><table>
-      <caption>Scholarship applications</caption>
-      <thead><tr><th scope="col">Application number</th><th scope="col">Scheme</th><th scope="col">Status</th></tr></thead>
+      <caption>Review applications</caption>
+      <thead><tr><th scope="col">Application number</th><th scope="col">Scheme</th><th scope="col">Status</th><th scope="col">Due by</th></tr></thead>
       <tbody>${rows
         .map((a) => {
           const st = humanStatus(a.status);
+          const due = when(a.slaDueAt) || "—";
           return `<tr><td><a href="#status" data-ref="${esc(a.referenceNo)}">${esc(a.referenceNo)}</a></td>
-            <td>Post-matric scholarship</td><td>${esc(st.text)}</td></tr>`;
+            <td>Post-matric scholarship</td>
+            <td><span class="chip ${esc(st.kind)}">${esc(st.text)}</span></td>
+            <td>${esc(due)}</td></tr>`;
         })
         .join("")}</tbody></table></div>`;
-    setStatus(msg, "ok", rows.length + " application(s).");
+    setStatus(msg, "ok", "Open an application number to review which records have arrived.");
   } catch (e) {
     box.innerHTML = "";
     setStatus(msg, "bad", friendly(e));
@@ -468,6 +525,14 @@ document.querySelectorAll("[data-nav]").forEach((a) => {
   });
 });
 
-window.addEventListener("hashchange", showView);
+document.querySelectorAll("[data-text]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const size = btn.dataset.text;
+    document.documentElement.style.fontSize = size === "s" ? "100%" : size === "l" ? "125%" : "112.5%";
+    document.querySelectorAll("[data-text]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+  });
+});
+
+window.addEventListener("hashchange", () => showView({ focus: true }));
 showApplyPanel("details");
 showView();

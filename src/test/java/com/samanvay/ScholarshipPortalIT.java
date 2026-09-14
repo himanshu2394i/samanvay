@@ -23,11 +23,15 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
         RestClient http = RestClient.create();
         String landing = http.get().uri(url("/scholarship")).retrieve().body(String.class);
         String indexed = http.get().uri(url("/scholarship/index.html")).retrieve().body(String.class);
+        String root = http.get().uri(url("/")).retrieve().body(String.class);
         assertThat(landing).contains("Government of Maharashtra");
         assertThat(landing).contains("Apply for scholarship");
+        assertThat(landing).contains("Skip to main content");
         assertThat(landing).doesNotContain("Control plane");
         assertThat(indexed).contains("Scholarship Services");
         assertThat(indexed).doesNotContain("nav-tools");
+        assertThat(root).contains("/scholarship/");
+        assertThat(root).contains("Scholarship Portal");
     }
 
     @Test

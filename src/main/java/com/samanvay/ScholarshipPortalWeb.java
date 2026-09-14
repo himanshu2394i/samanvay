@@ -1,6 +1,7 @@
 package com.samanvay;
 
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -9,7 +10,9 @@ class ScholarshipPortalWeb implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addRedirectViewController("/", "/scholarship/");
         registry.addViewController("/scholarship").setViewName("forward:/scholarship/index.html");
         registry.addViewController("/scholarship/").setViewName("forward:/scholarship/index.html");
+        registry.setOrder(Ordered.HIGHEST_PRECEDENCE);
     }
 }

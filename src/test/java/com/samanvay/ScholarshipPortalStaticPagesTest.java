@@ -23,23 +23,31 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("Revenue");
         assertThat(html).contains("Education");
         assertThat(html).contains("DBT");
-        assertThat(html).contains("DigiLocker");
+        assertThat(html).contains("DigiLocker sandbox");
         assertThat(html).contains("not live");
-        assertThat(html).containsIgnoringCase("OTP");
+        assertThat(html).containsIgnoringCase("OTP demo");
         assertThat(html).contains("share income");
         assertThat(html).contains("caste");
         assertThat(html).contains("marks");
         assertThat(html).contains("bank");
         assertThat(html).contains("Officer");
-        assertThat(html).contains("Skip to content");
+        assertThat(html).contains("Review applications");
+        assertThat(html).contains("Skip to main content");
         assertThat(html).contains("<main");
         assertThat(html).contains("lang=\"hi\"");
+        assertThat(html).contains("AUTH STUBBED");
+        assertThat(html).contains("not live SSO");
+        assertThat(html).contains("Linked");
+        assertThat(html).contains("of 3");
         assertThat(html).doesNotContain("Control plane");
         assertThat(html).doesNotContain("/api/connector/chaos");
         assertThat(html).doesNotContain("/api/catalog/import");
         assertThat(html).doesNotContain("Kill");
         assertThat(html).doesNotContain("JSON.stringify");
         assertThat(html).doesNotContain("<pre");
+        assertThat(html).doesNotContain("X-Auth-Jti");
+        assertThat(html).doesNotContain("connector ref");
+        assertThat(html).doesNotContain("live Keycloak");
 
         assertThat(js).contains("/api/identity/links");
         assertThat(js).contains("/api/identity/citizens");
@@ -54,6 +62,7 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(js).contains("Needs action");
         assertThat(js).contains("Completed");
         assertThat(js).contains("Submitted");
+        assertThat(js).contains("Linked ");
         assertThat(js).doesNotContain("/api/connector/chaos");
         assertThat(js).doesNotContain("/api/catalog/import");
         assertThat(js).doesNotContain("/command.html");
@@ -62,8 +71,20 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(css).contains("prefers-reduced-motion");
         assertThat(css).contains(":user-invalid");
         assertThat(css).contains("min-height: 48px");
+        assertThat(css).contains("--sky");
         assertThat(css).doesNotContain("--olive-980");
         assertThat(css).doesNotContain("IBM Plex");
+    }
+
+    @Test
+    void rootWelcomeSendsJudgesToTheScholarshipPortal() {
+        String root = page("index.html");
+        assertThat(root).contains("/scholarship/");
+        assertThat(root).contains("Scholarship Portal");
+        assertThat(root).contains("Apply for scholarship");
+        assertThat(root).doesNotContain("Control plane");
+        assertThat(root).doesNotContain("nav-tools");
+        assertThat(root).doesNotContain("IBM Plex");
     }
 
     private static String page(String name) {
