@@ -70,9 +70,11 @@ docker compose up -d          # starts Postgres
 ./mvnw spring-boot:run        # Windows: .\mvnw.cmd spring-boot:run
 ```
 
-Judge/demo entry (Caller-first, thin static HTML, not a service portal): `http://localhost:8080/`
+SIH judge path starts on the Scholarship Portal (government service skin): `http://localhost:8080/` redirects to `http://localhost:8080/scholarship/`
 
-Primary CTA starts the external caller at `/caller.html`. Journey, Incident, and Audit are cutaways of what happened inside. Ops console is `/command.html`. Onboard stays a side tool.
+That portal is a **caller** of Samanvay (identity, consent, journeys, tracking). Samanvay itself remains the interoperability middle layer.
+
+Control-plane demo (optional cutaway): `http://localhost:8080/demo.html` — Caller `/caller.html`, Journey, Incident, Audit. Ops console is `/command.html`. Onboard stays a side tool.
 
 Incident kill/revive and audit tamper require demo profile:
 
