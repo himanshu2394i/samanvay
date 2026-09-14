@@ -19,6 +19,7 @@ import com.samanvay.orchestration.api.JourneyService;
 import com.samanvay.orchestration.api.JourneyExceptionView;
 import com.samanvay.orchestration.api.JourneyStarted;
 import com.samanvay.orchestration.api.JourneyState;
+import com.samanvay.orchestration.api.MissingDepartmentLinksException;
 import com.samanvay.orchestration.api.ManualUploadRequested;
 import com.samanvay.orchestration.api.StepCompleted;
 import com.samanvay.orchestration.api.StepFailed;
@@ -34,6 +35,8 @@ import com.samanvay.shared.PurposeCode;
 import com.samanvay.shared.RequesterRef;
 import com.samanvay.shared.SubjectRef;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +99,7 @@ class DefaultJourneyService implements JourneyService {
     @Override
     public JourneyInstance start(String journeyCode, UUID citizenId, JsonNode submission) {
         JourneyDefinition journey = journeys.byCode(journeyCode);
+        requireDepartmentLinks(journey, citizenId);
         JourneyInstance started = tx.execute(status -> persistStart(journey, citizenId));
         List<CategoryFetch> fetches = journey.requiredCategories().stream()
                 .map(category -> CompletableFuture.supplyAsync(
@@ -104,6 +108,22 @@ class DefaultJourneyService implements JourneyService {
                 .toList();
         tx.executeWithoutResult(status -> applyFetches(started.id(), fetches));
         return started;
+    }
+
+    private void requireDepartmentLinks(JourneyDefinition journey, UUID citizenId) {
+        var sources = journey.policy().sources();
+        if (sources == null || sources.isEmpty()) {
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        for (String dept : new LinkedHashSet<>(sources.values())) {
+            if (linking.activeLink(citizenId, dept).isEmpty()) {
+                missing.add(dept);
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new MissingDepartmentLinksException(journey.code(), missing);
+        }
     }
 
     JourneyInstance persistStart(JourneyDefinition journey, UUID citizenId) {

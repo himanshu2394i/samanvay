@@ -37,7 +37,8 @@
         <span class="pill">Tool</span>
       </div>
       <div class="callout tool"><strong>EXTERNAL CALLER DEMO.</strong> This is an external caller stand-in for a department portal that invokes Samanvay. Journey codes (including scholarship, NOC, subsidy) prove the platform is generic. They are not Samanvay products.</div>
-      <div class="callout"><strong>AUTH STUBBED.</strong> Requests send <code>X-Auth-Jti: ui-session</code>. SSO is stubbed for the demo. This is not live Keycloak.</div>
+      <div class="callout"><strong>AUTH STUBBED.</strong> Consent grant still sends header <code>X-Auth-Jti: ui-session</code>. That is a demo session, not live Keycloak SSO.</div>
+      <div class="callout"><strong>DEPARTMENT LINKING.</strong> Connect missing departments one at a time. Scholarship (income + caste + marks + bank) is three department links (Revenue, Education, DBT), not one hop per document. Providers are labeled demo/sandbox. This is not live Keycloak department SSO and not a live DigiLocker partner API.</div>
       <p class="lede">Start a catalog journey from outside the control plane. After it starts, open Journey, Incident, or Audit to see what happened inside. It is not a citizen benefit form.</p>
       <label for="journey">Catalog journey
         <select id="journey"></select>
@@ -46,7 +47,19 @@
       <label for="citizenId">Citizen id <input id="citizenId"/></label>
       <div class="row">
         <button type="button" class="secondary" id="regBtn">Register demo citizen</button>
-        <button type="button" class="secondary" id="linkBtn">Link + consent from policy</button>
+      </div>
+      <h2>Connect accounts</h2>
+      <p class="note" id="checklistHint">Register a citizen to see missing department links for the selected journey.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Department</th><th>Documents in this journey</th><th>Status</th><th>Connect</th></tr>
+          </thead>
+          <tbody id="checklist"></tbody>
+        </table>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="consentBtn">Grant consent from policy</button>
         <button type="button" class="primary" id="startBtn">Start selected journey</button>
       </div>
       <p id="status" class="status" aria-live="polite"></p>
@@ -94,7 +107,81 @@
       const src = (j.policy && j.policy.sources) || {};
       document.getElementById("policy").textContent =
         `Categories ${ (j.requiredCategories || []).join(", ") }. Sources ${Object.entries(src).map(([k,v]) => k + "←" + v).join(", ")}. Requester ${j.policy && j.policy.requester}.`;
+      refreshChecklist();
     }
+    async function refreshChecklist() {
+      const citizenId = document.getElementById("citizenId").value;
+      const j = selected();
+      const body = document.getElementById("checklist");
+      const hint = document.getElementById("checklistHint");
+      if (!citizenId || !j) {
+        body.innerHTML = "";
+        hint.textContent = "Register a citizen to see missing department links for the selected journey.";
+        return;
+      }
+      try {
+        const view = await api("/api/identity/citizens/" + encodeURIComponent(citizenId) + "/connect-accounts?journeyCode=" + encodeURIComponent(j.code));
+        const missing = (view.departments || []).filter(d => !d.linked);
+        hint.textContent = missing.length
+          ? "Missing " + missing.length + " department link(s). Connect one department at a time. Already-linked departments are skipped."
+          : "All required departments are linked. Grant consent, then start the journey.";
+        body.innerHTML = (view.departments || []).map(d => {
+          const docs = (d.categories || []).join(", ");
+          const status = d.linked
+            ? `<span class="pill ok">Linked ${esc(d.localIdType || "")}</span>`
+            : `<span class="pill warn">Missing</span>`;
+          const actions = d.linked
+            ? `<span class="note">Already linked</span>`
+            : (view.providers || []).map(p =>
+                `<button type="button" class="secondary" data-connect="${esc(d.departmentCode)}" data-provider="${esc(p.kind)}">${esc(p.label)}</button>`
+              ).join(" ");
+          return `<tr>
+            <td><strong>${esc(d.departmentCode)}</strong><div class="note">${esc(d.departmentName || "")}</div></td>
+            <td>${esc(docs)}</td>
+            <td>${status}</td>
+            <td class="row">${actions}</td>
+          </tr>`;
+        }).join("");
+        body.querySelectorAll("[data-connect]").forEach(btn => {
+          btn.onclick = () => connectDept(btn.getAttribute("data-connect"), btn.getAttribute("data-provider"), btn);
+        });
+      } catch (e) {
+        body.innerHTML = "";
+        hint.textContent = friendlyError(e);
+      }
+    }
+    async function connectDept(departmentCode, provider, btn) {
+      const citizenId = document.getElementById("citizenId").value;
+      if (!citizenId) {
+        setStatus(statusEl, "warn", "Register a demo citizen first.");
+        return;
+      }
+      setBusy(btn, true, "Connecting…");
+      try {
+        const body = {
+          citizenId,
+          departmentCode,
+          localIdType: departmentCode,
+          localId: "DEMO-" + departmentCode,
+          provider,
+          proof: provider === "LOCAL_ID_OTP" ? "000000" : "sandbox"
+        };
+        await api("/api/identity/links", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(body)
+        });
+        setStatus(statusEl, "ok", "Linked " + departmentCode + " via " + provider + ".");
+        log("linked " + departmentCode + " via " + provider);
+        announce("Linked " + departmentCode);
+        await refreshChecklist();
+      } catch (e) {
+        setStatus(statusEl, "bad", friendlyError(e));
+      } finally {
+        setBusy(btn, false);
+      }
+    }
+    document.getElementById("citizenId").addEventListener("change", refreshChecklist);
     document.getElementById("regBtn").onclick = async () => {
       const btn = document.getElementById("regBtn");
       setBusy(btn, true, "Registering…");
@@ -108,36 +195,32 @@
           })
         });
         document.getElementById("citizenId").value = id;
-        setStatus(statusEl, "ok", "Demo citizen registered. Next: link + consent, then start a journey.");
+        setStatus(statusEl, "ok", "Demo citizen registered. Next: connect missing departments, then grant consent and start.");
         log("citizenId " + id);
         announce("Demo citizen registered");
+        await refreshChecklist();
       } catch (e) {
         setStatus(statusEl, "bad", friendlyError(e));
       } finally {
         setBusy(btn, false);
       }
     };
-    document.getElementById("linkBtn").onclick = async () => {
-      const btn = document.getElementById("linkBtn");
+    document.getElementById("consentBtn").onclick = async () => {
+      const btn = document.getElementById("consentBtn");
       const citizenId = document.getElementById("citizenId").value;
       const j = selected();
       if (!citizenId || !j) {
         setStatus(statusEl, "warn", "Register a demo citizen and select a catalog journey first.");
         return;
       }
-      setBusy(btn, true, "Linking…");
+      setBusy(btn, true, "Granting…");
       try {
-        const src = (j.policy && j.policy.sources) || {};
-        const depts = [...new Set(Object.values(src))];
-        for (const departmentCode of depts) {
-          await api("/api/identity/links", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-              citizenId, departmentCode, localIdType: departmentCode, localId: "DEMO-" + departmentCode,
-              provider: "DIGILOCKER", proof: "sandbox"
-            })
-          });
+        const view = await api("/api/identity/citizens/" + encodeURIComponent(citizenId) + "/connect-accounts?journeyCode=" + encodeURIComponent(j.code));
+        const missing = (view.departments || []).filter(d => !d.linked).map(d => d.departmentCode);
+        if (missing.length) {
+          setStatus(statusEl, "warn", "Connect missing departments first: " + missing.join(", ") + ".");
+          await refreshChecklist();
+          return;
         }
         const req = await api("/api/consent/requests", {
           method: "POST",
@@ -155,9 +238,9 @@
           headers: {"Content-Type": "application/json", "X-Auth-Jti": "ui-session"},
           body: JSON.stringify({citizenId})
         });
-        setStatus(statusEl, "ok", "Department links and consent granted. You can start the selected journey.");
-        log("linked " + depts.join(", "));
-        announce("Links and consent granted");
+        setStatus(statusEl, "ok", "Consent granted. You can start the selected journey.");
+        log("consent granted");
+        announce("Consent granted");
       } catch (e) {
         setStatus(statusEl, "bad", friendlyError(e));
       } finally {
@@ -169,11 +252,12 @@
       const citizenId = document.getElementById("citizenId").value;
       const j = selected();
       if (!citizenId || !j) {
-        setStatus(statusEl, "warn", "Register, link + consent, then start.");
+        setStatus(statusEl, "warn", "Register, connect departments, grant consent, then start.");
         return;
       }
       setBusy(btn, true, "Starting…");
       try {
+        await refreshChecklist();
         const inst = await api("/api/journeys/" + encodeURIComponent(j.code) + "/start", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
@@ -200,7 +284,12 @@
           log("instance started, reference pending");
         }
       } catch (e) {
-        setStatus(statusEl, "bad", friendlyError(e));
+        if (e && e.status === 409 && e.body && e.body.reason === "MISSING_DEPARTMENT_LINKS") {
+          setStatus(statusEl, "warn", "Connect missing department accounts first: " + ((e.body.missingDepartments || []).join(", ") || "see checklist") + ".");
+          await refreshChecklist();
+        } else {
+          setStatus(statusEl, "bad", friendlyError(e));
+        }
       } finally {
         setBusy(btn, false);
       }

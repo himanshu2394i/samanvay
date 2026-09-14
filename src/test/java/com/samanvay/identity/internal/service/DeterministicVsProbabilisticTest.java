@@ -34,7 +34,9 @@ class DeterministicVsProbabilisticTest {
                 mock(ReviewerAuth.class),
                 e -> {},
                 mock(AuditService.class),
-                List.of());
+                List.of(),
+                mock(com.samanvay.catalog.api.JourneyCatalog.class),
+                mock(com.samanvay.catalog.api.DepartmentCatalog.class));
         var rec = JsonMapper.builder().build().readTree("{\"localId\":\"RC-1\",\"name\":\"X\"}");
         assertThat(svc.submitCandidate("REVENUE", rec).kind()).isEqualTo("ALREADY_LINKED");
     }

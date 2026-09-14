@@ -1,5 +1,7 @@
 package com.samanvay.shared;
 
+import java.util.Map;
+
 public abstract class SamanvayException extends RuntimeException {
 
     protected SamanvayException(String message) {
@@ -24,5 +26,9 @@ public abstract class SamanvayException extends RuntimeException {
 
     public String reason() {
         return getClass().getSimpleName();
+    }
+
+    public Map<String, Object> properties() {
+        return Map.of();
     }
 }

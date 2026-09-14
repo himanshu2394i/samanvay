@@ -91,6 +91,13 @@ class PhaseUiStaticPagesTest {
         assertThat(caller).contains("AUTH STUBBED");
         assertThat(caller).contains("not live Keycloak");
         assertThat(caller).contains("X-Auth-Jti");
+        assertThat(caller).contains("connect-accounts");
+        assertThat(caller).contains("Connect accounts");
+        assertThat(caller).contains("DIGILOCKER");
+        assertThat(caller).contains("sandbox");
+        assertThat(caller).contains("LOCAL_ID_OTP");
+        assertThat(caller).doesNotContain("Link + consent from policy");
+        assertThat(caller).doesNotContain("proof: \"stub\"");
         assertThat(caller).doesNotContain("location.href");
         assertThat(css).contains(":focus-visible");
         assertThat(css).contains("prefers-reduced-motion");
