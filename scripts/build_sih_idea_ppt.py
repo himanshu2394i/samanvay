@@ -193,70 +193,118 @@ def fill_solution(slide):
     )
 
 
+def _pill(slide, x, y, w, h, title, sub, fill=CARD):
+    add_box(slide, x, y, w, h, fill, LINE)
+    add_text(slide, x + Inches(0.06), y + Inches(0.05), w - Inches(0.1), Inches(0.28), [title], size=11, bold=True, color=NAVY, align=PP_ALIGN.CENTER)
+    if sub:
+        add_text(slide, x + Inches(0.06), y + Inches(0.28), w - Inches(0.1), Inches(0.28), [sub], size=9, color=MUTED, align=PP_ALIGN.CENTER)
+
+
 def fill_technical(slide):
     for shape in slide.shapes:
         if shape.has_text_frame and "Technologies to be used" in shape.text_frame.text:
             hide(shape)
 
-    add_text(slide, Inches(0.45), Inches(1.18), Inches(12.4), Inches(0.28), ["Stack (working prototype on this laptop)"], size=13, bold=True, color=SAFFRON)
-    techs = [
-        ("Java 21 · Boot 4", "Spring Modulith core"),
-        ("Postgres 16", "Flyway · interop state"),
-        ("REST SOAP SFTP JDBC", "protocol adapters"),
-        ("BPMN 2.0", "Flowable behind a port"),
-        ("Keycloak", "OIDC / IdP brokering"),
-        ("Resilience4j", "timeout · circuit"),
-    ]
-    y = Inches(1.48)
-    w = Inches(1.95)
-    for i, (t, s) in enumerate(techs):
-        x = Inches(0.45) + i * Inches(2.1)
-        add_box(slide, x, y, w, Inches(0.78), CARD, LINE)
-        add_text(slide, x + Inches(0.08), y + Inches(0.08), w - Inches(0.12), Inches(0.38), [t], size=11, bold=True, color=NAVY, align=PP_ALIGN.CENTER)
-        add_text(slide, x + Inches(0.08), y + Inches(0.42), w - Inches(0.12), Inches(0.28), [s], size=10, color=MUTED, align=PP_ALIGN.CENTER)
+    add_text(
+        slide,
+        Inches(0.38),
+        Inches(1.12),
+        Inches(12.5),
+        Inches(0.24),
+        ["Stack  ·  Java 21 / Spring Boot 4 / Modulith  ·  Postgres 16  ·  BPMN 2.0  ·  Keycloak  ·  Resilience4j  ·  REST · SOAP · SFTP · JDBC"],
+        size=12,
+        bold=True,
+        color=SAFFRON,
+    )
 
-    add_text(slide, Inches(0.45), Inches(2.38), Inches(12.4), Inches(0.28), ["Methodology — departments issue; Samanvay orchestrates the pull"], size=13, bold=True, color=SAFFRON)
+    callers = [("Scholarship", "Revenue · Education · DBT"), ("Licence / NOC", "Municipal · Fire · MPCB"), ("Farmer subsidy", "Land · Agri · DBT")]
+    for i, (t, s) in enumerate(callers):
+        _pill(slide, Inches(0.38) + i * Inches(4.2), Inches(1.38), Inches(4.0), Inches(0.58), t, s, CARD)
 
-    # flow row
-    nodes = [
-        ("Citizen portals", "Scholarship / Licence / Farmer"),
-        ("Samanvay control", "identity · consent · catalog · registry"),
-        ("Samanvay data", "connector · orchestration · tracking"),
-        ("Issuers (SoR)", "Aaple Sarkar · Bhulekh · Fire · MPCB · MahaDBT"),
+    # Core architecture frame
+    add_box(slide, Inches(0.38), Inches(2.08), Inches(12.55), Inches(3.12), CARD, LINE)
+    head = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.38), Inches(2.08), Inches(12.55), Inches(0.38))
+    head.fill.solid()
+    head.fill.fore_color.rgb = NAVY
+    head.line.fill.background()
+    add_text(
+        slide,
+        Inches(0.5),
+        Inches(2.12),
+        Inches(12.3),
+        Inches(0.32),
+        ["SAMANVAY CORE  —  one Spring Boot deployable  ·  modules enforced at build (Modulith + ArchUnit)  ·  payload never persisted"],
+        size=12,
+        bold=True,
+        color=WHITE,
+        align=PP_ALIGN.CENTER,
+    )
+
+    # Control plane
+    add_box(slide, Inches(0.52), Inches(2.56), Inches(5.55), Inches(1.72), NAVY)
+    add_text(slide, Inches(0.64), Inches(2.62), Inches(5.3), Inches(0.28), ["CONTROL PLANE  —  decides"], size=12, bold=True, color=WHITE)
+    add_text(slide, Inches(0.64), Inches(2.9), Inches(5.3), Inches(1.28), [
+        "identity   citizen links  ·  no auto-merge",
+        "consent    purpose  ·  revoke  ·  issues the grant",
+        "catalog    departments  ·  schemas  ·  journeys",
+        "registry   pointers only  —  what exists where",
+    ], size=11, color=WHITE)
+
+    # Data plane
+    add_box(slide, Inches(7.22), Inches(2.56), Inches(5.55), Inches(1.72), TEAL)
+    add_text(slide, Inches(7.34), Inches(2.62), Inches(5.3), Inches(0.28), ["DATA PLANE  —  moves"], size=12, bold=True, color=WHITE)
+    add_text(slide, Inches(7.34), Inches(2.9), Inches(5.3), Inches(1.28), [
+        "orchestration   BPMN journey  ·  retry / degrade",
+        "connector       adapters + mapping DSL",
+        "tracking        one reference number",
+        "notifications   events  ·  citizen / officer",
+    ], size=11, color=WHITE)
+
+    # Grant arrow between planes
+    arr = slide.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW, Inches(6.16), Inches(3.18), Inches(0.96), Inches(0.42))
+    arr.fill.solid()
+    arr.fill.fore_color.rgb = SAFFRON
+    arr.line.fill.background()
+    add_text(slide, Inches(6.12), Inches(3.62), Inches(1.05), Inches(0.42), ["60s grant", "single-use"], size=9, bold=True, color=SAFFRON, align=PP_ALIGN.CENTER)
+
+    # Audit bar
+    add_box(slide, Inches(0.52), Inches(4.38), Inches(12.25), Inches(0.68), RGBColor(0xF3, 0xE6, 0xD8), SAFFRON)
+    add_text(slide, Inches(0.64), Inches(4.44), Inches(12.0), Inches(0.28), ["CROSS-CUTTING AUDIT  —  hash-chained ledger"], size=12, bold=True, color=SAFFRON)
+    add_text(
+        slide,
+        Inches(0.64),
+        Inches(4.7),
+        Inches(12.0),
+        Inches(0.28),
+        ["Every grant, fetch, retry, consent revoke. Tamper a row → chain verify fails. Live fetch with provenance; certificates stay at the issuer."],
+        size=11,
+        color=INK,
+    )
+
+    # Issuers
+    add_text(slide, Inches(0.38), Inches(5.28), Inches(12.5), Inches(0.22), ["Issuers stay systems of record  —  fetch on demand"], size=11, bold=True, color=SAFFRON)
+    issuers = [
+        ("Aaple Sarkar", "SOAP / REST"),
+        ("Mahabhulekh", "7/12 land"),
+        ("Fire e-approval", "NOC API"),
+        ("MPCB / MAITRI", "JDBC / REST"),
+        ("MahaDBT", "REST + OAuth"),
+        ("DigiLocker*", "consent pipe"),
     ]
-    y = Inches(2.7)
-    w = Inches(2.85)
-    for i, (t, s) in enumerate(nodes):
-        x = Inches(0.4) + i * Inches(3.2)
-        add_box(slide, x, y, w, Inches(1.05), NAVY if i in (1, 2) else TEAL)
-        add_text(slide, x + Inches(0.1), y + Inches(0.12), w - Inches(0.2), Inches(0.36), [t], size=13, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-        add_text(slide, x + Inches(0.1), y + Inches(0.5), w - Inches(0.2), Inches(0.48), [s], size=10, color=WHITE, align=PP_ALIGN.CENTER)
-        if i < 3:
-            arr = slide.shapes.add_shape(
-                MSO_SHAPE.RIGHT_ARROW,
-                x + w + Inches(0.04),
-                y + Inches(0.38),
-                Inches(0.28),
-                Inches(0.28),
-            )
-            arr.fill.solid()
-            arr.fill.fore_color.rgb = SAFFRON
-            arr.line.fill.background()
+    for i, (t, s) in enumerate(issuers):
+        _pill(slide, Inches(0.38) + i * Inches(2.1), Inches(5.5), Inches(2.0), Inches(0.58), t, s)
 
     add_text(
         slide,
-        Inches(0.45),
-        Inches(3.9),
-        Inches(12.4),
-        Inches(2.4),
+        Inches(0.38),
+        Inches(6.12),
+        Inches(12.5),
+        Inches(0.55),
         [
-            "Process: consent + identity link  →  signed 60s grant  →  adapter fetch (live, not stored)  →  canonical map + provenance  →  track / officer / audit.",
-            "DigiLocker (production): MeitY partner API after Aadhaar consent lists issued URIs. Departments push copies; locker is not a login into Fire that then dumps 7/12.",
-            "Demo now: labelled DigiLocker sandbox + mock issuer adapters. Offline compose. P5 sequence — Journey 1 concrete, Journey 2 generalizes, Journey 3 is config.",
-            "Working prototype: three portal skins, officer retry, issued-record papers, tamper-evident audit explorer.",
+            "Path: identity link + consent → signed grant → adapter fetch (not stored) → canonical map → track / officer.  *DigiLocker carries issued copies; it is not a department login. Demo uses labelled sandbox + mock adapters.",
         ],
-        size=13,
-        color=INK,
+        size=11,
+        color=MUTED,
     )
 
 
@@ -382,8 +430,9 @@ def main():
     if not TEMPLATE.exists():
         raise SystemExit(f"Template missing: {TEMPLATE}")
     OUT_PPTX.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(TEMPLATE, OUT_PPTX)
-    prs = Presentation(str(OUT_PPTX))
+    tmp = OUT_PPTX.with_suffix(".build.pptx")
+    shutil.copyfile(TEMPLATE, tmp)
+    prs = Presentation(str(tmp))
     fill_title(prs.slides[0])
     fill_solution(prs.slides[1])
     fill_technical(prs.slides[2])
@@ -392,8 +441,15 @@ def main():
     fill_refs(prs.slides[5])
     set_team_ovals(prs)
     delete_slide(prs, 6)
-    prs.save(str(OUT_PPTX))
-    print("Wrote", OUT_PPTX, "slides", len(prs.slides))
+    prs.save(str(tmp))
+    try:
+        shutil.copyfile(tmp, OUT_PPTX)
+        tmp.unlink(missing_ok=True)
+        written = OUT_PPTX
+    except OSError:
+        written = tmp
+        print("NOTE: destination PPTX is open; wrote", tmp)
+    print("Wrote", written, "slides", len(prs.slides))
 
 
 if __name__ == "__main__":
