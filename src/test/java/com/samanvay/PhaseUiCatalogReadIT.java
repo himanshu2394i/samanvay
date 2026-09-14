@@ -48,7 +48,7 @@ class PhaseUiCatalogReadIT extends PostgresIntegrationTest {
     @Test
     void demoEntryLeadsWithCallerAndServesOpsCutaway() {
         RestClient http = RestClient.create();
-        String root = http.get().uri(url("/")).retrieve().body(String.class);
+        String root = followHomeToPortal(http);
         assertThat(root).contains("/scholarship/");
         assertThat(root).contains("Scholarship Portal");
         assertThat(root).contains("Apply for scholarship");
@@ -65,6 +65,18 @@ class PhaseUiCatalogReadIT extends PostgresIntegrationTest {
         String ops = http.get().uri(url("/command.html")).retrieve().body(String.class);
         assertThat(ops).contains("Command Center");
         assertThat(ops).contains("Tracked applications");
+    }
+
+    private String followHomeToPortal(RestClient http) {
+        var entity = http.get().uri(url("/")).retrieve().toEntity(String.class);
+        if (entity.getStatusCode().is3xxRedirection()) {
+            var loc = entity.getHeaders().getLocation();
+            assertThat(loc).as("GET / should send judges to the portal").isNotNull();
+            assertThat(loc.toString()).contains("/scholarship");
+            String path = loc.isAbsolute() ? loc.getPath() : loc.toString();
+            return http.get().uri(url(path)).retrieve().body(String.class);
+        }
+        return entity.getBody();
     }
 
     private String url(String path) {
