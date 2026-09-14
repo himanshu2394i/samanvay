@@ -105,8 +105,9 @@ class ScholarshipPortalStaticPagesTest {
     void rootWelcomeSendsJudgesToTheScholarshipPortal() {
         String root = page("index.html");
         assertThat(root).contains("/scholarship/");
-        assertThat(root).contains("Scholarship Portal");
-        assertThat(root).contains("Apply for scholarship");
+        assertThat(root).contains("Scholarship");
+        assertThat(root).contains("/licence/");
+        assertThat(root).contains("Citizen services");
         assertThat(root).doesNotContain("Control plane");
         assertThat(root).doesNotContain("nav-tools");
         assertThat(root).doesNotContain("IBM Plex");

@@ -45,7 +45,7 @@ class PhaseUiStaticPagesTest {
 
         assertThat(demo).contains("Start demo (external caller)");
         assertThat(demo).contains("/scholarship/");
-        assertThat(demo).contains("Open Scholarship Portal");
+        assertThat(demo).contains("Open Citizen services");
         assertThat(demo).contains("interoperability middle layer");
         assertThat(demo).contains("Officer desk");
         assertThat(demo).contains("Published schemes");

@@ -19,21 +19,26 @@ docker compose up -d
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
 
-**Judge path starts on the Scholarship Portal**, not on Samanvay operations.
+**Judge path starts at Citizen services** (`/`), then a department portal — not on Samanvay operations.
 
-Open `http://localhost:8080/` (redirects to `/scholarship/`, Government of Maharashtra — Scholarship Portal). Apply → connect the three department accounts (Revenue / Education / DBT; labelled DigiLocker sandbox or OTP demo — not live SSO) → consent in plain language → submit. Track status in everyday words.
+Open `http://localhost:8080/` (Government of Maharashtra — Citizen services). Two independent callers: Scholarship Portal and Business licence / NOC.
 
-Then **Officer desk** (`/scholarship/#officer`): labelled demonstration login (`officer` / `demo-2026` — not SSO) → review which department records arrived → optionally **Mark Revenue records unavailable**, restore, then **Retry**. Do not show `PARTIALLY_VERIFIED` or instance UUIDs to judges.
+Scholarship: Apply → connect Revenue / Education / DBT → consent → submit. Then **Officer desk** (`officer` / `demo-2026`) → Revenue unavailable → restore → Retry.
 
-Optional 60-second Samanvay cutaway after that: `/demo.html` (operations script) → `/audit.html` and `/schemes.html` (farmer subsidy as configuration). Do **not** open Command/Caller first. Those stay under **Staff tools**.
+Licence: `/licence/` is a second government skin on `BUSINESS_NOC` (Municipal, Fire, Pollution, Revenue). Same APIs, different portal.
+
+Optional 60-second Samanvay cutaway: `/demo.html` → `/audit.html` and `/schemes.html` (farmer subsidy as configuration). Do **not** open Command/Caller first.
+
+Spoken script: [JUDGE_SCRIPT.md](JUDGE_SCRIPT.md). One-pager: [ONE_PAGER.md](ONE_PAGER.md).
 
 Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tamper/{seq}` and `POST /api/connector/chaos/**` are unregistered (404). **Officer Revenue unavailable/restore and Audit tamper need `--spring.profiles.active=demo`.**
 
 | Beat | Where | How it is proven |
 |---|---|---|
-| 1 | Three portals / same form | Problem statement. **Start at `/scholarship/`** — citizen scholarship apply on a government portal. Samanvay is not on screen. |
-| 2 | Connect department accounts | Portal **Connect accounts** checklist. Consent grant still uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
+| 1 | Three portals / same form | **Start at `/`** — two independent government services. Scholarship and licence would otherwise duplicate citizen data. |
+| 2 | Connect department accounts | Scholarship **Connect accounts**. Consent uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
 | 3 | Scholarship fan-out | Portal submit starts `POST_MATRIC_SCHOLARSHIP`. |
+| 3b | Second caller | `/licence/` starts `BUSINESS_NOC` on the same core. |
 | 4 | Revenue unavailable mid-flight | **Officer desk**: Mark Revenue records unavailable → application needs action → Restore → Retry. Optional staff cutaway: `/ops.html`. |
 | 5 | Consent revoke | `POST /api/consent/{id}/revoke` → next authorize denied |
 | 6 | Audit verifier | `/audit.html`: Verify range → Tamper head → fail |
@@ -44,8 +49,9 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 
 | URL | Surface |
 |---|---|
-| `/` | Redirects to `/scholarship/` — judge entry |
-| `/scholarship/` | **Judge entry** — Scholarship Portal (gov service). Calls identity, consent, journeys, tracking. Not the control plane. |
+| `/` | **Judge entry** — Citizen services directory (two independent portals) |
+| `/scholarship/` | Scholarship Portal (gov service). Calls identity, consent, journeys, tracking. |
+| `/licence/` | Business licence / NOC portal — second independent caller |
 | `/scholarship/#officer` | Officer desk — demonstration login, department records, Retry |
 | `/demo.html` | Optional operations cutaway — judge script; not the entry |
 | `/schemes.html` | Published catalog journeys — farmer subsidy as configuration |

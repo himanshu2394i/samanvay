@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Business licence / NOC | Directorate of Industries — Government of Maharashtra</title>
+  <link rel="stylesheet" href="/licence/portal.css"/>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to main content</a>
+  <p id="live" class="visually-hidden" aria-live="polite"></p>
+  <div class="tricolor" aria-hidden="true"></div>
+  <p class="sandbox"><strong>Demonstration portal.</strong> DigiLocker sandbox and OTP demo here are labelled mocks — not live DigiLocker, not live Aadhaar SSO, and no secrets are used. <strong>AUTH STUBBED</strong> — this is not live SSO.</p>
+  <div class="util">
+    <div class="util-inner">
+      <p class="lang-switch" role="group" aria-label="Language">
+        <button type="button" id="langEn" data-lang="en" aria-pressed="true">English</button>
+        <button type="button" id="langMr" data-lang="mr" lang="mr" aria-pressed="false">मराठी</button>
+      </p>
+      <p class="text-size">
+        <span id="textSizeLabel">Text size</span>
+        <button type="button" data-text="s" aria-labelledby="textSizeLabel" aria-label="Smaller text">A−</button>
+        <button type="button" data-text="m" aria-labelledby="textSizeLabel" aria-pressed="true" aria-label="Default text">A</button>
+        <button type="button" data-text="l" aria-labelledby="textSizeLabel" aria-label="Larger text">A+</button>
+      </p>
+    </div>
+  </div>
+  <header class="mast">
+    <div class="mast-inner">
+      <div class="crest" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="48" height="48" focusable="false">
+          <circle cx="24" cy="24" r="22" fill="none" stroke="#ffd37a" stroke-width="2"/>
+          <circle cx="24" cy="24" r="7" fill="none" stroke="#ffd37a" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div>
+        <p class="gov" lang="hi">महाराष्ट्र शासन</p>
+        <p class="gov">Government of Maharashtra — Business licence / NOC</p>
+        <p class="dept">Directorate of Industries · Trade licence and no-objection certificates</p>
+      </div>
+    </div>
+  </header>
+  <nav class="bar" aria-label="Licence services">
+    <ul role="list">
+      <li><a href="#scheme" data-nav="scheme" data-i18n="nav.scheme">Scheme</a></li>
+      <li><a href="#apply" data-nav="apply" data-i18n="nav.apply">Apply</a></li>
+      <li><a href="#status" data-nav="status" data-i18n="nav.status">Track application</a></li>
+      <li><a href="#officer" data-nav="officer" data-i18n="nav.officer">Officer desk</a></li>
+    </ul>
+  </nav>
+  <main id="content" tabindex="-1">
+    <section id="view-scheme">
+      <p class="crumb">Home / Industry / Business licence</p>
+      <h1 data-i18n="scheme.title">Business licence / NOC</h1>
+      <p class="lede" data-i18n="scheme.lede">Permission to start a premises in Maharashtra. This service does not ask you to upload the same papers again. It uses records already held by Municipal, Fire, Pollution, and Revenue, after you consent.</p>
+      <dl class="facts">
+        <div><dt>Who can apply</dt><dd>A person opening or continuing a business premises in Maharashtra</dd></div>
+        <div><dt>What is checked</dt><dd>Property (Municipal), fire NOC (Fire), pollution clearance (Pollution), land record (Revenue)</dd></div>
+      </dl>
+      <p>
+        <a class="btn primary" href="#apply" data-nav="apply">Apply for licence</a>
+        <a class="btn" href="#status" data-nav="status">Track an application</a>
+      </p>
+      <h2>How this service works</h2>
+      <ol class="how">
+        <li>Fill applicant details used on municipal and revenue records.</li>
+        <li>Connect the four department accounts this licence needs. This is not a document upload list.</li>
+        <li>Read the consent and agree to share those records for the licence check.</li>
+        <li>Submit, then track status in everyday words.</li>
+      </ol>
+    </section>
+    <section id="view-apply" hidden>
+      <h1 data-i18n="apply.title">Apply for licence</h1>
+      <ol class="steps" role="list" aria-label="Application steps">
+        <li data-step="details">1. Applicant</li>
+        <li data-step="connect">2. Connect accounts</li>
+        <li data-step="consent">3. Consent</li>
+        <li data-step="submit">4. Submit</li>
+      </ol>
+      <div id="panel-details">
+        <h2>Applicant details</h2>
+        <form id="detailsForm" action="/licence/" method="post">
+          <div class="field">
+            <label for="givenName">Given name / <span lang="hi">नाव</span></label>
+            <input id="givenName" name="givenName" autocomplete="given-name" required maxlength="100"/>
+          </div>
+          <div class="field">
+            <label for="familyName">Family name / <span lang="hi">आडनाव</span></label>
+            <input id="familyName" name="familyName" autocomplete="family-name" required maxlength="100"/>
+          </div>
+          <div class="field">
+            <label for="nameDevanagari">Name in Marathi (optional)</label>
+            <input id="nameDevanagari" name="nameDevanagari" lang="hi" maxlength="200"/>
+          </div>
+          <div class="field">
+            <label for="fatherName">Father’s / guardian’s name</label>
+            <input id="fatherName" name="fatherName" autocomplete="name" required maxlength="200"/>
+          </div>
+          <div class="field">
+            <label for="dob">Date of birth</label>
+            <input id="dob" name="dob" type="date" autocomplete="bday" required/>
+          </div>
+          <fieldset>
+            <legend>Gender</legend>
+            <label class="choice"><input type="radio" name="gender" value="F" required/> Female</label>
+            <label class="choice"><input type="radio" name="gender" value="M"/> Male</label>
+            <label class="choice"><input type="radio" name="gender" value="O"/> Other</label>
+          </fieldset>
+          <p id="detailsStatus" class="status" aria-live="polite"></p>
+          <button type="submit" class="btn primary">Continue to connect accounts</button>
+        </form>
+      </div>
+      <div id="panel-connect" hidden>
+        <h2>Connect accounts</h2>
+        <p>This licence needs four department accounts — Municipal, Fire, Pollution, and Revenue.</p>
+        <p class="callout honesty"><strong>DigiLocker sandbox</strong> and <strong>OTP demo</strong> are labelled mocks. They are <strong>not live SSO</strong>.</p>
+        <p id="connectProgress" class="progress" role="status">Linked 0 of 4 departments</p>
+        <div class="meter" aria-hidden="true"><span id="connectMeter"></span></div>
+        <ul id="deptList" class="depts" role="list"></ul>
+        <p id="connectStatus" class="status" aria-live="polite"></p>
+        <button type="button" class="btn primary" id="toConsent" disabled>Continue to consent</button>
+      </div>
+      <div id="panel-consent" hidden>
+        <h2>Consent to share records</h2>
+        <form id="consentForm" action="/licence/" method="post">
+          <p>I agree to share property records from Municipal, fire NOC from Fire Services, pollution clearance from the Pollution Control Board, and land record from Revenue so this business licence can be checked.</p>
+          <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records consent with a labelled session stub. This is not live SSO.</p>
+          <label class="choice">
+            <input type="checkbox" id="consentCheck" name="consent" required/>
+            I have read this and I agree
+          </label>
+          <button type="submit" class="btn primary" id="submitBtn">Submit application</button>
+        </form>
+        <p id="submitStatus" class="status" aria-live="polite"></p>
+      </div>
+    </section>
+    <section id="view-status" hidden>
+      <h1>Application status</h1>
+      <form id="trackForm" action="/licence/" method="get">
+        <div class="field">
+          <label for="referenceNo">Application number</label>
+          <input id="referenceNo" name="referenceNo" autocomplete="off" required maxlength="40"/>
+        </div>
+        <button type="submit" class="btn primary">Check status</button>
+      </form>
+      <p id="statusMsg" class="status" aria-live="polite"></p>
+      <div id="statusCard"></div>
+    </section>
+    <section id="view-officer" hidden>
+      <h1 data-i18n="officer.title">Officer desk</h1>
+      <p class="lede" data-i18n="officer.lede">Review licence applications. Open an application number to see which department records have arrived. Retry if a record still needs action.</p>
+      <div id="officerLogin">
+        <h2>Officer login</h2>
+        <p class="callout honesty"><strong>Officer login.</strong> This is a demonstration — not SSO. Use officer ID <code>officer</code> and password <code>demo-2026</code>.</p>
+        <form id="officerLoginForm" action="/licence/" method="post">
+          <div class="field">
+            <label for="officerUser">Officer ID</label>
+            <input id="officerUser" name="officerUser" autocomplete="username" required maxlength="40"/>
+          </div>
+          <div class="field">
+            <label for="officerPass">Password (demonstration)</label>
+            <input id="officerPass" name="officerPass" type="password" autocomplete="current-password" required maxlength="40"/>
+          </div>
+          <p id="officerLoginMsg" class="status" aria-live="polite"></p>
+          <button type="submit" class="btn primary">Sign in to officer desk</button>
+        </form>
+      </div>
+      <div id="officerWork" hidden>
+        <p id="officerCounts" class="progress" role="status"></p>
+        <p id="officerMsg" class="status" aria-live="polite"></p>
+        <div id="officerTable"></div>
+        <p class="row">
+          <button type="button" class="btn" id="officerRefresh">Refresh list</button>
+          <button type="button" class="btn" id="officerSignOut">Sign out</button>
+        </p>
+        <div id="officerCase">
+          <h2>Application file</h2>
+          <p id="officerCaseEmpty">Open an application number to review which department records have arrived.</p>
+          <div id="officerCaseBody" hidden></div>
+          <p class="row">
+            <button type="button" class="btn primary" id="officerRetry" hidden>Retry</button>
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <dialog id="proofDlg" aria-labelledby="proofTitle" aria-describedby="proofBody">
+    <form id="proofForm" method="dialog" action="/licence/">
+      <h2 id="proofTitle"></h2>
+      <p id="proofBody"></p>
+      <div id="otpFields" hidden>
+        <div class="field">
+          <label for="localId">Local department ID (demo)</label>
+          <input id="localId" name="localId" maxlength="60" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label for="otp">One-time password (OTP demo)</label>
+          <input id="otp" name="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code"/>
+          <p class="hint">OTP demo: enter 000000. This is not live SSO.</p>
+          <p id="otpError" class="status bad" hidden>Enter the demo OTP 000000.</p>
+        </div>
+      </div>
+      <div class="row">
+        <button type="submit" class="btn primary" id="proofConfirm" value="ok">Continue</button>
+        <button type="submit" class="btn" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <footer>
+    <p>Government of Maharashtra — Directorate of Industries. Content for SIH demonstration only.</p>
+    <p class="cutaway">This is a separate government service from the Scholarship Portal. Optional cutaway: <a href="/">Citizen services</a> · <a href="/demo.html">Samanvay operations</a></p>
+  </footer>
+  <script src="/licence/portal.js"></script>
+</body>
+</html>

@@ -67,22 +67,23 @@ Requires: Java 21+ (JDK 25 works fine — Maven compiles down to release 21), Do
 
 ```bash
 docker compose up -d          # starts Postgres
-./mvnw spring-boot:run        # Windows: .\mvnw.cmd spring-boot:run
-```
-
-SIH judge path starts on the Scholarship Portal (government service skin): `http://localhost:8080/` redirects to `http://localhost:8080/scholarship/`
-
-That portal is a **caller** of Samanvay (identity, consent, journeys, tracking). Samanvay itself remains the interoperability middle layer.
-
-Control-plane demo (optional cutaway): `http://localhost:8080/demo.html` — Caller `/caller.html`, Journey, Incident, Audit. Ops console is `/command.html`. Onboard stays a side tool.
-
-Incident kill/revive and audit tamper require demo profile:
-
-```bash
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
 
-See [docs/demo/PHASE4_RUNBOOK.md](docs/demo/PHASE4_RUNBOOK.md).
+Judge path: `http://localhost:8080/` — Maharashtra **Citizen services** (two independent portals).
+
+| URL | What judges see |
+|---|---|
+| `/` | Citizen services directory |
+| `/scholarship/` | Scholarship Portal (Higher Education) |
+| `/licence/` | Business licence / NOC (Industries) |
+| `/demo.html` | Optional Samanvay operations cutaway |
+
+Spoken eight-minute walk: [docs/demo/JUDGE_SCRIPT.md](docs/demo/JUDGE_SCRIPT.md). One-pager: [docs/demo/ONE_PAGER.md](docs/demo/ONE_PAGER.md). Technical rehearsal: [docs/demo/PHASE4_RUNBOOK.md](docs/demo/PHASE4_RUNBOOK.md).
+
+Officer desk (both portals): `officer` / `demo-2026` — labelled demonstration login, not live SSO. Revenue unavailable/restore and audit tamper need the `demo` profile.
+
+Samanvay remains the interoperability middle layer. The portals are callers, not the product.
 
 ## Contributing
 
