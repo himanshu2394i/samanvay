@@ -468,6 +468,13 @@ input:user-invalid, textarea:user-invalid, select:user-invalid { border-color: v
 .field-row label { margin: 0; }
 .field-row input { width: 8rem; max-width: 100%; }
 .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.65rem 0; }
+.connect-actions { margin: 0; align-items: stretch; }
+.connect-actions button {
+  white-space: normal;
+  justify-content: flex-start;
+  text-align: left;
+  max-width: 24rem;
+}
 .pill {
   display: inline-block;
   padding: 0.12rem 0.5rem;
