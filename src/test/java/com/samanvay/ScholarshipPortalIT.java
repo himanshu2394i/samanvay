@@ -72,8 +72,10 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                             department,
                             "localId",
                             "PORTAL-" + department + "-" + suffix,
+                            "provider",
+                            "DIGILOCKER",
                             "proof",
-                            "digilocker-demo-mock"))
+                            "sandbox"))
                     .retrieve()
                     .body(Map.class);
             assertThat(link.get("departmentCode")).isEqualTo(department);

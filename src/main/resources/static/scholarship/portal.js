@@ -201,8 +201,15 @@ document.getElementById("detailsForm").addEventListener("submit", async (event) 
 async function linkedCodes() {
   const id = citizenId();
   if (!id) return new Set();
-  const links = await api("/api/identity/citizens/" + encodeURIComponent(id) + "/links");
-  return new Set((links || []).map((l) => l.departmentCode));
+  try {
+    const view = await api(
+      "/api/identity/citizens/" + encodeURIComponent(id) + "/connect-accounts?journeyCode=" + encodeURIComponent(JOURNEY)
+    );
+    return new Set((view.departments || []).filter((d) => d.linked).map((d) => d.departmentCode));
+  } catch {
+    const links = await api("/api/identity/citizens/" + encodeURIComponent(id) + "/links");
+    return new Set((links || []).map((l) => l.departmentCode));
+  }
 }
 
 function setConnectProgress(n) {
@@ -281,7 +288,7 @@ function openProof(dept, kind) {
       deptName +
       " with a local ID and OTP demo. This is a labelled demo — not a live telecom OTP and not live SSO.";
     document.getElementById("localId").value = "MH-" + dept + "-DEMO";
-    document.getElementById("otp").value = "";
+    document.getElementById("otp").value = "000000";
     document.getElementById("proofConfirm").textContent = "Verify OTP demo";
   }
   dlg.showModal();
@@ -292,10 +299,10 @@ document.getElementById("proofForm").addEventListener("submit", async (event) =>
   if (!submitter || submitter.value === "cancel" || !pendingProof) return;
   event.preventDefault();
   const { dept, kind } = pendingProof;
-  if (kind === "otp") {
+    if (kind === "otp") {
     const otp = document.getElementById("otp").value.trim();
     const err = document.getElementById("otpError");
-    if (!/^\d{6}$/.test(otp)) {
+    if (otp !== "000000") {
       document.getElementById("otp").setAttribute("aria-invalid", "true");
       if (err) err.hidden = false;
       return;
@@ -318,7 +325,8 @@ document.getElementById("proofForm").addEventListener("submit", async (event) =>
         departmentCode: dept,
         localIdType: dept,
         localId,
-        proof: kind === "digilocker" ? "digilocker-demo-mock" : "local-otp-demo",
+        provider: kind === "digilocker" ? "DIGILOCKER" : "LOCAL_ID_OTP",
+        proof: kind === "digilocker" ? "sandbox" : "000000",
       }),
     });
     document.getElementById("proofDlg").close();

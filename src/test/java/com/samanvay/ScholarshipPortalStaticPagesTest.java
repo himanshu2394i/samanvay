@@ -51,13 +51,16 @@ class ScholarshipPortalStaticPagesTest {
 
         assertThat(js).contains("/api/identity/links");
         assertThat(js).contains("/api/identity/citizens");
+        assertThat(js).contains("/connect-accounts");
         assertThat(js).contains("/api/consent/requests");
         assertThat(js).contains("/api/journeys/");
         assertThat(js).contains("POST_MATRIC_SCHOLARSHIP");
         assertThat(js).contains("/api/applications");
         assertThat(js).contains("X-Auth-Jti");
-        assertThat(js).contains("digilocker-demo-mock");
-        assertThat(js).contains("local-otp-demo");
+        assertThat(js).contains("DIGILOCKER");
+        assertThat(js).contains("LOCAL_ID_OTP");
+        assertThat(js).contains("sandbox");
+        assertThat(js).contains("000000");
         assertThat(js).contains("In progress");
         assertThat(js).contains("Needs action");
         assertThat(js).contains("Completed");

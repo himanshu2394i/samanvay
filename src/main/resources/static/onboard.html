@@ -585,7 +585,7 @@
         box.innerHTML =
           `<div class="banner show ok"><strong>Published</strong>` +
           `<p>Connector <code>${esc(state.connector.ref)}</code> is available to the control plane. This remains a side tool — not a judge-path surface.</p>` +
-          `<p class="row"><a class="btn primary" href="/">Demo</a><a class="btn" href="/caller.html">Caller</a></p></div>`;
+          `<p class="row"><a class="btn primary" href="/demo.html">Demo</a><a class="btn" href="/caller.html">Caller</a></p></div>`;
         setStatus(statusEl, "ok", "Published.");
         announce("Connector published");
       } catch (err) {
