@@ -432,7 +432,7 @@ async function loadStatus(ref) {
     </article>`;
   } catch (e) {
     card.innerHTML = "";
-    setStatus(msg, "bad", friendly(e));
+    setStatus(msg, "bad", e && e.status === 404 ? "That application number was not found." : friendly(e));
   }
 }
 
@@ -480,7 +480,7 @@ async function loadOfficer() {
     setStatus(msg, "ok", "Open an application number to review which records have arrived.");
   } catch (e) {
     box.innerHTML = "";
-    setStatus(msg, "bad", friendly(e));
+    setStatus(msg, "bad", e && e.status === 404 ? "The application list could not be loaded. Try again in a moment." : friendly(e));
   }
 }
 
@@ -500,7 +500,7 @@ function friendly(e) {
     return "The scholarship service could not be reached. Confirm the application is running.";
   }
   if (e && e.status === 400) return "That request was not accepted. Check the form and try again.";
-  if (e && e.status === 404) return "That application number was not found.";
+  if (e && e.status === 404) return "Nothing matching that request was found.";
   if (e && e.status >= 500) return "The service could not complete that request. Try again in a moment.";
   if (msg.length > 180) return "The request could not be completed. Try again.";
   return msg;
