@@ -37,8 +37,8 @@
     </nav>
     <main id="content" tabindex="-1">
       <h1 class="page-title">Published schemes</h1>
-      <p class="lede">These journeys live in the catalog. Farmer subsidy is configuration — no new Java. Scholarship and business licence prove the same interoperability layer, not separate products.</p>
-      <p class="callout"><strong>FARMER_SUBSIDY</strong> landed as catalog rows, BPMN, and policy. That is configuration, not a new application. Beat 8 of the demo.</p>
+      <p class="lede">The catalog has three journeys. Only scholarship has a citizen portal. Business NOC and Farmer subsidy run on the same interoperability layer via configuration and API — they are not extra websites.</p>
+      <p class="callout"><strong>FARMER_SUBSIDY</strong> landed as catalog rows, BPMN, and policy. That is configuration, not a new application — no new Java. There is no farmer portal to click.</p>
       <p id="status" class="status" aria-live="polite"></p>
       <div id="schemeList"><p class="loading">Reading published journeys…</p></div>
     </main>
@@ -50,9 +50,9 @@
       try {
         const journeys = await api("/api/catalog/journeys");
         const notes = {
-          FARMER_SUBSIDY: "Added as configuration — no new Java. Catalog + BPMN + policy only.",
-          POST_MATRIC_SCHOLARSHIP: "Concrete first journey. The Scholarship Portal calls this journey.",
-          BUSINESS_NOC: "Second journey on the same core. Parallel department fan-out.",
+          FARMER_SUBSIDY: "Farmer subsidy as configuration — no new Java. Catalog + BPMN only. Not a citizen portal.",
+          POST_MATRIC_SCHOLARSHIP: "The one citizen portal. Concrete first journey.",
+          BUSINESS_NOC: "Second catalog journey. Started via API; no licence website.",
         };
         box.innerHTML = tableHtml(
           "Catalog journeys",
