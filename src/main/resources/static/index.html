@@ -4,22 +4,38 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Maharashtra citizen services | Government of Maharashtra</title>
-  <link rel="stylesheet" href="/scholarship/portal.css?v=civic2"/>
+  <link rel="stylesheet" href="/scholarship/portal.css?v=civic4"/>
 </head>
 <body>
   <a class="skip-link" href="#content">Skip to main content</a>
   <div class="tricolor" aria-hidden="true"></div>
   <p class="sandbox">Demonstration portals. DigiLocker sandbox and OTP demo are labelled mocks. <strong>AUTH STUBBED</strong> — this is not live SSO.</p>
+  <div class="util">
+    <div class="util-inner">
+      <p class="text-size">
+        <span id="textSizeLabel">Text size</span>
+        <button type="button" data-text="s" aria-labelledby="textSizeLabel" aria-label="Smaller text">A−</button>
+        <button type="button" data-text="m" aria-labelledby="textSizeLabel" aria-pressed="true" aria-label="Default text">A</button>
+        <button type="button" data-text="l" aria-labelledby="textSizeLabel" aria-label="Larger text">A+</button>
+      </p>
+    </div>
+  </div>
   <header class="mast">
     <div class="mast-inner">
       <div class="crest" aria-hidden="true">
         <svg viewBox="0 0 48 48" width="48" height="48" focusable="false">
           <circle cx="24" cy="24" r="22" fill="none" stroke="#ffd37a" stroke-width="2"/>
           <circle cx="24" cy="24" r="7" fill="none" stroke="#ffd37a" stroke-width="1.5"/>
+          <g stroke="#ffd37a" stroke-width="1.5">
+            <line x1="24" y1="4" x2="24" y2="16"/>
+            <line x1="24" y1="32" x2="24" y2="44"/>
+            <line x1="4" y1="24" x2="16" y2="24"/>
+            <line x1="32" y1="24" x2="44" y2="24"/>
+          </g>
         </svg>
       </div>
       <div>
-        <p class="gov" lang="hi">महाराष्ट्र शासन</p>
+        <p class="gov" lang="mr">महाराष्ट्र शासन</p>
         <p class="gov">Government of Maharashtra</p>
         <p class="dept">Citizen services — Scholarship Portal, licence, farmer subsidy</p>
       </div>
@@ -29,32 +45,44 @@
     <section id="view-scheme">
       <p class="crumb">Home / Services</p>
       <h1>Choose a service</h1>
-      <p class="lede">Three government skins. Scholarship and licence are ready to apply. Farmer subsidy waits until you onboard a journey yourself.</p>
-      <div class="scheme-split">
-        <div>
+      <p class="lede">Three government skins. Scholarship and licence are ready to apply. Farmer subsidy: bind seeded FARMER_SUBSIDY, or a new journey code after you onboard.</p>
+      <div class="service-grid">
+        <article class="service-card">
           <h2>Scholarship Portal</h2>
           <p>Post-matric scholarship. Connect Revenue, Education, and DBT, then apply.</p>
           <p class="scheme-actions">
             <a class="btn primary" href="/scholarship/">Apply for scholarship</a>
           </p>
-        </div>
-        <aside class="scheme-rail">
+        </article>
+        <article class="service-card">
           <h2>Licence</h2>
           <p>Business licence / NOC. Municipal, Fire, Pollution, and Revenue — already published in the catalog.</p>
           <p class="scheme-actions">
             <a class="btn primary" href="/licence/">Apply for licence</a>
           </p>
+        </article>
+        <article class="service-card">
           <h2>Farmer subsidy</h2>
-          <p>This skin does not assume a published farmer journey. Open the portal, enter the journey code after you onboard, then apply.</p>
+          <p>Use published code FARMER_SUBSIDY, or onboard a new journey then paste that code.</p>
           <p class="scheme-actions">
             <a class="btn" href="/farmer/">Farmer subsidy</a>
           </p>
-        </aside>
+        </article>
       </div>
     </section>
   </main>
   <footer>
     <p>Government of Maharashtra. Content for SIH demonstration only.</p>
+    <p class="cutaway">Optional staff cutaway: <a href="/demo.html">Samanvay operations</a></p>
   </footer>
+  <script>
+    document.querySelectorAll("[data-text]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const size = btn.dataset.text;
+        document.documentElement.style.fontSize = size === "s" ? "100%" : size === "l" ? "125%" : "112.5%";
+        document.querySelectorAll("[data-text]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+      });
+    });
+  </script>
 </body>
 </html>

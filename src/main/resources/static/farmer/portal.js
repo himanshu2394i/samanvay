@@ -3,9 +3,43 @@ const KEY_CITIZEN = "mhFarmerCitizen";
 const KEY_REF = "mhFarmerRef";
 const KEY_OFFICER = "officerDemoFarmer";
 const KEY_CASE = "mhFarmerOfficerCase";
+const KEY_LANG = "mhFarmerLang";
 
 let catalogJourney = null;
 let depts = [];
+let deptNames = {};
+
+const I18N = {
+  en: {
+    "scheme.title": "Farmer subsidy",
+    "scheme.lede":
+      "Use published code FARMER_SUBSIDY, or onboard a new journey then paste that catalog journey code here. Apply stays closed until the catalog accepts the code.",
+  },
+  mr: {
+    "scheme.title": "शेतकरी अनुदान",
+    "scheme.lede":
+      "प्रकाशित प्रवास संकेत वापरा, किंवा नव्याने ऑनबोर्ड करून तो संकेत येथे लिहा. कॅटलॉग स्वीकारेपर्यंत अर्ज बंद राहतो.",
+  },
+};
+
+function applyLang(lang) {
+  const use = I18N[lang] ? lang : "en";
+  const pack = I18N[use];
+  document.documentElement.lang = use === "mr" ? "mr" : "en";
+  sessionStorage.setItem(KEY_LANG, use);
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const text = pack[el.dataset.i18n];
+    if (text) el.textContent = text;
+  });
+  const enBtn = document.getElementById("langEn");
+  const mrBtn = document.getElementById("langMr");
+  if (enBtn) enBtn.setAttribute("aria-pressed", String(use === "en"));
+  if (mrBtn) mrBtn.setAttribute("aria-pressed", String(use === "mr"));
+}
+
+function humanize(code) {
+  return String(code || "").split("_").join(" ").toLowerCase();
+}
 
 const STATUS_COPY = {
   SUBMITTED: { kind: "ok", text: "Submitted — your application has been received." },
@@ -103,11 +137,43 @@ function deptsFromPolicy(journey) {
     seen.add(code);
     rows.push({
       code,
-      name: code + " department",
-      shares: category.replaceAll("_", " ").toLowerCase(),
+      name: deptNames[code] || code + " department",
+      shares: humanize(category),
     });
   });
   return rows;
+}
+
+async function loadDeptNames() {
+  try {
+    const rows = await api("/api/catalog/departments");
+    deptNames = {};
+    (rows || []).forEach((d) => {
+      if (d && d.code) deptNames[d.code] = d.name || d.code;
+    });
+  } catch {
+    deptNames = {};
+  }
+}
+
+async function fillJourneyPick() {
+  const pick = document.getElementById("journeyPick");
+  if (!pick) return;
+  try {
+    const journeys = await api("/api/catalog/journeys");
+    const current = boundCode();
+    pick.innerHTML =
+      '<option value="">Choose a published journey</option>' +
+      (journeys || [])
+        .map((j) => {
+          const code = j.code || "";
+          const sel = code === current ? " selected" : "";
+          return `<option value="${esc(code)}"${sel}>${esc(j.name || code)} (${esc(code)})</option>`;
+        })
+        .join("");
+  } catch {
+    pick.innerHTML = '<option value="">Catalog journeys could not be listed. Type a code.</option>';
+  }
 }
 
 async function loadBoundJourney() {
@@ -125,6 +191,7 @@ async function loadBoundJourney() {
   }
   try {
     catalogJourney = await api("/api/catalog/journeys/" + encodeURIComponent(code));
+    await loadDeptNames();
     depts = deptsFromPolicy(catalogJourney);
     if (label) {
       label.textContent =
@@ -154,6 +221,12 @@ async function loadBoundJourney() {
 }
 
 function showView(opts) {
+  if ((currentView() === "apply" || currentView() === "officer") && !boundCode()) {
+    if ((location.hash || "") !== "#bind") {
+      location.hash = "bind";
+      return;
+    }
+  }
   const view = currentView();
   ["bind", "apply", "status", "officer"].forEach((name) => {
     const el = document.getElementById("view-" + name);
@@ -500,7 +573,7 @@ function humanStatus(code) {
 }
 
 function humanStep(step) {
-  const name = (step.stepCode || "Department record").replaceAll("_", " ");
+  const name = humanize(step.stepCode || "Department record");
   const st = STEP_STATUS[step.status] || "In progress";
   return name + " — " + st;
 }
@@ -572,9 +645,11 @@ async function loadOfficer() {
     const apps = await api("/api/applications?size=20");
     const code = boundCode();
     const rows = (apps || []).filter((a) => a.journeyCode === code);
+    const schemeName = (catalogJourney && (catalogJourney.name || catalogJourney.code)) || "Bound journey";
     if (!rows.length) {
-      box.innerHTML =
-        "<p>No farmer subsidy applications yet for the bound journey. Bind a catalog journey, then wait for a citizen submit.</p>";
+      box.innerHTML = boundCode()
+        ? "<p>No applications yet for the bound journey. Wait for a citizen submit.</p>"
+        : "<p>Bind a journey code on Onboard first.</p>";
       setStatus(msg, "", "");
       return;
     }
@@ -587,7 +662,7 @@ async function loadOfficer() {
           const st = humanStatus(a.status);
           const due = when(a.slaDueAt) || "—";
           return `<tr><td><a href="#officer" data-ref="${esc(a.referenceNo)}">${esc(a.referenceNo)}</a></td>
-            <td>Farmer subsidy</td>
+            <td>${esc(schemeName)}</td>
             <td><span class="chip ${esc(st.kind)}">${esc(st.text)}</span></td>
             <td>${esc(due)}</td></tr>`;
         })
@@ -706,12 +781,30 @@ document.querySelectorAll("[data-nav]").forEach((a) => {
   });
 });
 
+document.getElementById("journeyPick")?.addEventListener("change", (event) => {
+  const code = event.target.value;
+  if (code) document.getElementById("journeyCode").value = code;
+});
+
+document.getElementById("langEn")?.addEventListener("click", () => applyLang("en"));
+document.getElementById("langMr")?.addEventListener("click", () => applyLang("mr"));
+
+document.querySelectorAll("[data-text]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const size = btn.dataset.text;
+    document.documentElement.style.fontSize = size === "s" ? "100%" : size === "l" ? "125%" : "112.5%";
+    document.querySelectorAll("[data-text]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+  });
+});
+
 window.addEventListener("hashchange", () => showView({ focus: true }));
 
 (async function boot() {
+  applyLang(sessionStorage.getItem(KEY_LANG) || "en");
   const saved = boundCode();
   if (saved) document.getElementById("journeyCode").value = saved;
   showApplyPanel("details");
+  await fillJourneyPick();
   await loadBoundJourney();
   showView();
 })();

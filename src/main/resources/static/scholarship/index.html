@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Post-Matric Scholarship | Scholarship Portal — Government of Maharashtra</title>
-  <link rel="stylesheet" href="/scholarship/portal.css?v=civic2"/>
+  <link rel="stylesheet" href="/scholarship/portal.css?v=civic4"/>
 </head>
 <body>
   <a class="skip-link" href="#content">Skip to main content</a>
@@ -15,7 +15,7 @@
 
   <div class="util">
     <div class="util-inner">
-      <p class="lang-switch" role="group" aria-label="Language">
+      <p class="lang-switch" role="group" aria-label="Language" title="Marathi: headings and navigation only (demonstration).">
         <button type="button" id="langEn" data-lang="en" aria-pressed="true">English</button>
         <button type="button" id="langMr" data-lang="mr" lang="mr" aria-pressed="false">मराठी</button>
       </p>
@@ -47,7 +47,7 @@
         </svg>
       </div>
       <div>
-        <p class="gov" lang="hi">महाराष्ट्र शासन</p>
+        <p class="gov" lang="mr">महाराष्ट्र शासन</p>
         <p class="gov">Government of Maharashtra — Scholarship Portal</p>
         <p class="dept">Directorate of Higher Education · Post-matric scholarship</p>
       </div>
@@ -65,10 +65,10 @@
 
   <main id="content" tabindex="-1">
     <section id="view-scheme">
-      <p class="crumb">Home / Scholarships / Post-matric</p>
+      <p class="crumb"><a href="/">Home</a> / Scholarships / Post-matric</p>
       <div class="scheme-split">
         <div>
-          <h1 data-i18n="scheme.title">Post-Matric Scholarship <span lang="hi" class="hi">/ उत्तर-माध्यमिक शिष्यवृत्ती</span></h1>
+          <h1 data-i18n="scheme.title"><span data-i18n-text>Post-Matric Scholarship</span> <span lang="mr" class="hi">/ उत्तर-माध्यमिक शिष्यवृत्ती</span></h1>
           <p class="lede" data-i18n="scheme.lede">Financial assistance for eligible students after Class 10. This service collects only the consent you give, then checks eligibility using records already held by other departments. You do not upload documents here.</p>
           <p class="scheme-actions">
             <a class="btn primary" href="#apply" data-nav="apply">Apply for scholarship</a>
@@ -103,20 +103,20 @@
       </ol>
 
       <div id="panel-details">
-        <h2>Applicant details <span lang="hi" class="hi">/ अर्जदाराची माहिती</span></h2>
+        <h2>Applicant details <span lang="mr" class="hi">/ अर्जदाराची माहिती</span></h2>
         <p class="lede">Enter the name and date of birth used in school or college records. Next you will link department accounts — you will not be asked to paste identity numbers from other systems.</p>
-        <form id="detailsForm" action="/scholarship/" method="post">
+        <form id="detailsForm" action="/scholarship/" method="get">
           <div class="field">
-            <label for="givenName">Given name / <span lang="hi">नाव</span></label>
+            <label for="givenName">Given name / <span lang="mr">नाव</span></label>
             <input id="givenName" name="givenName" autocomplete="given-name" required maxlength="100"/>
           </div>
           <div class="field">
-            <label for="familyName">Family name / <span lang="hi">आडनाव</span></label>
+            <label for="familyName">Family name / <span lang="mr">आडनाव</span></label>
             <input id="familyName" name="familyName" autocomplete="family-name" required maxlength="100"/>
           </div>
           <div class="field">
-            <label for="nameDevanagari">Name in Marathi (optional) / <span lang="hi">मराठी नाव</span></label>
-            <input id="nameDevanagari" name="nameDevanagari" lang="hi" maxlength="200"/>
+            <label for="nameDevanagari">Name in Marathi (optional) / <span lang="mr">मराठी नाव</span></label>
+            <input id="nameDevanagari" name="nameDevanagari" lang="mr" maxlength="200"/>
           </div>
           <div class="field">
             <label for="fatherName">Father’s / guardian’s name</label>
@@ -139,7 +139,7 @@
       </div>
 
       <div id="panel-connect" hidden>
-        <h2>Connect accounts <span lang="hi" class="hi">/ खाती जोडा</span></h2>
+        <h2>Connect accounts <span lang="mr" class="hi">/ खाती जोडा</span></h2>
         <p>This scheme needs three department accounts — not individual documents. Connect only the departments below.</p>
         <p class="callout honesty"><strong>DigiLocker sandbox</strong> and <strong>OTP demo</strong> on this page are labelled mocks. They are <strong>not live SSO</strong>.</p>
         <p id="connectProgress" class="progress" role="status">Linked 0 of 3 departments</p>
@@ -151,13 +151,13 @@
 
       <div id="panel-consent" hidden>
         <h2>Consent to share records</h2>
-        <form id="consentForm" action="/scholarship/" method="post">
+        <form id="consentForm" action="/scholarship/" method="get">
           <p>I agree to share income and caste from Revenue, marks from Education, and bank details from DBT so this scholarship application can be checked for eligibility.</p>
-          <p lang="hi">मी महसूल विभागाकडून उत्पन्न व जात, शिक्षण विभागाकडून गुण, आणि DBT कडून बँक तपशील शिष्यवृत्ती पात्रतेसाठी देण्यास सहमत आहे.</p>
+          <p lang="mr">मी महसूल विभागाकडून उत्पन्न व जात, शिक्षण विभागाकडून गुण, आणि DBT कडून बँक तपशील शिष्यवृत्ती पात्रतेसाठी देण्यास सहमत आहे.</p>
           <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records your agreement with a labelled session. This is not live Aadhaar login and not live SSO.</p>
           <label class="choice">
             <input type="checkbox" id="consentCheck" name="consent" required/>
-            I have read this and I agree / <span lang="hi">मी सहमत आहे</span>
+            I have read this and I agree / <span lang="mr">मी सहमत आहे</span>
           </label>
           <button type="submit" class="btn primary" id="submitBtn">Submit application</button>
         </form>
@@ -167,7 +167,7 @@
     </section>
 
     <section id="view-status" hidden>
-      <h1>Application status <span lang="hi" class="hi">/ अर्जाची स्थिती</span></h1>
+      <h1>Application status <span lang="mr" class="hi">/ अर्जाची स्थिती</span></h1>
       <p class="lede">Enter the application number shown after you submit. Status is written in everyday words — not technical codes.</p>
       <form id="trackForm" action="/scholarship/" method="get">
         <div class="field">
@@ -182,13 +182,13 @@
     </section>
 
     <section id="view-officer" hidden>
-      <h1 data-i18n="officer.title">Officer desk <span lang="hi" class="hi">/ अधिकारी कक्ष</span></h1>
+      <h1 data-i18n="officer.title"><span data-i18n-text>Officer desk</span> <span lang="mr" class="hi">/ अधिकारी कक्ष</span></h1>
       <p class="lede" data-i18n="officer.lede">Review applications for this scheme. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.</p>
 
       <div id="officerLogin">
         <h2>Officer login</h2>
         <p class="callout honesty"><strong>Officer login.</strong> This is a demonstration — not SSO. This desk is labelled as a demonstration. Use officer ID <code>officer</code> and password <code>demo-2026</code>.</p>
-        <form id="officerLoginForm" action="/scholarship/" method="post">
+        <form id="officerLoginForm" action="/scholarship/" method="get">
           <div class="field">
             <label for="officerUser">Officer ID</label>
             <input id="officerUser" name="officerUser" autocomplete="username" required maxlength="40"/>
@@ -256,8 +256,9 @@
 
   <footer>
     <p>Government of Maharashtra — Scholarship Portal. Content for SIH demonstration only.</p>
+    <p class="cutaway">Other citizen services: <a href="/">Home</a> · <a href="/licence/">Licence</a> · <a href="/farmer/">Farmer subsidy</a></p>
     <p class="cutaway">Optional SIH cutaway after the citizen and officer beats (not the citizen product): <a href="/demo.html">Samanvay operations</a> · <a href="/schemes.html">Published schemes</a> · <a href="/audit.html">Audit</a></p>
   </footer>
-  <script src="/scholarship/portal.js"></script>
+  <script src="/scholarship/portal.js?v=civic4"></script>
 </body>
 </html>

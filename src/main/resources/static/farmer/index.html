@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Farmer subsidy | Government of Maharashtra</title>
-  <link rel="stylesheet" href="/scholarship/portal.css?v=civic2"/>
+  <link rel="stylesheet" href="/scholarship/portal.css?v=civic4"/>
 </head>
 <body>
   <a class="skip-link" href="#content">Skip to main content</a>
@@ -12,6 +12,21 @@
 
   <div class="tricolor" aria-hidden="true"></div>
   <p class="sandbox">Demonstration portal. DigiLocker sandbox and OTP demo are labelled mocks — not live DigiLocker, not live Aadhaar, and no secrets are used. <strong>AUTH STUBBED</strong> — this is not live SSO.</p>
+
+  <div class="util">
+    <div class="util-inner">
+      <p class="lang-switch" role="group" aria-label="Language">
+        <button type="button" id="langEn" data-lang="en" aria-pressed="true">English</button>
+        <button type="button" id="langMr" data-lang="mr" lang="mr" aria-pressed="false">मराठी</button>
+      </p>
+      <p class="text-size">
+        <span id="textSizeLabel">Text size</span>
+        <button type="button" data-text="s" aria-labelledby="textSizeLabel" aria-label="Smaller text">A−</button>
+        <button type="button" data-text="m" aria-labelledby="textSizeLabel" aria-pressed="true" aria-label="Default text">A</button>
+        <button type="button" data-text="l" aria-labelledby="textSizeLabel" aria-label="Larger text">A+</button>
+      </p>
+    </div>
+  </div>
 
   <header class="mast">
     <div class="mast-inner">
@@ -22,16 +37,16 @@
         </svg>
       </div>
       <div>
-        <p class="gov" lang="hi">महाराष्ट्र शासन</p>
+        <p class="gov" lang="mr">महाराष्ट्र शासन</p>
         <p class="gov">Government of Maharashtra — Farmer subsidy</p>
-        <p class="dept">You onboard this service. The skin does not pick a catalog journey for you.</p>
+        <p class="dept">Bind a catalog journey — seeded FARMER_SUBSIDY, or a new code after you onboard.</p>
       </div>
     </div>
   </header>
 
   <nav class="bar" aria-label="Farmer subsidy">
     <ul role="list">
-      <li><a href="#bind" data-nav="bind" data-i18n="nav.bind">Onboard</a></li>
+      <li><a href="#bind" data-nav="bind">Onboard</a></li>
       <li><a href="#apply" data-nav="apply">Apply</a></li>
       <li><a href="#status" data-nav="status">Track application</a></li>
       <li><a href="#officer" data-nav="officer">Officer desk</a></li>
@@ -40,30 +55,36 @@
 
   <main id="content" tabindex="-1">
     <section id="view-bind">
-      <p class="crumb">Home / Farmer subsidy / Onboard</p>
+      <p class="crumb"><a href="/">Home</a> / Farmer subsidy / Onboard</p>
       <div class="scheme-split">
         <div>
-          <h1>Farmer subsidy</h1>
-          <p class="lede">This portal waits for operator onboarding. Publish the department connector from the onboard wizard, then enter the catalog <strong>journey code</strong> here. The code is not filled in for you.</p>
+          <h1 data-i18n="scheme.title">Farmer subsidy</h1>
+          <p class="lede" data-i18n="scheme.lede">Use published code <strong>FARMER_SUBSIDY</strong>, or onboard a <em>new</em> journey then paste that catalog <strong>journey code</strong> here. Apply stays closed until the catalog accepts the code.</p>
           <p class="scheme-actions">
             <a class="btn" href="/onboard.html">Open onboard wizard</a>
           </p>
-          <form id="bindForm" action="/farmer/" method="post">
+          <form id="bindForm" action="/farmer/" method="get">
+            <div class="field">
+              <label for="journeyPick">Published journeys</label>
+              <select id="journeyPick" name="journeyPick">
+                <option value="">Loading published journeys…</option>
+              </select>
+            </div>
             <div class="field">
               <label for="journeyCode">Catalog journey code</label>
               <input id="journeyCode" name="journeyCode" required maxlength="80" autocomplete="off" aria-describedby="journeyHint"/>
-              <p id="journeyHint" class="hint">After you onboard, type the exact journey code from Published schemes. This page looks it up on the catalog. It does not assume which code you chose.</p>
+              <p id="journeyHint" class="hint">Seeded demo code: FARMER_SUBSIDY. After you onboard something else, type that exact journey code from Published schemes.</p>
             </div>
             <p id="bindStatus" class="status" aria-live="polite"></p>
             <button type="submit" class="btn primary">Use this journey</button>
           </form>
         </div>
         <aside class="scheme-rail">
-          <h2>What “onboard yourself” means</h2>
+          <h2>What binding means</h2>
           <ol class="how">
-            <li>Use <a href="/onboard.html">/onboard.html</a> to register department, source, mappings, test, and publish.</li>
-            <li>Confirm the journey appears in published schemes.</li>
-            <li>Paste that journey code here so this farmer skin can start it.</li>
+            <li>Optional: use <a href="/onboard.html">/onboard.html</a> to register department, source, mappings, test, and publish a new journey.</li>
+            <li>Or use the already published FARMER_SUBSIDY code.</li>
+            <li>Paste the journey code here so this farmer skin can start it.</li>
           </ol>
           <p id="boundLabel" class="progress" role="status"></p>
         </aside>
@@ -74,28 +95,27 @@
       <div class="apply-shell">
       <h1>Apply for farmer subsidy</h1>
       <p id="applyGate" class="callout honesty" hidden>Bind a journey code on Onboard first. This apply form stays closed until the catalog accepts that code.</p>
+      <div id="applyReady" hidden>
       <ol class="steps" role="list" aria-label="Application steps">
         <li data-step="details">1. Applicant</li>
         <li data-step="connect">2. Connect accounts</li>
         <li data-step="consent">3. Consent</li>
         <li data-step="submit">4. Submit</li>
       </ol>
-
-      <div id="applyReady">
       <div id="panel-details">
         <h2>Applicant details</h2>
-        <form id="detailsForm" action="/farmer/" method="post">
+        <form id="detailsForm" action="/farmer/" method="get">
           <div class="field">
-            <label for="givenName">Given name / <span lang="hi">नाव</span></label>
+            <label for="givenName">Given name / <span lang="mr">नाव</span></label>
             <input id="givenName" name="givenName" autocomplete="given-name" required maxlength="100"/>
           </div>
           <div class="field">
-            <label for="familyName">Family name / <span lang="hi">आडनाव</span></label>
+            <label for="familyName">Family name / <span lang="mr">आडनाव</span></label>
             <input id="familyName" name="familyName" autocomplete="family-name" required maxlength="100"/>
           </div>
           <div class="field">
-            <label for="nameDevanagari">Name in Marathi (optional) / <span lang="hi">मराठी नाव</span></label>
-            <input id="nameDevanagari" name="nameDevanagari" lang="hi" maxlength="200"/>
+            <label for="nameDevanagari">Name in Marathi (optional) / <span lang="mr">मराठी नाव</span></label>
+            <input id="nameDevanagari" name="nameDevanagari" lang="mr" maxlength="200"/>
           </div>
           <div class="field">
             <label for="fatherName">Father’s / guardian’s name</label>
@@ -129,12 +149,12 @@
 
       <div id="panel-consent" hidden>
         <h2>Consent to share records</h2>
-        <form id="consentForm" action="/farmer/" method="post">
+        <form id="consentForm" action="/farmer/" method="get">
           <p id="consentCopy">I agree to share the department records this subsidy needs.</p>
           <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records your agreement with a labelled session. This is not live Aadhaar login and not live SSO.</p>
           <label class="choice">
             <input type="checkbox" id="consentCheck" name="consent" required/>
-            I have read this and I agree / <span lang="hi">मी सहमत आहे</span>
+            I have read this and I agree / <span lang="mr">मी सहमत आहे</span>
           </label>
           <button type="submit" class="btn primary" id="submitBtn">Submit application</button>
         </form>
@@ -163,7 +183,7 @@
       <div id="officerLogin">
         <h2>Officer login</h2>
         <p class="callout honesty"><strong>Officer login.</strong> This is a demonstration — not SSO. Use officer ID <code>officer</code> and password <code>demo-2026</code>.</p>
-        <form id="officerLoginForm" action="/farmer/" method="post">
+        <form id="officerLoginForm" action="/farmer/" method="get">
           <div class="field">
             <label for="officerUser">Officer ID</label>
             <input id="officerUser" name="officerUser" autocomplete="username" required maxlength="40"/>
@@ -221,8 +241,10 @@
   </dialog>
 
   <footer>
-    <p>Government of Maharashtra — Farmer subsidy. Onboard the journey yourself before applying.</p>
+    <p>Government of Maharashtra — Farmer subsidy. Bind a catalog journey before applying.</p>
+    <p class="cutaway">Other citizen services: <a href="/">Home</a> · <a href="/scholarship/">Scholarship</a> · <a href="/licence/">Licence</a></p>
+    <p class="cutaway">Optional SIH cutaway after the citizen and officer beats (not the citizen product): <a href="/demo.html">Samanvay operations</a> · <a href="/schemes.html">Published schemes</a> · <a href="/audit.html">Audit</a></p>
   </footer>
-  <script src="/farmer/portal.js"></script>
+  <script src="/farmer/portal.js?v=civic4"></script>
 </body>
 </html>

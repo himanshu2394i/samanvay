@@ -19,7 +19,10 @@
     </header>
     <nav class="bar" aria-label="State operations">
       <ul class="nav-primary" role="list">
+        <li><a href="/">Citizen services</a></li>
         <li><a href="/scholarship/">Scholarship Portal</a></li>
+        <li><a href="/licence/">Licence</a></li>
+        <li><a href="/farmer/">Farmer subsidy</a></li>
         <li><a href="/demo.html">Operations</a></li>
         <li><a href="/journey.html">Journey</a></li>
         <li><a href="/ops.html">Exceptions</a></li>
@@ -37,8 +40,8 @@
     </nav>
     <main id="content" tabindex="-1">
       <h1 class="page-title">Published schemes</h1>
-      <p class="lede">The catalog has three journeys. Only scholarship has a citizen portal. Business NOC and Farmer subsidy run on the same interoperability layer via configuration and API — they are not extra websites.</p>
-      <p class="callout"><strong>FARMER_SUBSIDY</strong> landed as catalog rows, BPMN, and policy. That is configuration, not a new application — no new Java. There is no farmer portal to click.</p>
+      <p class="lede">The catalog has three journeys. Scholarship and licence have ready citizen skins. Farmer subsidy is a gated skin: bind a catalog journey code (seeded <strong>FARMER_SUBSIDY</strong>, or a new one you onboard). Catalog proof is still configuration — no new Java for the farmer journey itself. Skins: <a href="/scholarship/">scholarship</a> · <a href="/licence/">licence</a> · <a href="/farmer/">farmer</a>.</p>
+      <p class="callout"><strong>FARMER_SUBSIDY</strong> landed as catalog rows, BPMN, and policy. That is configuration, not a new application — no new Java. The farmer skin waits for you to bind that code (or another published code) after onboard.</p>
       <p id="status" class="status" aria-live="polite"></p>
       <div id="schemeList"><p class="loading">Reading published journeys…</p></div>
     </main>
@@ -50,9 +53,9 @@
       try {
         const journeys = await api("/api/catalog/journeys");
         const notes = {
-          FARMER_SUBSIDY: "Farmer subsidy as configuration — no new Java. Catalog + BPMN only. Not a citizen portal.",
-          POST_MATRIC_SCHOLARSHIP: "The one citizen portal. Concrete first journey.",
-          BUSINESS_NOC: "Second catalog journey. Started via API; no licence website.",
+          POST_MATRIC_SCHOLARSHIP: "Citizen portal at /scholarship/. Concrete first journey.",
+          BUSINESS_NOC: "Second catalog journey. Citizen skin at /licence/.",
+          FARMER_SUBSIDY: "Farmer subsidy as configuration — no new Java. Catalog + BPMN. Bind the code on /farmer/.",
         };
         box.innerHTML = tableHtml(
           "Catalog journeys",

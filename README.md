@@ -70,7 +70,7 @@ docker compose up -d          # starts Postgres
 ./mvnw spring-boot:run        # Windows: .\mvnw.cmd spring-boot:run
 ```
 
-SIH judge path starts on the Scholarship Portal (government service skin): `http://localhost:8080/` redirects to `http://localhost:8080/scholarship/`
+SIH judge path starts on the Scholarship Portal (government service skin): open `http://localhost:8080/` (citizen services directory) and choose scholarship, or go directly to `http://localhost:8080/scholarship/`. Licence is at `/licence/`. Farmer subsidy is at `/farmer/` (bind a catalog journey code).
 
 That portal is a **caller** of Samanvay (identity, consent, journeys, tracking). Samanvay itself remains the interoperability middle layer.
 

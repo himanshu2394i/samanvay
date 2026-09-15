@@ -21,7 +21,7 @@ docker compose up -d
 
 **Judge path starts on the Scholarship Portal**, not on Samanvay operations.
 
-Open `http://localhost:8080/` (redirects to `/scholarship/`, Government of Maharashtra — Scholarship Portal). Apply → connect the three department accounts (Revenue / Education / DBT; labelled DigiLocker sandbox or OTP demo — not live SSO) → consent in plain language → submit. Track status in everyday words.
+Open `http://localhost:8080/` (three equal citizen-service cards). Judge path: Scholarship Portal at `/scholarship/`. Licence at `/licence/` (BUSINESS_NOC). Farmer at `/farmer/` (bind a catalog journey — picker plus code). Apply → connect department accounts (labelled DigiLocker sandbox or OTP demo — not live SSO) → consent in plain language → submit. Track status in everyday words.
 
 Then **Officer desk** (`/scholarship/#officer`): labelled demonstration login (`officer` / `demo-2026` — not SSO) → review which department records arrived → optionally **Mark Revenue records unavailable**, restore, then **Retry**. Do not show `PARTIALLY_VERIFIED` or instance UUIDs to judges.
 

@@ -39,6 +39,8 @@ class CivicPortalsStaticPagesTest {
         assertThat(js).contains("/api/journeys/");
         assertThat(js).contains("fire-rest-mock");
         assertThat(js).contains("/licence/");
+        assertThat(html).contains("/scholarship/");
+        assertThat(html).contains("/farmer/");
         assertThat(js).doesNotContain("POST_MATRIC_SCHOLARSHIP");
         assertThat(js).doesNotContain("FARMER_SUBSIDY");
     }
@@ -54,13 +56,29 @@ class CivicPortalsStaticPagesTest {
         assertThat(html).contains("/onboard.html");
         assertThat(html).contains("journey code");
         assertThat(html).contains("AUTH STUBBED");
+        assertThat(html).contains("id=\"applyGate\"");
+        assertThat(html).contains("id=\"applyReady\"");
+        assertThat(html).contains("id=\"applyReady\" hidden");
+        assertThat(html).contains("id=\"langEn\"");
+        assertThat(html).contains("id=\"langMr\"");
+        assertThat(html).contains("data-text");
+        assertThat(html).contains("class=\"util\"");
+        assertThat(html).contains("id=\"journeyPick\"");
+        assertThat(html).contains("/scholarship/");
+        assertThat(html).contains("/licence/");
+        assertThat(html).contains("FARMER_SUBSIDY");
+        assertThat(html.indexOf("id=\"applyReady\"")).isLessThan(html.indexOf("class=\"steps\""));
         assertThat(html).doesNotContain("Apply for scholarship");
         assertThat(html).doesNotContain("Control plane");
         assertThat(html).doesNotContain("X-Auth-Jti");
 
         assertThat(js).contains("/onboard.html");
         assertThat(js).contains("/api/catalog/journeys/");
+        assertThat(js).contains("/api/catalog/departments");
         assertThat(js).contains("mhFarmerJourney");
+        assertThat(js).contains("loadBoundJourney");
+        assertThat(js).contains("applyLang");
+        assertThat(js).doesNotContain("replaceAll");
         assertThat(js).doesNotContain("BUSINESS_NOC");
         assertThat(js).doesNotContain("/api/journeys/FARMER_SUBSIDY/start");
     }
@@ -74,6 +92,10 @@ class CivicPortalsStaticPagesTest {
         assertThat(root).contains("Apply for licence");
         assertThat(root).contains("/farmer/");
         assertThat(root).contains("Farmer subsidy");
+        assertThat(root).contains("service-grid");
+        assertThat(root).contains("service-card");
+        assertThat(root).contains("class=\"util\"");
+        assertThat(root).contains("/demo.html");
         assertThat(root).doesNotContain("Control plane");
         assertThat(root).doesNotContain("IBM Plex");
         assertThat(root).doesNotContain("/caller.html");

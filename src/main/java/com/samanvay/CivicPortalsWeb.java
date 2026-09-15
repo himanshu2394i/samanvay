@@ -5,8 +5,9 @@ import org.springframework.core.Ordered;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/** GET forwards for the three citizen skins (scholarship, licence, farmer). */
 @Configuration
-class ScholarshipPortalWeb implements WebMvcConfigurer {
+class CivicPortalsWeb implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {

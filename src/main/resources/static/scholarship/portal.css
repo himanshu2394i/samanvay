@@ -737,10 +737,44 @@ footer a {
   max-width: 40rem;
 }
 
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.service-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 1.25rem 1.35rem;
+}
+
+.service-card h2 {
+  margin-top: 0;
+}
+
+select {
+  width: 100%;
+  max-width: 28rem;
+  min-height: 48px;
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  border: 0;
+  border-block-end: 2px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 0;
+}
+
 @media (max-width: 767px) {
   .scheme-split {
     grid-template-columns: 1fr;
     gap: 2rem;
+  }
+
+  .service-grid {
+    grid-template-columns: 1fr;
   }
 
   .steps {

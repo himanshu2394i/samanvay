@@ -30,6 +30,8 @@ class PhaseUiStaticPagesTest {
             assertThat(html).contains("audit.html");
             assertThat(html).contains("schemes.html");
             assertThat(html).contains("/scholarship/");
+            assertThat(html).contains("/licence/");
+            assertThat(html).contains("/farmer/");
             assertThat(html).contains("State operations");
             assertThat(html).contains("Government of Maharashtra");
             assertThat(html).contains("Skip to content");

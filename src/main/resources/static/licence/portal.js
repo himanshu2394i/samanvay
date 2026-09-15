@@ -76,7 +76,10 @@ function applyLang(lang) {
   sessionStorage.setItem(KEY_LANG, use);
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const text = pack[el.dataset.i18n];
-    if (text) el.textContent = text;
+    if (!text) return;
+    const primary = el.querySelector("[data-i18n-text]");
+    if (primary) primary.textContent = text;
+    else if (!el.children.length) el.textContent = text;
   });
   const enBtn = document.getElementById("langEn");
   const mrBtn = document.getElementById("langMr");
