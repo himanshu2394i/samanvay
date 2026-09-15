@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Samanvay — Future Scope</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #fff; }
+    body {
+      font-family: "Segoe UI", "IBM Plex Sans", Arial, sans-serif;
+      color: #1a2744;
+      display: flex;
+      flex-direction: column;
+      padding: 36px 56px 0;
+    }
+    header { text-align: center; position: relative; margin-bottom: 36px; }
+    .brand {
+      position: absolute; left: 0; top: 2px;
+      background: #12203a; color: #fff; border-radius: 999px;
+      padding: 7px 16px; font-weight: 700; font-size: 14px;
+    }
+    h1 { font-size: 36px; letter-spacing: .04em; font-weight: 800; color: #12203a; }
+    .lead {
+      margin: 14px auto 0;
+      max-width: 1280px;
+      font-size: 18px;
+      line-height: 1.45;
+      color: #3d4f6c;
+    }
+    .cards-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      padding-bottom: 54px;
+    }
+    .cards {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+    .card {
+      border-radius: 16px;
+      padding: 32px 28px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 280px;
+      border: 1.5px solid #d5deea;
+      background: #f7f9fc;
+    }
+    .card.navy { background: #14365c; color: #fff; border-color: #14365c; }
+    .card.orange { background: #c45a12; color: #fff; border-color: #c45a12; }
+    .card.teal { background: #1b6b55; color: #fff; border-color: #1b6b55; }
+    .kicker {
+      font-size: 13px;
+      letter-spacing: .12em;
+      font-weight: 800;
+      opacity: .85;
+    }
+    .card h2 { font-size: 24px; font-weight: 800; letter-spacing: .02em; }
+    .card p { font-size: 20px; line-height: 1.45; font-weight: 500; }
+    .card.navy p, .card.orange p, .card.teal p { opacity: .95; }
+    .footer {
+      position: fixed; left: 0; right: 0; bottom: 0; height: 42px;
+      background: #1b4f9c; color: #fff; display: flex;
+      align-items: center; justify-content: space-between;
+      padding: 0 28px; font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Samanvay</div>
+    <h1>FUTURE SCOPE</h1>
+    <p class="lead">The core already runs. What remains is connecting live issuers and identity — not rebuilding the interoperability layer.</p>
+  </header>
+  <div class="cards-wrap">
+  <div class="cards">
+    <div class="card navy">
+      <div class="kicker">1 · LIVE ISSUERS</div>
+      <h2>Department APIs + DigiLocker</h2>
+      <p>Swap labelled sandbox adapters for NIC / MoU department APIs and a MeitY DigiLocker partner account. Certificates still stay at the issuer.</p>
+    </div>
+    <div class="card orange">
+      <div class="kicker">2 · REAL SSO</div>
+      <h2>Keycloak identity brokering</h2>
+      <p>Broker to department IdPs so a citizen links once with a live session, not a demo header. Probabilistic matches still never auto-merge.</p>
+    </div>
+    <div class="card teal">
+      <div class="kicker">3 · MORE SCHEMES</div>
+      <h2>Catalog, not a rewrite</h2>
+      <p>New journeys remain catalog + BPMN + connectors. Farmer subsidy already added with zero new Java — that is the scale path.</p>
+    </div>
+  </div>
+  </div>
+  <div class="footer">
+    <span>@SIH Idea submission — Samanvay · SIH26129</span>
+    <span>Future scope</span>
+  </div>
+</body>
+</html>
