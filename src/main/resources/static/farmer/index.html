@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Farmer subsidy | Government of Maharashtra</title>
+  <link rel="stylesheet" href="/scholarship/portal.css?v=civic2"/>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to main content</a>
+  <p id="live" class="visually-hidden" aria-live="polite"></p>
+
+  <div class="tricolor" aria-hidden="true"></div>
+  <p class="sandbox">Demonstration portal. DigiLocker sandbox and OTP demo are labelled mocks — not live DigiLocker, not live Aadhaar, and no secrets are used. <strong>AUTH STUBBED</strong> — this is not live SSO.</p>
+
+  <header class="mast">
+    <div class="mast-inner">
+      <div class="crest" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="48" height="48" focusable="false">
+          <circle cx="24" cy="24" r="22" fill="none" stroke="#ffd37a" stroke-width="2"/>
+          <circle cx="24" cy="24" r="7" fill="none" stroke="#ffd37a" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div>
+        <p class="gov" lang="hi">महाराष्ट्र शासन</p>
+        <p class="gov">Government of Maharashtra — Farmer subsidy</p>
+        <p class="dept">You onboard this service. The skin does not pick a catalog journey for you.</p>
+      </div>
+    </div>
+  </header>
+
+  <nav class="bar" aria-label="Farmer subsidy">
+    <ul role="list">
+      <li><a href="#bind" data-nav="bind" data-i18n="nav.bind">Onboard</a></li>
+      <li><a href="#apply" data-nav="apply">Apply</a></li>
+      <li><a href="#status" data-nav="status">Track application</a></li>
+      <li><a href="#officer" data-nav="officer">Officer desk</a></li>
+    </ul>
+  </nav>
+
+  <main id="content" tabindex="-1">
+    <section id="view-bind">
+      <p class="crumb">Home / Farmer subsidy / Onboard</p>
+      <div class="scheme-split">
+        <div>
+          <h1>Farmer subsidy</h1>
+          <p class="lede">This portal waits for operator onboarding. Publish the department connector from the onboard wizard, then enter the catalog <strong>journey code</strong> here. The code is not filled in for you.</p>
+          <p class="scheme-actions">
+            <a class="btn" href="/onboard.html">Open onboard wizard</a>
+          </p>
+          <form id="bindForm" action="/farmer/" method="post">
+            <div class="field">
+              <label for="journeyCode">Catalog journey code</label>
+              <input id="journeyCode" name="journeyCode" required maxlength="80" autocomplete="off" aria-describedby="journeyHint"/>
+              <p id="journeyHint" class="hint">After you onboard, type the exact journey code from Published schemes. This page looks it up on the catalog. It does not assume which code you chose.</p>
+            </div>
+            <p id="bindStatus" class="status" aria-live="polite"></p>
+            <button type="submit" class="btn primary">Use this journey</button>
+          </form>
+        </div>
+        <aside class="scheme-rail">
+          <h2>What “onboard yourself” means</h2>
+          <ol class="how">
+            <li>Use <a href="/onboard.html">/onboard.html</a> to register department, source, mappings, test, and publish.</li>
+            <li>Confirm the journey appears in published schemes.</li>
+            <li>Paste that journey code here so this farmer skin can start it.</li>
+          </ol>
+          <p id="boundLabel" class="progress" role="status"></p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-apply" hidden>
+      <div class="apply-shell">
+      <h1>Apply for farmer subsidy</h1>
+      <p id="applyGate" class="callout honesty" hidden>Bind a journey code on Onboard first. This apply form stays closed until the catalog accepts that code.</p>
+      <ol class="steps" role="list" aria-label="Application steps">
+        <li data-step="details">1. Applicant</li>
+        <li data-step="connect">2. Connect accounts</li>
+        <li data-step="consent">3. Consent</li>
+        <li data-step="submit">4. Submit</li>
+      </ol>
+
+      <div id="applyReady">
+      <div id="panel-details">
+        <h2>Applicant details</h2>
+        <form id="detailsForm" action="/farmer/" method="post">
+          <div class="field">
+            <label for="givenName">Given name / <span lang="hi">नाव</span></label>
+            <input id="givenName" name="givenName" autocomplete="given-name" required maxlength="100"/>
+          </div>
+          <div class="field">
+            <label for="familyName">Family name / <span lang="hi">आडनाव</span></label>
+            <input id="familyName" name="familyName" autocomplete="family-name" required maxlength="100"/>
+          </div>
+          <div class="field">
+            <label for="nameDevanagari">Name in Marathi (optional) / <span lang="hi">मराठी नाव</span></label>
+            <input id="nameDevanagari" name="nameDevanagari" lang="hi" maxlength="200"/>
+          </div>
+          <div class="field">
+            <label for="fatherName">Father’s / guardian’s name</label>
+            <input id="fatherName" name="fatherName" autocomplete="name" required maxlength="200"/>
+          </div>
+          <div class="field">
+            <label for="dob">Date of birth</label>
+            <input id="dob" name="dob" type="date" autocomplete="bday" required/>
+          </div>
+          <fieldset>
+            <legend>Gender</legend>
+            <label class="choice"><input type="radio" name="gender" value="F" required/> Female</label>
+            <label class="choice"><input type="radio" name="gender" value="M"/> Male</label>
+            <label class="choice"><input type="radio" name="gender" value="O"/> Other</label>
+          </fieldset>
+          <p id="detailsStatus" class="status" aria-live="polite"></p>
+          <button type="submit" class="btn primary">Continue to connect accounts</button>
+        </form>
+      </div>
+
+      <div id="panel-connect" hidden>
+        <h2>Connect accounts</h2>
+        <p>Connect the departments this journey needs. DigiLocker sandbox and OTP demo are labelled mocks.</p>
+        <p class="callout honesty"><strong>DigiLocker sandbox</strong> and <strong>OTP demo</strong> on this page are labelled mocks. They are <strong>not live SSO</strong>.</p>
+        <p id="connectProgress" class="progress" role="status">Linked 0 of 0 departments</p>
+        <div class="meter" aria-hidden="true"><span id="connectMeter"></span></div>
+        <ul id="deptList" class="depts" role="list"></ul>
+        <p id="connectStatus" class="status" aria-live="polite"></p>
+        <button type="button" class="btn primary" id="toConsent" disabled>Continue to consent</button>
+      </div>
+
+      <div id="panel-consent" hidden>
+        <h2>Consent to share records</h2>
+        <form id="consentForm" action="/farmer/" method="post">
+          <p id="consentCopy">I agree to share the department records this subsidy needs.</p>
+          <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records your agreement with a labelled session. This is not live Aadhaar login and not live SSO.</p>
+          <label class="choice">
+            <input type="checkbox" id="consentCheck" name="consent" required/>
+            I have read this and I agree / <span lang="hi">मी सहमत आहे</span>
+          </label>
+          <button type="submit" class="btn primary" id="submitBtn">Submit application</button>
+        </form>
+        <p id="submitStatus" class="status" aria-live="polite"></p>
+      </div>
+      </div>
+      </div>
+    </section>
+
+    <section id="view-status" hidden>
+      <h1>Application status</h1>
+      <form id="trackForm" action="/farmer/" method="get">
+        <div class="field">
+          <label for="referenceNo">Application number</label>
+          <input id="referenceNo" name="referenceNo" autocomplete="off" required maxlength="40"/>
+        </div>
+        <button type="submit" class="btn primary">Check status</button>
+      </form>
+      <p id="statusMsg" class="status" aria-live="polite"></p>
+      <div id="statusCard"></div>
+    </section>
+
+    <section id="view-officer" hidden>
+      <h1>Officer desk</h1>
+      <p class="lede">Review applications for the journey you bound. Status is written for officers.</p>
+      <div id="officerLogin">
+        <h2>Officer login</h2>
+        <p class="callout honesty"><strong>Officer login.</strong> This is a demonstration — not SSO. Use officer ID <code>officer</code> and password <code>demo-2026</code>.</p>
+        <form id="officerLoginForm" action="/farmer/" method="post">
+          <div class="field">
+            <label for="officerUser">Officer ID</label>
+            <input id="officerUser" name="officerUser" autocomplete="username" required maxlength="40"/>
+          </div>
+          <div class="field">
+            <label for="officerPass">Password (demonstration)</label>
+            <input id="officerPass" name="officerPass" type="password" autocomplete="current-password" required maxlength="40"/>
+          </div>
+          <p id="officerLoginMsg" class="status" aria-live="polite"></p>
+          <button type="submit" class="btn primary">Sign in to officer desk</button>
+        </form>
+      </div>
+      <div id="officerWork" hidden>
+        <p class="callout honesty"><strong>AUTH STUBBED.</strong> Officer session is a labelled demonstration. This is not live SSO.</p>
+        <p id="officerCounts" class="progress" role="status"></p>
+        <p id="officerMsg" class="status" aria-live="polite"></p>
+        <div id="officerTable"></div>
+        <p class="row">
+          <button type="button" class="btn" id="officerRefresh">Refresh list</button>
+          <button type="button" class="btn" id="officerSignOut">Sign out</button>
+        </p>
+        <div id="officerCase">
+          <h2>Application file</h2>
+          <p id="officerCaseEmpty">Open an application number to review which department records have arrived.</p>
+          <div id="officerCaseBody" hidden></div>
+          <p class="row">
+            <button type="button" class="btn primary" id="officerRetry" hidden>Retry</button>
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="proofDlg" aria-labelledby="proofTitle" aria-describedby="proofBody">
+    <form id="proofForm" method="dialog" action="/farmer/">
+      <h2 id="proofTitle"></h2>
+      <p id="proofBody"></p>
+      <div id="otpFields" hidden>
+        <div class="field">
+          <label for="localId">Local department ID (demo)</label>
+          <input id="localId" name="localId" maxlength="60" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label for="otp">One-time password (OTP demo)</label>
+          <input id="otp" name="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" aria-describedby="otpHint otpError"/>
+          <p id="otpHint" class="hint">OTP demo: enter 000000. This is not a live telecom OTP and not live SSO.</p>
+          <p id="otpError" class="status bad" hidden>Enter the demo OTP 000000.</p>
+        </div>
+      </div>
+      <div class="row">
+        <button type="submit" class="btn primary" id="proofConfirm" value="ok">Continue</button>
+        <button type="submit" class="btn" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <footer>
+    <p>Government of Maharashtra — Farmer subsidy. Onboard the journey yourself before applying.</p>
+  </footer>
+  <script src="/farmer/portal.js"></script>
+</body>
+</html>
