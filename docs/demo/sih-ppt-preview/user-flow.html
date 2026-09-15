@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Samanvay — User Flow</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #fff; }
+    body {
+      font-family: "Segoe UI", "IBM Plex Sans", Arial, sans-serif;
+      color: #1a2744;
+      display: flex;
+      flex-direction: column;
+      padding: 22px 28px 0;
+    }
+    header { text-align: center; position: relative; margin-bottom: 14px; }
+    .brand {
+      position: absolute; left: 0; top: 2px;
+      background: #12203a; color: #fff; border-radius: 999px;
+      padding: 7px 16px; font-weight: 700; font-size: 14px;
+    }
+    h1 { font-size: 32px; letter-spacing: .03em; font-weight: 800; color: #12203a; }
+    .sub { margin-top: 6px; font-size: 15px; color: #4a5a78; max-width: 1400px; margin-left: auto; margin-right: auto; }
+    .row {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      min-height: 0;
+      padding-bottom: 54px;
+    }
+    .col {
+      border-radius: 12px;
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-evenly;
+      gap: 8px;
+    }
+    .col h2 { font-size: 13px; letter-spacing: .08em; text-align: center; font-weight: 800; }
+    .s1 { background: #e8f1fb; } .s1 h2 { color: #2b5c9e; }
+    .s2 { background: #dff3ea; } .s2 h2 { color: #1a7a55; }
+    .s3 { background: #e6f6ee; } .s3 h2 { color: #1d6b4a; }
+    .s4 { background: #fde8d8; } .s4 h2 { color: #c45a12; }
+    .s5 { background: #fff4d6; } .s5 h2 { color: #9a6b00; }
+    .box {
+      background: #fff;
+      border: 1.5px solid #c5d0e0;
+      border-radius: 8px;
+      padding: 10px 8px;
+      font-size: 15px;
+      line-height: 1.3;
+      text-align: center;
+      font-weight: 700;
+    }
+    .box span { display: block; font-weight: 500; color: #5a6a84; font-size: 13px; margin-top: 3px; }
+    .navy { background: #14365c; color: #fff; border-color: #14365c; }
+    .navy span { color: #c9d8ea; }
+    .teal { background: #1b6b55; color: #fff; border-color: #1b6b55; }
+    .teal span { color: #d4efe6; }
+    .warn { background: #fff7e8; border-color: #e8b86a; }
+    .ok { background: #eef8f2; border-color: #8bc9a8; }
+    .deny { background: #fdeeee; border-color: #e8a0a0; }
+    .arrow { text-align: center; color: #3d5a80; font-weight: 800; font-size: 14px; line-height: 1; }
+    .note { font-size: 12.5px; color: #4a5c78; text-align: center; font-weight: 500; padding: 4px 2px; }
+    .footer {
+      position: fixed; left: 0; right: 0; bottom: 0; height: 42px;
+      background: #1b4f9c; color: #fff; display: flex;
+      align-items: center; justify-content: space-between;
+      padding: 0 28px; font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Samanvay</div>
+    <h1>USER FLOW: HOW SAMANVAY ADDRESSES THE PROBLEM</h1>
+    <p class="sub">Not a new portal and not a data lake. Certificates stay at the issuer. Samanvay stores only links, consent, pointers, workflow, tracking, and a hash-chained audit trail.</p>
+  </header>
+  <div class="row">
+    <div class="col s1">
+      <h2>STAGE 1 · APPLY &amp; LINK</h2>
+      <div class="box">CITIZEN<span>Facts already issued by the department of record — income, caste, 7/12, marks, NOC</span></div>
+      <div class="arrow">▼</div>
+      <div class="box">ANY EXISTING PORTAL<span>Scholarship · Licence / NOC · Farmer subsidy. Three callers, one core.</span></div>
+      <div class="arrow">▼</div>
+      <div class="box navy">IDENTITY LINKING<span>Map IDs across departments. Probabilistic matches never auto-merge.</span></div>
+      <p class="note">DigiLocker may carry issued copies. It is not login and not Samanvay’s consent store.</p>
+    </div>
+    <div class="col s2">
+      <h2>STAGE 2 · CONSENT</h2>
+      <div class="box">CITIZEN GIVES CONSENT<span>Purpose, requester, and categories only — never a blanket dump</span></div>
+      <div class="arrow">▼</div>
+      <div class="box teal">CONSENT ARTIFACT<span>Owned by the consent module. Revoke anytime; version increments.</span></div>
+      <div class="arrow">▼</div>
+      <div class="box">JOURNEY STARTS<span>BPMN fetches only what this scheme needs</span></div>
+      <p class="note">A scholarship grant cannot later pull a fire NOC.</p>
+    </div>
+    <div class="col s3">
+      <h2>STAGE 3 · CONTROL PLANE DECIDES</h2>
+      <div class="box navy">ACCESS AUTHORITY<span>Identity + consent + registry, together</span></div>
+      <div class="box">1. Identity: active department link?</div>
+      <div class="box">2. Consent: covers requester, category, purpose?</div>
+      <div class="box">3. Registry: pointer exists? (what lives where — never the payload)</div>
+      <div class="box deny">ANY NO → DENY<span>Reason written on the audit chain</span></div>
+      <div class="box ok">ALL YES → SIGNED GRANT<span>60-second TTL, single-use nonce. No fetch without it.</span></div>
+    </div>
+    <div class="col s4">
+      <h2>STAGE 4 · DATA PLANE MOVES</h2>
+      <div class="box">CONNECTOR RUNTIME<span>Verify signature, expiry, unused nonce</span></div>
+      <div class="arrow">▼</div>
+      <div class="box">PROTOCOL ADAPTERS<span>REST · SOAP · SFTP · JDBC → canonical model, in memory</span></div>
+      <div class="arrow">▼</div>
+      <div class="box">LIVE FETCH FROM SYSTEM OF RECORD<span>Aaple Sarkar · Mahabhulekh · Education · Fire · MPCB · MahaDBT</span></div>
+      <div class="box warn">IF SOURCE DOWN<span>Status = PARTIALLY_VERIFIED. Retry + officer queue. Citizen file is not restarted.</span></div>
+      <div class="box ok">IF UP<span>Field used in workflow only. Payload is never persisted.</span></div>
+    </div>
+    <div class="col s5">
+      <h2>STAGE 5 · TRACK &amp; PROVE</h2>
+      <div class="box">ONE TRACKING ID<span>One reference across every department, e.g. Req-12345</span></div>
+      <div class="arrow">▼</div>
+      <div class="box">OFFICER DESK<span>See which issuer answered. Retry a downed dept without a new file.</span></div>
+      <div class="arrow">▼</div>
+      <div class="box navy">HASH-CHAINED AUDIT<span>Who asked, when, where, grant id. Never the certificate.</span></div>
+      <div class="arrow">▼</div>
+      <div class="box">REVOKE → NEXT FETCH DENIED<span>Within 60s. Nothing to purge — it was never stored.</span></div>
+    </div>
+  </div>
+  <div class="footer">
+    <span>@SIH Idea submission — Samanvay · SIH26129</span>
+    <span>User flow</span>
+  </div>
+</body>
+</html>
