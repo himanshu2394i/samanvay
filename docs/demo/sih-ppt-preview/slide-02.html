@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Samanvay — User flow</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;500;600;700&display=swap"/>
+  <link rel="stylesheet" href="sih-deck.css"/>
+  <style>
+    .lede {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr 1fr;
+      gap: 14px;
+      margin: 10px 0 18px;
+    }
+    .chip {
+      background: var(--card);
+      border: 1px solid var(--hair);
+      border-radius: 14px;
+      padding: 12px 16px 14px;
+      box-shadow: 0 1px 0 rgba(14, 42, 74, 0.04);
+    }
+    .chip h2 { font-size: 17px; color: var(--navy); margin-bottom: 4px; }
+    .chip p { font-size: 14.5px; line-height: 1.35; color: var(--muted); }
+    .chip.a { border-left: 5px solid var(--saffron); }
+    .chip.b { border-left: 5px solid var(--teal); }
+    .chip.c { border-left: 5px solid var(--navy); }
+
+    .route {
+      position: relative;
+      height: 720px;
+    }
+    .spine {
+      position: absolute;
+      left: 96px;
+      right: 96px;
+      top: 86px;
+      height: 6px;
+      background: linear-gradient(90deg, #c45a12, #b08948 40%, #1b6b55);
+      border-radius: 99px;
+      opacity: 0.85;
+    }
+    .stations {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      position: relative;
+      z-index: 1;
+    }
+    .st {
+      background: var(--card);
+      border: 1px solid var(--hair);
+      border-radius: 18px;
+      padding: 18px 16px 16px;
+      min-height: 470px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 10px 24px rgba(14, 42, 74, 0.06);
+    }
+    .st.grant {
+      background: var(--navy);
+      color: #fff;
+      border-color: var(--navy);
+    }
+    .stamp {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      display: grid; place-items: center;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.04em;
+      margin: 0 auto 4px;
+      border: 2px solid var(--gold);
+      color: var(--navy);
+      background: #fff8ea;
+    }
+    .st.grant .stamp { background: #c45a12; color: #fff; border-color: #e8b86a; }
+    .st h3 {
+      text-align: center;
+      font-size: 15px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .st.grant h3 { color: #f3d9b0; }
+    .box {
+      background: #fff;
+      border: 1px solid #e6dcc8;
+      border-radius: 10px;
+      padding: 10px 10px 11px;
+      font-size: 14.5px;
+      line-height: 1.32;
+      font-weight: 650;
+      text-align: center;
+    }
+    .box span { display: block; font-weight: 500; color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .st.grant .box {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.16);
+      color: #fff;
+    }
+    .st.grant .box span { color: #c9d8ea; }
+    .note {
+      margin-top: auto;
+      font-size: 13px;
+      line-height: 1.35;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .st.grant .note { color: #d7e4f2; }
+    .warn { background: #fff6e8; border-color: #e8b86a; }
+    .ok { background: #eef8f2; border-color: #8bc9a8; }
+    .deny { background: #fdeeee; border-color: #e8a0a0; }
+    .split {
+      position: absolute;
+      left: 58.5%;
+      width: 18%;
+      top: 548px;
+      display: grid;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <div class="top">
+      <div class="pill">Samanvay</div>
+      <div class="titles">
+        <h1>How Samanvay addresses the problem</h1>
+        <p>Federated interoperability — not a new portal, not a data lake, not an aggregator. Certificates stay at the issuer.</p>
+      </div>
+      <img class="logo" src="sih-logo.png" alt="Smart India Hackathon 2026"/>
+    </div>
+
+    <div class="lede">
+      <article class="chip a">
+        <h2>Departments stay owners</h2>
+        <p>Aaple Sarkar, Mahabhulekh, Fire, MPCB, MahaDBT keep their systems. Samanvay sits between them.</p>
+      </article>
+      <article class="chip b">
+        <h2>Nothing stored except proof</h2>
+        <p>Links, consent, pointers, workflow, tracking, hash-chained audit. Payloads are fetched live, then discarded.</p>
+      </article>
+      <article class="chip c">
+        <h2>Three callers, one core</h2>
+        <p>Scholarship, licence/NOC, and farmer subsidy are ready skins on published catalog journeys — no extra Java for farmer.</p>
+      </article>
+    </div>
+
+    <div class="route">
+      <div class="spine"></div>
+      <div class="stations">
+        <section class="st">
+          <div class="stamp">01</div>
+          <h3>Apply &amp; link</h3>
+          <div class="box">Citizen applies on an existing skin<span>Scholarship · Licence · Farmer subsidy</span></div>
+          <div class="box">Connect department accounts<span>Map IDs. Probabilistic matches never auto-merge.</span></div>
+          <p class="note">DigiLocker may carry issued copies. It is not login and not Samanvay’s consent store.</p>
+        </section>
+        <section class="st">
+          <div class="stamp">02</div>
+          <h3>Consent</h3>
+          <div class="box">Purpose-bound agreement<span>Requester, purpose, categories — never a blanket dump</span></div>
+          <div class="box">Consent artifact<span>Revoke anytime. Version increments.</span></div>
+          <p class="note">A scholarship grant cannot later pull a fire NOC.</p>
+        </section>
+        <section class="st grant">
+          <div class="stamp">03</div>
+          <h3>Control plane decides</h3>
+          <div class="box">Access authority<span>Identity + consent + registry pointer, as one decision</span></div>
+          <div class="box">Any no → deny<span>Reason written on the audit chain</span></div>
+          <div class="box">All yes → signed grant<span>60-second TTL, single-use nonce. No fetch without it.</span></div>
+          <p class="note">Control plane decides. Data plane cannot call a department “just this once”.</p>
+        </section>
+        <section class="st">
+          <div class="stamp">04</div>
+          <h3>Data plane moves</h3>
+          <div class="box">Verify grant, then adapt<span>REST · SOAP · SFTP · JDBC → in-memory canonical map</span></div>
+          <div class="box">Live fetch from system of record<span>REST · SOAP · SFTP · JDBC. Payload never persisted.</span></div>
+          <div class="box warn">If the source is down<span>Needs action. Officer retries that department. Not a gateway loop — the citizen file is not restarted.</span></div>
+        </section>
+        <section class="st">
+          <div class="stamp">05</div>
+          <h3>Track &amp; prove</h3>
+          <div class="box">One application number<span>MH-SCH · MH-NOC · MH-FAR</span></div>
+          <div class="box">Officer desk<span>Which issuer answered. Retry a downed department.</span></div>
+          <div class="box">Hash-chained audit<span>Who asked, when, grant id. Never the certificate.</span></div>
+          <p class="note">Revoke → next fetch denied within 60s. Nothing to purge — it was never stored.</p>
+        </section>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>@SIH Idea submission — Samanvay · SIH26129 · Team fusionX</span>
+      <span>2</span>
+    </div>
+  </div>
+</body>
+</html>
