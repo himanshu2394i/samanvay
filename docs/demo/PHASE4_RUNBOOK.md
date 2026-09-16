@@ -21,7 +21,7 @@ docker compose up -d
 
 **Judge path starts on the Scholarship Portal**, not on Samanvay operations.
 
-Open `http://localhost:8080/` (three equal citizen-service cards). Judge path: Scholarship Portal at `/scholarship/`. Licence at `/licence/` (BUSINESS_NOC). Farmer at `/farmer/` (bind a catalog journey — picker plus code). Apply → connect department accounts (labelled DigiLocker sandbox or OTP demo — not live SSO) → consent in plain language → submit. Track status in everyday words.
+Open `http://localhost:8080/` (three equal citizen-service cards). Judge path: Scholarship Portal at `/scholarship/`. Licence at `/licence/` (`BUSINESS_NOC`). Farmer at `/farmer/` (`FARMER_SUBSIDY` — same apply/officer pattern, no journey picker). Apply → connect department accounts (labelled DigiLocker sandbox or OTP demo — not live SSO) → consent in plain language → submit. Track status in everyday words.
 
 Then **Officer desk** (`/scholarship/#officer`): labelled demonstration login (`officer` / `demo-2026` — not SSO) → review which department records arrived → optionally **Mark Revenue records unavailable**, restore, then **Retry**. Do not show `PARTIALLY_VERIFIED` or instance UUIDs to judges.
 
@@ -44,8 +44,10 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 
 | URL | Surface |
 |---|---|
-| `/` | Redirects to `/scholarship/` — judge entry |
+| `/` | Citizen services directory — three skins |
 | `/scholarship/` | **Judge entry** — Scholarship Portal (gov service). Calls identity, consent, journeys, tracking. Not the control plane. |
+| `/licence/` | Business licence / NOC skin — `BUSINESS_NOC` |
+| `/farmer/` | Farmer subsidy skin — `FARMER_SUBSIDY` (no journey picker) |
 | `/scholarship/#officer` | Officer desk — demonstration login, department records, Retry |
 | `/demo.html` | Optional operations cutaway — judge script; not the entry |
 | `/schemes.html` | Published catalog journeys — farmer subsidy as configuration |

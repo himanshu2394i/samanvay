@@ -46,41 +46,42 @@ class CivicPortalsStaticPagesTest {
     }
 
     @Test
-    void farmerPortalWaitsForOperatorOnboarding() {
+    void farmerPortalIsAGovernmentSkinWiredToFarmerSubsidy() {
         String html = page("farmer/index.html");
         String js = page("farmer/portal.js");
 
         assertThat(html).contains("Government of Maharashtra");
         assertThat(html).contains("Farmer subsidy");
-        assertThat(html).contains("Onboard");
-        assertThat(html).contains("/onboard.html");
-        assertThat(html).contains("journey code");
+        assertThat(html).contains("Apply");
+        assertThat(html).contains("Connect accounts");
+        assertThat(html).contains("Revenue");
+        assertThat(html).contains("Agriculture");
+        assertThat(html).contains("DBT");
         assertThat(html).contains("AUTH STUBBED");
-        assertThat(html).contains("id=\"applyGate\"");
-        assertThat(html).contains("id=\"applyReady\"");
-        assertThat(html).contains("id=\"applyReady\" hidden");
-        assertThat(html).contains("id=\"langEn\"");
-        assertThat(html).contains("id=\"langMr\"");
-        assertThat(html).contains("data-text");
-        assertThat(html).contains("class=\"util\"");
-        assertThat(html).contains("id=\"journeyPick\"");
+        assertThat(html).contains("DigiLocker sandbox");
+        assertThat(html).contains("Officer login");
+        assertThat(html).contains("of 3");
         assertThat(html).contains("/scholarship/");
         assertThat(html).contains("/licence/");
-        assertThat(html).contains("FARMER_SUBSIDY");
-        assertThat(html.indexOf("id=\"applyReady\"")).isLessThan(html.indexOf("class=\"steps\""));
-        assertThat(html).doesNotContain("Apply for scholarship");
         assertThat(html).doesNotContain("Control plane");
+        assertThat(html).doesNotContain("Apply for scholarship");
+        assertThat(html).doesNotContain("/caller.html");
         assertThat(html).doesNotContain("X-Auth-Jti");
+        assertThat(html).doesNotContain("id=\"journeyPick\"");
+        assertThat(html).doesNotContain("Bind a catalog journey");
 
-        assertThat(js).contains("/onboard.html");
-        assertThat(js).contains("/api/catalog/journeys/");
-        assertThat(js).contains("/api/catalog/departments");
-        assertThat(js).contains("mhFarmerJourney");
-        assertThat(js).contains("loadBoundJourney");
-        assertThat(js).contains("applyLang");
-        assertThat(js).doesNotContain("replaceAll");
+        assertThat(js).contains("FARMER_SUBSIDY");
+        assertThat(js).contains("AGRICULTURE");
+        assertThat(js).contains("LAND_PARCEL");
+        assertThat(js).contains("CROP_RECORD");
+        assertThat(js).contains("BANK_ACCOUNT");
+        assertThat(js).contains("/api/journeys/");
+        assertThat(js).contains("agriculture-rest-mock");
+        assertThat(js).contains("/farmer/");
+        assertThat(js).doesNotContain("POST_MATRIC_SCHOLARSHIP");
         assertThat(js).doesNotContain("BUSINESS_NOC");
-        assertThat(js).doesNotContain("/api/journeys/FARMER_SUBSIDY/start");
+        assertThat(js).doesNotContain("mhFarmerJourney");
+        assertThat(js).doesNotContain("id=\"journeyPick\"");
     }
 
     @Test
@@ -91,7 +92,7 @@ class CivicPortalsStaticPagesTest {
         assertThat(root).contains("/licence/");
         assertThat(root).contains("Apply for licence");
         assertThat(root).contains("/farmer/");
-        assertThat(root).contains("Farmer subsidy");
+        assertThat(root).contains("Apply for farmer subsidy");
         assertThat(root).contains("service-grid");
         assertThat(root).contains("service-card");
         assertThat(root).contains("class=\"util\"");

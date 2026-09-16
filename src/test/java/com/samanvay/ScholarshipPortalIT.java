@@ -40,7 +40,10 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
         assertThat(licence).contains("Apply for licence");
         assertThat(licence).contains("Government of Maharashtra");
         assertThat(farmer).contains("Farmer subsidy");
-        assertThat(farmer).contains("/onboard.html");
+        assertThat(farmer).contains("Connect accounts");
+        assertThat(farmer).contains("Agriculture");
+        assertThat(farmer).doesNotContain("/onboard.html");
+        assertThat(farmer).doesNotContain("Bind a catalog journey");
     }
 
     @Test

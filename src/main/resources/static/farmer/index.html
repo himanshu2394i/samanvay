@@ -15,7 +15,7 @@
 
   <div class="util">
     <div class="util-inner">
-      <p class="lang-switch" role="group" aria-label="Language">
+      <p class="lang-switch" role="group" aria-label="Language" title="Marathi: headings and navigation only (demonstration).">
         <button type="button" id="langEn" data-lang="en" aria-pressed="true">English</button>
         <button type="button" id="langMr" data-lang="mr" lang="mr" aria-pressed="false">मराठी</button>
       </p>
@@ -34,76 +34,77 @@
         <svg viewBox="0 0 48 48" width="48" height="48" focusable="false">
           <circle cx="24" cy="24" r="22" fill="none" stroke="#ffd37a" stroke-width="2"/>
           <circle cx="24" cy="24" r="7" fill="none" stroke="#ffd37a" stroke-width="1.5"/>
+          <g stroke="#ffd37a" stroke-width="1.5">
+            <line x1="24" y1="4" x2="24" y2="16"/>
+            <line x1="24" y1="32" x2="24" y2="44"/>
+            <line x1="4" y1="24" x2="16" y2="24"/>
+            <line x1="32" y1="24" x2="44" y2="24"/>
+            <line x1="9.9" y1="9.9" x2="18.4" y2="18.4"/>
+            <line x1="29.6" y1="29.6" x2="38.1" y2="38.1"/>
+            <line x1="38.1" y1="9.9" x2="29.6" y2="18.4"/>
+            <line x1="18.4" y1="29.6" x2="9.9" y2="38.1"/>
+          </g>
         </svg>
       </div>
       <div>
         <p class="gov" lang="mr">महाराष्ट्र शासन</p>
         <p class="gov">Government of Maharashtra — Farmer subsidy</p>
-        <p class="dept">Bind a catalog journey — seeded FARMER_SUBSIDY, or a new code after you onboard.</p>
+        <p class="dept">Department of Agriculture · Farmer subsidy</p>
       </div>
     </div>
   </header>
 
   <nav class="bar" aria-label="Farmer subsidy">
     <ul role="list">
-      <li><a href="#bind" data-nav="bind">Onboard</a></li>
-      <li><a href="#apply" data-nav="apply">Apply</a></li>
-      <li><a href="#status" data-nav="status">Track application</a></li>
-      <li><a href="#officer" data-nav="officer">Officer desk</a></li>
+      <li><a href="#scheme" data-nav="scheme" data-i18n="nav.scheme">Scheme</a></li>
+      <li><a href="#apply" data-nav="apply" data-i18n="nav.apply">Apply</a></li>
+      <li><a href="#status" data-nav="status" data-i18n="nav.status">Track application</a></li>
+      <li><a href="#officer" data-nav="officer" data-i18n="nav.officer">Officer desk</a></li>
     </ul>
   </nav>
 
   <main id="content" tabindex="-1">
-    <section id="view-bind">
-      <p class="crumb"><a href="/">Home</a> / Farmer subsidy / Onboard</p>
+    <section id="view-scheme">
+      <p class="crumb"><a href="/">Home</a> / Agriculture / Farmer subsidy</p>
       <div class="scheme-split">
         <div>
-          <h1 data-i18n="scheme.title">Farmer subsidy</h1>
-          <p class="lede" data-i18n="scheme.lede">Use published code <strong>FARMER_SUBSIDY</strong>, or onboard a <em>new</em> journey then paste that catalog <strong>journey code</strong> here. Apply stays closed until the catalog accepts the code.</p>
+          <h1 data-i18n="scheme.title"><span data-i18n-text>Farmer subsidy</span> <span lang="mr" class="hi">/ शेतकरी अनुदान</span></h1>
+          <p class="lede" data-i18n="scheme.lede">Income support for eligible cultivators. This service collects only the consent you give, then checks land, crop, and bank records already held by Revenue, Agriculture, and DBT. You do not upload documents here.</p>
           <p class="scheme-actions">
-            <a class="btn" href="/onboard.html">Open onboard wizard</a>
+            <a class="btn primary" href="#apply" data-nav="apply">Apply for farmer subsidy</a>
+            <a class="btn" href="#status" data-nav="status">Track an application</a>
           </p>
-          <form id="bindForm" action="/farmer/" method="get">
-            <div class="field">
-              <label for="journeyPick">Published journeys</label>
-              <select id="journeyPick" name="journeyPick">
-                <option value="">Loading published journeys…</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="journeyCode">Catalog journey code</label>
-              <input id="journeyCode" name="journeyCode" required maxlength="80" autocomplete="off" aria-describedby="journeyHint"/>
-              <p id="journeyHint" class="hint">Seeded demo code: FARMER_SUBSIDY. After you onboard something else, type that exact journey code from Published schemes.</p>
-            </div>
-            <p id="bindStatus" class="status" aria-live="polite"></p>
-            <button type="submit" class="btn primary">Use this journey</button>
-          </form>
         </div>
         <aside class="scheme-rail">
-          <h2>What binding means</h2>
+          <h2>How this service works</h2>
           <ol class="how">
-            <li>Optional: use <a href="/onboard.html">/onboard.html</a> to register department, source, mappings, test, and publish a new journey.</li>
-            <li>Or use the already published FARMER_SUBSIDY code.</li>
-            <li>Paste the journey code here so this farmer skin can start it.</li>
+            <li>Fill the name and date of birth used on land and farmer records.</li>
+            <li>Link the three department accounts this subsidy needs. This is not a document upload list.</li>
+            <li>Read the consent in plain language and agree to share those records for eligibility.</li>
+            <li>Submit, then track status in everyday words: submitted, in progress, needs action, or completed.</li>
           </ol>
-          <p id="boundLabel" class="progress" role="status"></p>
+          <dl class="facts">
+            <div><dt>Scheme year</dt><dd>2026–27</dd></div>
+            <div><dt>Who can apply</dt><dd>Cultivators in Maharashtra with a land parcel and crop record</dd></div>
+            <div><dt>What is checked</dt><dd>Land parcel (Revenue), crop record (Agriculture), bank account for payment (DBT)</dd></div>
+          </dl>
         </aside>
       </div>
     </section>
 
     <section id="view-apply" hidden>
       <div class="apply-shell">
-      <h1>Apply for farmer subsidy</h1>
-      <p id="applyGate" class="callout honesty" hidden>Bind a journey code on Onboard first. This apply form stays closed until the catalog accepts that code.</p>
-      <div id="applyReady" hidden>
+      <h1 data-i18n="apply.title">Apply for farmer subsidy</h1>
       <ol class="steps" role="list" aria-label="Application steps">
         <li data-step="details">1. Applicant</li>
         <li data-step="connect">2. Connect accounts</li>
         <li data-step="consent">3. Consent</li>
         <li data-step="submit">4. Submit</li>
       </ol>
+
       <div id="panel-details">
-        <h2>Applicant details</h2>
+        <h2>Applicant details <span lang="mr" class="hi">/ अर्जदाराची माहिती</span></h2>
+        <p class="lede">Enter the name and date of birth used on land and farmer records. Next you will link department accounts — you will not be asked to paste identity numbers from other systems.</p>
         <form id="detailsForm" action="/farmer/" method="get">
           <div class="field">
             <label for="givenName">Given name / <span lang="mr">नाव</span></label>
@@ -131,16 +132,17 @@
             <label class="choice"><input type="radio" name="gender" value="M"/> Male</label>
             <label class="choice"><input type="radio" name="gender" value="O"/> Other</label>
           </fieldset>
+          <p class="hint">You will next connect department accounts. This is not a document upload list.</p>
           <p id="detailsStatus" class="status" aria-live="polite"></p>
           <button type="submit" class="btn primary">Continue to connect accounts</button>
         </form>
       </div>
 
       <div id="panel-connect" hidden>
-        <h2>Connect accounts</h2>
-        <p>Connect the departments this journey needs. DigiLocker sandbox and OTP demo are labelled mocks.</p>
+        <h2>Connect accounts <span lang="mr" class="hi">/ खाती जोडा</span></h2>
+        <p>This subsidy needs three department accounts — Revenue, Agriculture, and DBT. Connect only the departments below.</p>
         <p class="callout honesty"><strong>DigiLocker sandbox</strong> and <strong>OTP demo</strong> on this page are labelled mocks. They are <strong>not live SSO</strong>.</p>
-        <p id="connectProgress" class="progress" role="status">Linked 0 of 0 departments</p>
+        <p id="connectProgress" class="progress" role="status">Linked 0 of 3 departments</p>
         <div class="meter" aria-hidden="true"><span id="connectMeter"></span></div>
         <ul id="deptList" class="depts" role="list"></ul>
         <p id="connectStatus" class="status" aria-live="polite"></p>
@@ -150,7 +152,8 @@
       <div id="panel-consent" hidden>
         <h2>Consent to share records</h2>
         <form id="consentForm" action="/farmer/" method="get">
-          <p id="consentCopy">I agree to share the department records this subsidy needs.</p>
+          <p>I agree to share land parcel from Revenue, crop record from Agriculture, and bank details from DBT so this farmer subsidy application can be checked for eligibility.</p>
+          <p lang="mr">मी महसूल, कृषी आणि DBT नोंदी शेतकरी अनुदानासाठी देण्यास सहमत आहे.</p>
           <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records your agreement with a labelled session. This is not live Aadhaar login and not live SSO.</p>
           <label class="choice">
             <input type="checkbox" id="consentCheck" name="consent" required/>
@@ -161,15 +164,16 @@
         <p id="submitStatus" class="status" aria-live="polite"></p>
       </div>
       </div>
-      </div>
     </section>
 
     <section id="view-status" hidden>
-      <h1>Application status</h1>
+      <h1>Application status <span lang="mr" class="hi">/ अर्जाची स्थिती</span></h1>
+      <p class="lede">Enter the application number shown after you submit. Status is written in everyday words — not technical codes.</p>
       <form id="trackForm" action="/farmer/" method="get">
         <div class="field">
           <label for="referenceNo">Application number</label>
-          <input id="referenceNo" name="referenceNo" autocomplete="off" required maxlength="40"/>
+          <input id="referenceNo" name="referenceNo" autocomplete="off" required maxlength="40" aria-describedby="refHint"/>
+          <p id="refHint" class="hint">Shown after you submit. Example shape: MH-FAR-2026-000123</p>
         </div>
         <button type="submit" class="btn primary">Check status</button>
       </form>
@@ -178,11 +182,12 @@
     </section>
 
     <section id="view-officer" hidden>
-      <h1>Officer desk</h1>
-      <p class="lede">Review applications for the journey you bound. Status is written for officers.</p>
+      <h1 data-i18n="officer.title"><span data-i18n-text>Officer desk</span> <span lang="mr" class="hi">/ अधिकारी कक्ष</span></h1>
+      <p class="lede" data-i18n="officer.lede">Review farmer subsidy applications. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.</p>
+
       <div id="officerLogin">
         <h2>Officer login</h2>
-        <p class="callout honesty"><strong>Officer login.</strong> This is a demonstration — not SSO. Use officer ID <code>officer</code> and password <code>demo-2026</code>.</p>
+        <p class="callout honesty"><strong>Officer login.</strong> This is a demonstration — not SSO. This desk is labelled as a demonstration. Use officer ID <code>officer</code> and password <code>demo-2026</code>.</p>
         <form id="officerLoginForm" action="/farmer/" method="get">
           <div class="field">
             <label for="officerUser">Officer ID</label>
@@ -196,8 +201,17 @@
           <button type="submit" class="btn primary">Sign in to officer desk</button>
         </form>
       </div>
+
       <div id="officerWork" hidden>
         <p class="callout honesty"><strong>AUTH STUBBED.</strong> Officer session is a labelled demonstration. This is not live SSO.</p>
+        <details class="demo-controls">
+          <summary>Demonstration: department records unavailable</summary>
+          <p>For the live demo only: mark Agriculture records unavailable, then restore them. Officers retry the application after the department is back. This needs the demonstration profile; otherwise the service reports that the control is not available.</p>
+          <p class="row">
+            <button type="button" class="btn" id="agriDown">Mark Agriculture records unavailable</button>
+            <button type="button" class="btn" id="agriUp">Restore Agriculture records</button>
+          </p>
+        </details>
         <p id="officerCounts" class="progress" role="status"></p>
         <p id="officerMsg" class="status" aria-live="polite"></p>
         <div id="officerTable"></div>
@@ -241,10 +255,10 @@
   </dialog>
 
   <footer>
-    <p>Government of Maharashtra — Farmer subsidy. Bind a catalog journey before applying.</p>
+    <p>Government of Maharashtra — Farmer subsidy. Content for SIH demonstration only.</p>
     <p class="cutaway">Other citizen services: <a href="/">Home</a> · <a href="/scholarship/">Scholarship</a> · <a href="/licence/">Licence</a></p>
     <p class="cutaway">Optional SIH cutaway after the citizen and officer beats (not the citizen product): <a href="/demo.html">Samanvay operations</a> · <a href="/schemes.html">Published schemes</a> · <a href="/audit.html">Audit</a></p>
   </footer>
-  <script src="/farmer/portal.js?v=civic4"></script>
+  <script src="/farmer/portal.js?v=civic6"></script>
 </body>
 </html>

@@ -1,24 +1,65 @@
-const KEY_JOURNEY = "mhFarmerJourney";
+const JOURNEY = "FARMER_SUBSIDY";
 const KEY_CITIZEN = "mhFarmerCitizen";
 const KEY_REF = "mhFarmerRef";
 const KEY_OFFICER = "officerDemoFarmer";
-const KEY_CASE = "mhFarmerOfficerCase";
 const KEY_LANG = "mhFarmerLang";
+const KEY_CASE = "mhFarmerOfficerCase";
+const AGRI_SOURCE = "agriculture-rest-mock";
+const DEPTS = [
+  {
+    code: "REVENUE",
+    name: "Revenue Department",
+    hi: "महसूल विभाग",
+    shares: "land parcel",
+  },
+  {
+    code: "AGRICULTURE",
+    name: "Agriculture Department",
+    hi: "कृषी विभाग",
+    shares: "crop record",
+  },
+  {
+    code: "DBT",
+    name: "Direct Benefit Transfer (DBT)",
+    hi: "थेट लाभ हस्तांतरण",
+    shares: "bank account for subsidy payment",
+  },
+];
 
-let catalogJourney = null;
-let depts = [];
-let deptNames = {};
+const STATUS_COPY = {
+  SUBMITTED: { kind: "ok", text: "Submitted — your application has been received." },
+  VERIFIED: { kind: "ok", text: "Completed — department records were received for eligibility." },
+  REJECTED: { kind: "bad", text: "Needs action — this application was not approved." },
+  CLOSED: { kind: "ok", text: "Completed — this application is closed." },
+  FAILED: { kind: "bad", text: "Needs action — a department record could not be fetched." },
+};
 
 const I18N = {
   en: {
+    "nav.scheme": "Scheme",
+    "nav.apply": "Apply",
+    "nav.status": "Track application",
+    "nav.officer": "Officer desk",
     "scheme.title": "Farmer subsidy",
     "scheme.lede":
-      "Use published code FARMER_SUBSIDY, or onboard a new journey then paste that catalog journey code here. Apply stays closed until the catalog accepts the code.",
+      "Income support for eligible cultivators. This service collects only the consent you give, then checks land, crop, and bank records already held by Revenue, Agriculture, and DBT. You do not upload documents here.",
+    "apply.title": "Apply for farmer subsidy",
+    "officer.title": "Officer desk",
+    "officer.lede":
+      "Review farmer subsidy applications. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.",
   },
   mr: {
+    "nav.scheme": "योजना",
+    "nav.apply": "अर्ज",
+    "nav.status": "अर्जाचा पाठपुरावा",
+    "nav.officer": "अधिकारी कक्ष",
     "scheme.title": "शेतकरी अनुदान",
     "scheme.lede":
-      "प्रकाशित प्रवास संकेत वापरा, किंवा नव्याने ऑनबोर्ड करून तो संकेत येथे लिहा. कॅटलॉग स्वीकारेपर्यंत अर्ज बंद राहतो.",
+      "पात्र शेतकऱ्यांसाठी उत्पन्न आधार. येथे कागदपत्रे अपलोड करू नका — महसूल, कृषी आणि DBT नोंदी तपासल्या जातात.",
+    "apply.title": "शेतकरी अनुदानासाठी अर्ज",
+    "officer.title": "अधिकारी कक्ष",
+    "officer.lede":
+      "या योजनेतील अर्ज तपासा. स्थिती अधिकाऱ्यांसाठी आहे: प्राप्त, प्रगतीत, कृती आवश्यक, किंवा पूर्ण. कोणत्या विभाग नोंदी आल्या हे पाहण्यासाठी अर्ज क्रमांक उघडा.",
   },
 };
 
@@ -29,7 +70,10 @@ function applyLang(lang) {
   sessionStorage.setItem(KEY_LANG, use);
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const text = pack[el.dataset.i18n];
-    if (text) el.textContent = text;
+    if (!text) return;
+    const primary = el.querySelector("[data-i18n-text]");
+    if (primary) primary.textContent = text;
+    else if (!el.children.length) el.textContent = text;
   });
   const enBtn = document.getElementById("langEn");
   const mrBtn = document.getElementById("langMr");
@@ -37,16 +81,10 @@ function applyLang(lang) {
   if (mrBtn) mrBtn.setAttribute("aria-pressed", String(use === "mr"));
 }
 
-function humanize(code) {
-  return String(code || "").split("_").join(" ").toLowerCase();
-}
-
-const STATUS_COPY = {
-  SUBMITTED: { kind: "ok", text: "Submitted — your application has been received." },
-  VERIFIED: { kind: "ok", text: "Completed — department records were received for eligibility." },
-  REJECTED: { kind: "bad", text: "Needs action — this application was not approved." },
-  CLOSED: { kind: "ok", text: "Completed — this application is closed." },
-  FAILED: { kind: "bad", text: "Needs action — a department record could not be fetched." },
+const STEP_COPY = {
+  LAND_PARCEL: "Land parcel (Revenue)",
+  CROP_RECORD: "Crop record (Agriculture)",
+  BANK_ACCOUNT: "Bank account (DBT)",
 };
 
 const STEP_STATUS = {
@@ -111,10 +149,6 @@ function citizenId() {
   return sessionStorage.getItem(KEY_CITIZEN);
 }
 
-function boundCode() {
-  return (sessionStorage.getItem(KEY_JOURNEY) || "").trim();
-}
-
 function when(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -123,112 +157,13 @@ function when(iso) {
 }
 
 function currentView() {
-  const h = (location.hash || "#bind").replace("#", "");
-  return ["bind", "apply", "status", "officer"].includes(h) ? h : "bind";
-}
-
-function deptsFromPolicy(journey) {
-  const sources = (journey.policy && journey.policy.sources) || {};
-  const seen = new Set();
-  const rows = [];
-  Object.keys(sources).forEach((category) => {
-    const code = sources[category];
-    if (!code || seen.has(code)) return;
-    seen.add(code);
-    rows.push({
-      code,
-      name: deptNames[code] || code + " department",
-      shares: humanize(category),
-    });
-  });
-  return rows;
-}
-
-async function loadDeptNames() {
-  try {
-    const rows = await api("/api/catalog/departments");
-    deptNames = {};
-    (rows || []).forEach((d) => {
-      if (d && d.code) deptNames[d.code] = d.name || d.code;
-    });
-  } catch {
-    deptNames = {};
-  }
-}
-
-async function fillJourneyPick() {
-  const pick = document.getElementById("journeyPick");
-  if (!pick) return;
-  try {
-    const journeys = await api("/api/catalog/journeys");
-    const current = boundCode();
-    pick.innerHTML =
-      '<option value="">Choose a published journey</option>' +
-      (journeys || [])
-        .map((j) => {
-          const code = j.code || "";
-          const sel = code === current ? " selected" : "";
-          return `<option value="${esc(code)}"${sel}>${esc(j.name || code)} (${esc(code)})</option>`;
-        })
-        .join("");
-  } catch {
-    pick.innerHTML = '<option value="">Catalog journeys could not be listed. Type a code.</option>';
-  }
-}
-
-async function loadBoundJourney() {
-  const code = boundCode();
-  const label = document.getElementById("boundLabel");
-  const gate = document.getElementById("applyGate");
-  const ready = document.getElementById("applyReady");
-  catalogJourney = null;
-  depts = [];
-  if (!code) {
-    if (label) label.textContent = "No journey code yet. Onboard first, then enter the code.";
-    if (gate) gate.hidden = false;
-    if (ready) ready.hidden = true;
-    return null;
-  }
-  try {
-    catalogJourney = await api("/api/catalog/journeys/" + encodeURIComponent(code));
-    await loadDeptNames();
-    depts = deptsFromPolicy(catalogJourney);
-    if (label) {
-      label.textContent =
-        "Using catalog journey " + catalogJourney.code + (catalogJourney.name ? " — " + catalogJourney.name : "") + ".";
-    }
-    if (gate) gate.hidden = true;
-    if (ready) ready.hidden = false;
-    const copy = document.getElementById("consentCopy");
-    if (copy) {
-      copy.textContent =
-        "I agree to share records from " +
-        depts.map((d) => d.code).join(", ") +
-        " so this farmer subsidy application can be checked.";
-    }
-    return catalogJourney;
-  } catch (e) {
-    if (label) {
-      label.textContent =
-        e && e.status === 404
-          ? "That journey code is not in the catalog. Finish onboarding at /onboard.html, then try again."
-          : friendly(e);
-    }
-    if (gate) gate.hidden = false;
-    if (ready) ready.hidden = true;
-    return null;
-  }
+  const h = (location.hash || "#scheme").replace("#", "");
+  return ["scheme", "apply", "status", "officer"].includes(h) ? h : "scheme";
 }
 
 function showView(opts) {
-  if ((currentView() === "apply" || currentView() === "officer") && !boundCode()) {
-    if ((location.hash || "") !== "#bind") {
-      location.hash = "bind";
-      return;
-    }
-  }
   const view = currentView();
-  ["bind", "apply", "status", "officer"].forEach((name) => {
+  ["scheme", "apply", "status", "officer"].forEach((name) => {
     const el = document.getElementById("view-" + name);
     if (el) el.hidden = name !== view;
   });
@@ -274,40 +209,8 @@ function showApplyPanel(name) {
   markStep(name === "consent" ? "consent" : name);
 }
 
-document.getElementById("bindForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const code = document.getElementById("journeyCode").value.trim();
-  const btn = event.target.querySelector("[type=submit]");
-  const statusEl = document.getElementById("bindStatus");
-  setBusy(btn, true, "Looking up catalog…");
-  try {
-    await api("/api/catalog/journeys/" + encodeURIComponent(code));
-    sessionStorage.setItem(KEY_JOURNEY, code);
-    setStatus(statusEl, "ok", "Journey bound. Continue to Apply.");
-    announce("Journey bound");
-    await loadBoundJourney();
-    location.hash = "apply";
-    showView({ focus: true });
-  } catch (e) {
-    setStatus(
-      statusEl,
-      "bad",
-      e && e.status === 404
-        ? "No published journey with that code. Use /onboard.html, then enter the journey code again."
-        : friendly(e)
-    );
-  } finally {
-    setBusy(btn, false);
-  }
-});
-
 document.getElementById("detailsForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!boundCode() || !catalogJourney) {
-    setStatus(document.getElementById("detailsStatus"), "warn", "Bind a journey code on Onboard first.");
-    location.hash = "bind";
-    return;
-  }
   const btn = event.target.querySelector("[type=submit]");
   const statusEl = document.getElementById("detailsStatus");
   setBusy(btn, true, "Saving…");
@@ -344,10 +247,9 @@ document.getElementById("detailsForm").addEventListener("submit", async (event) 
 async function linkedCodes() {
   const id = citizenId();
   if (!id) return new Set();
-  const journey = boundCode();
   try {
     const view = await api(
-      "/api/identity/citizens/" + encodeURIComponent(id) + "/connect-accounts?journeyCode=" + encodeURIComponent(journey)
+      "/api/identity/citizens/" + encodeURIComponent(id) + "/connect-accounts?journeyCode=" + encodeURIComponent(JOURNEY)
     );
     return new Set((view.departments || []).filter((d) => d.linked).map((d) => d.departmentCode));
   } catch {
@@ -357,21 +259,16 @@ async function linkedCodes() {
 }
 
 function setConnectProgress(n) {
-  const total = depts.length;
+  const total = DEPTS.length;
   const el = document.getElementById("connectProgress");
   const meter = document.getElementById("connectMeter");
   if (el) el.textContent = "Linked " + n + " of " + total + " departments";
-  if (meter) meter.style.width = total ? Math.round((n / total) * 100) + "%" : "0%";
+  if (meter) meter.style.width = Math.round((n / total) * 100) + "%";
 }
 
 async function renderDepts() {
   const list = document.getElementById("deptList");
   if (!list) return;
-  if (!catalogJourney) {
-    list.innerHTML = "";
-    document.getElementById("toConsent").disabled = true;
-    return;
-  }
   let linked = new Set();
   try {
     linked = await linkedCodes();
@@ -379,11 +276,10 @@ async function renderDepts() {
     setStatus(document.getElementById("connectStatus"), "bad", friendly(e));
   }
   setConnectProgress(linked.size);
-  list.innerHTML = depts
-    .map((d) => {
-      const ok = linked.has(d.code);
-      return `<li class="dept-card${ok ? " ok" : ""}" data-dept="${esc(d.code)}">
-      <h3>${esc(d.name)}
+  list.innerHTML = DEPTS.map((d) => {
+    const ok = linked.has(d.code);
+    return `<li class="dept-card${ok ? " ok" : ""}" data-dept="${esc(d.code)}">
+      <h3>${esc(d.name)} <span lang="hi" class="hi">/ ${esc(d.hi)}</span>
         <span class="badge ${ok ? "ok" : ""}">${ok ? "Connected" : "Not connected"}</span></h3>
       <p>Needed for this scheme: ${esc(d.shares)}.</p>
       ${
@@ -395,9 +291,8 @@ async function renderDepts() {
       </div>`
       }
     </li>`;
-    })
-    .join("");
-  document.getElementById("toConsent").disabled = !depts.length || depts.some((d) => !linked.has(d.code));
+  }).join("");
+  document.getElementById("toConsent").disabled = DEPTS.some((d) => !linked.has(d.code));
 }
 
 document.getElementById("deptList").addEventListener("click", (event) => {
@@ -422,7 +317,7 @@ function openProof(dept, kind) {
   const body = document.getElementById("proofBody");
   const err = document.getElementById("otpError");
   if (err) err.hidden = true;
-  const deptName = (depts.find((d) => d.code === dept) || { name: dept }).name;
+  const deptName = DEPTS.find((d) => d.code === dept).name;
   if (kind === "digilocker") {
     otp.hidden = true;
     title.textContent = "DigiLocker sandbox";
@@ -450,7 +345,7 @@ document.getElementById("proofForm").addEventListener("submit", async (event) =>
   if (!submitter || submitter.value === "cancel" || !pendingProof) return;
   event.preventDefault();
   const { dept, kind } = pendingProof;
-  if (kind === "otp") {
+    if (kind === "otp") {
     const otp = document.getElementById("otp").value.trim();
     const err = document.getElementById("otpError");
     if (otp !== "000000") {
@@ -501,22 +396,21 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
   event.preventDefault();
   const btn = document.getElementById("submitBtn");
   const statusEl = document.getElementById("submitStatus");
-  if (!citizenId() || !catalogJourney) {
-    setStatus(statusEl, "warn", "Bind a journey and connect accounts first.");
+  if (!citizenId()) {
+    setStatus(statusEl, "warn", "Fill applicant details and connect accounts first.");
     return;
   }
   setBusy(btn, true, "Submitting…");
   try {
-    const policy = catalogJourney.policy || {};
     const req = await api("/api/consent/requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         citizenId: citizenId(),
-        requesterId: policy.requester,
-        purposeCode: policy.purpose || catalogJourney.code,
-        purposeText: "farmer subsidy eligibility using onboarded catalog journey",
-        categories: catalogJourney.requiredCategories || [],
+        requesterId: "AGRICULTURE",
+        purposeCode: "FARMER_SUBSIDY",
+        purposeText: "share land parcel, crop record, and bank account for farmer subsidy",
+        categories: ["LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT"],
       }),
     });
     await api("/api/consent/requests/" + req.id + "/grant", {
@@ -524,8 +418,7 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
       headers: { "Content-Type": "application/json", "X-Auth-Jti": "ui-session" },
       body: JSON.stringify({ citizenId: citizenId() }),
     });
-    const startPath = "/api/journeys/" + encodeURIComponent(catalogJourney.code) + "/start";
-    await api(startPath, {
+    await api("/api/journeys/" + encodeURIComponent(JOURNEY) + "/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ citizenId: citizenId(), submission: {} }),
@@ -573,7 +466,7 @@ function humanStatus(code) {
 }
 
 function humanStep(step) {
-  const name = humanize(step.stepCode || "Department record");
+  const name = STEP_COPY[step.stepCode] || "Department record";
   const st = STEP_STATUS[step.status] || "In progress";
   return name + " — " + st;
 }
@@ -643,13 +536,9 @@ async function loadOfficer() {
   if (counts) counts.textContent = "";
   try {
     const apps = await api("/api/applications?size=20");
-    const code = boundCode();
-    const rows = (apps || []).filter((a) => a.journeyCode === code);
-    const schemeName = (catalogJourney && (catalogJourney.name || catalogJourney.code)) || "Bound journey";
+    const rows = (apps || []).filter((a) => a.journeyCode === JOURNEY);
     if (!rows.length) {
-      box.innerHTML = boundCode()
-        ? "<p>No applications yet for the bound journey. Wait for a citizen submit.</p>"
-        : "<p>Bind a journey code on Onboard first.</p>";
+      box.innerHTML = "<p>No farmer subsidy applications yet. When a citizen submits, the application appears here for review.</p>";
       setStatus(msg, "", "");
       return;
     }
@@ -662,7 +551,7 @@ async function loadOfficer() {
           const st = humanStatus(a.status);
           const due = when(a.slaDueAt) || "—";
           return `<tr><td><a href="#officer" data-ref="${esc(a.referenceNo)}">${esc(a.referenceNo)}</a></td>
-            <td>${esc(schemeName)}</td>
+            <td>Farmer subsidy</td>
             <td><span class="chip ${esc(st.kind)}">${esc(st.text)}</span></td>
             <td>${esc(due)}</td></tr>`;
         })
@@ -698,6 +587,7 @@ async function loadOfficerCase(ref) {
       <p><strong>Status:</strong> <span class="chip ${esc(status.kind)}">${esc(status.text)}</span></p>
       <h3>Department records</h3>
       <ol class="timeline">${items || "<li>Waiting for department checks to appear.</li>"}</ol>
+      ${mine.length ? `<p>A department record could not be fetched. Restore the department if it was marked unavailable, then Retry.</p>` : ""}
     </article>`;
     if (retryBtn) {
       retryBtn.hidden = !needsRetry;
@@ -710,6 +600,29 @@ async function loadOfficerCase(ref) {
     }
     body.hidden = true;
     if (retryBtn) retryBtn.hidden = true;
+  }
+}
+
+async function flipFire(act, btn) {
+  setBusy(btn, true, act === "kill" ? "Marking unavailable…" : "Restoring…");
+  try {
+    await api("/api/connector/chaos/" + encodeURIComponent(AGRI_SOURCE) + "/" + act, { method: "POST" });
+    setStatus(
+      document.getElementById("officerMsg"),
+      "ok",
+      act === "kill"
+        ? "Agriculture records are marked unavailable for this demonstration."
+        : "Agriculture records are available again. Open an application that needs action and Retry."
+    );
+    announce(act === "kill" ? "Agriculture records unavailable" : "Agriculture records restored");
+  } catch (e) {
+    const msg =
+      e && e.status === 404
+        ? "This demonstration control is not available on this boot. Restart with the demonstration profile, then try again."
+        : friendly(e);
+    setStatus(document.getElementById("officerMsg"), "bad", msg);
+  } finally {
+    setBusy(btn, false);
   }
 }
 
@@ -744,6 +657,8 @@ document.getElementById("officerSignOut").addEventListener("click", () => {
   sessionStorage.removeItem(KEY_CASE);
   renderOfficer();
 });
+document.getElementById("agriDown").addEventListener("click", (event) => flipFire("kill", event.currentTarget));
+document.getElementById("agriUp").addEventListener("click", (event) => flipFire("revive", event.currentTarget));
 document.getElementById("officerRetry").addEventListener("click", async (event) => {
   const btn = event.currentTarget;
   const id = btn.dataset.instance;
@@ -762,6 +677,8 @@ document.getElementById("officerRetry").addEventListener("click", async (event) 
     setBusy(btn, false);
   }
 });
+document.getElementById("langEn").addEventListener("click", () => applyLang("en"));
+document.getElementById("langMr").addEventListener("click", () => applyLang("mr"));
 
 function friendly(e) {
   const msg = (e && e.message) || "Something went wrong. Try again.";
@@ -775,19 +692,24 @@ function friendly(e) {
   return msg;
 }
 
+document.addEventListener("blur", (event) => {
+  const input = event.target;
+  if (!input.matches?.("input")) return;
+  if (input.matches(":user-invalid")) input.setAttribute("aria-invalid", "true");
+  else input.removeAttribute("aria-invalid");
+}, true);
+
+document.addEventListener("input", (event) => {
+  if (event.target.hasAttribute?.("aria-invalid")) {
+    if (!event.target.matches(":user-invalid")) event.target.removeAttribute("aria-invalid");
+  }
+});
+
 document.querySelectorAll("[data-nav]").forEach((a) => {
   a.addEventListener("click", () => {
     location.hash = a.dataset.nav;
   });
 });
-
-document.getElementById("journeyPick")?.addEventListener("change", (event) => {
-  const code = event.target.value;
-  if (code) document.getElementById("journeyCode").value = code;
-});
-
-document.getElementById("langEn")?.addEventListener("click", () => applyLang("en"));
-document.getElementById("langMr")?.addEventListener("click", () => applyLang("mr"));
 
 document.querySelectorAll("[data-text]").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -798,13 +720,6 @@ document.querySelectorAll("[data-text]").forEach((btn) => {
 });
 
 window.addEventListener("hashchange", () => showView({ focus: true }));
-
-(async function boot() {
-  applyLang(sessionStorage.getItem(KEY_LANG) || "en");
-  const saved = boundCode();
-  if (saved) document.getElementById("journeyCode").value = saved;
-  showApplyPanel("details");
-  await fillJourneyPick();
-  await loadBoundJourney();
-  showView();
-})();
+showApplyPanel("details");
+applyLang(sessionStorage.getItem(KEY_LANG) || "en");
+showView();
