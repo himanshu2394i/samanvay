@@ -22,7 +22,7 @@ the platform is generic**, not as the product .
 | | |
 |---|---|
 | **P1** | Federated by default, indexed centrally |
-| **P2** | The control plane decides, the data plane moves |
+| **P2** |The control plane decides, the data plane moves|
 | **P3** | Machines propose, humans dispose, the decision is audited |
 | **P4** | The canonical model is a transport contract, not ownership |
 | **P5** | Concrete, then generalize, then prove |
