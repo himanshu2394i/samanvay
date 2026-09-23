@@ -71,6 +71,12 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(js).contains("/api/journeys/");
         assertThat(js).contains("POST_MATRIC_SCHOLARSHIP");
         assertThat(js).contains("/api/applications");
+        String shared = page("shared/records.js");
+        assertThat(shared).contains("/issued-records");
+        assertThat(shared).contains("/api/connector/issued-documents");
+        assertThat(shared).contains("DigiLocker");
+        assertThat(shared).contains("not stored");
+        assertThat(html).contains("/shared/records.js");
         assertThat(js).contains("X-Auth-Jti");
         assertThat(js).contains("DIGILOCKER");
         assertThat(js).contains("LOCAL_ID_OTP");
@@ -105,8 +111,10 @@ class ScholarshipPortalStaticPagesTest {
     void rootWelcomeSendsJudgesToTheScholarshipPortal() {
         String root = page("index.html");
         assertThat(root).contains("/scholarship/");
-        assertThat(root).contains("Scholarship Portal");
-        assertThat(root).contains("Apply for scholarship");
+        assertThat(root).contains("Scholarship");
+        assertThat(root).contains("/licence/");
+        assertThat(root).contains("/farmer/");
+        assertThat(root).contains("Citizen services");
         assertThat(root).doesNotContain("Control plane");
         assertThat(root).doesNotContain("nav-tools");
         assertThat(root).doesNotContain("IBM Plex");
@@ -125,6 +133,7 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("configuration");
         assertThat(html).contains("no new Java");
         assertThat(html).contains("/scholarship/");
+        assertThat(html).contains("/farmer/");
         assertThat(html).doesNotContain("Apply for scholarship");
         assertThat(html).contains("AUTH STUBBED");
         assertThat(html).contains("not live Keycloak");
