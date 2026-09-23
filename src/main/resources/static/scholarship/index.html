@@ -12,11 +12,11 @@
   <p id="live" class="visually-hidden" aria-live="polite"></p>
 
   <div class="tricolor" aria-hidden="true"></div>
-  <p class="sandbox"><strong>Demonstration portal.</strong> DigiLocker sandbox and OTP demo here are labelled mocks — not live DigiLocker, not live Aadhaar SSO, and no secrets are used. <strong>AUTH STUBBED</strong> — this is not live SSO.</p>
+  <p class="sandbox">Demonstration portal. DigiLocker sandbox and OTP demo are labelled mocks — not live DigiLocker, not live Aadhaar, and no secrets are used. <strong>AUTH STUBBED</strong> — this is not live SSO.</p>
 
   <div class="util">
     <div class="util-inner">
-      <p class="lang-switch" role="group" aria-label="Language">
+      <p class="lang-switch" role="group" aria-label="Language" title="Marathi: headings and navigation only (demonstration).">
         <button type="button" id="langEn" data-lang="en" aria-pressed="true">English</button>
         <button type="button" id="langMr" data-lang="mr" lang="mr" aria-pressed="false">मराठी</button>
       </p>
@@ -48,7 +48,7 @@
         </svg>
       </div>
       <div>
-        <p class="gov" lang="hi">महाराष्ट्र शासन</p>
+        <p class="gov" lang="mr">महाराष्ट्र शासन</p>
         <p class="gov">Government of Maharashtra — Scholarship Portal</p>
         <p class="dept">Directorate of Higher Education · Post-matric scholarship</p>
       </div>
@@ -66,28 +66,35 @@
 
   <main id="content" tabindex="-1">
     <section id="view-scheme">
-      <p class="crumb">Home / Scholarships / Post-matric</p>
-      <h1 data-i18n="scheme.title">Post-Matric Scholarship <span lang="hi" class="hi">/ उत्तर-माध्यमिक शिष्यवृत्ती</span></h1>
-      <p class="lede" data-i18n="scheme.lede">Post-matric scholarship on the pattern of MahaDBT. This portal does not ask you to upload PDFs. It pulls income and caste from Revenue (Aaple Sarkar), marks from Education, and bank from MahaDBT — through the middle layer, after consent. On this laptop those systems are mocks.</p>
-      <dl class="facts">
-        <div><dt>Scheme year</dt><dd>2026–27</dd></div>
-        <div><dt>Who can apply</dt><dd>Students studying after Class 10 in a recognised institution in Maharashtra</dd></div>
-        <div><dt>What is checked</dt><dd>Income and caste (Revenue), marks (Education), bank account for payment (DBT)</dd></div>
-      </dl>
-      <p>
-        <a class="btn primary" href="#apply" data-nav="apply">Apply for scholarship</a>
-        <a class="btn" href="#status" data-nav="status">Track an application</a>
-      </p>
-      <h2>How this service works</h2>
-      <ol class="how">
-        <li>Fill your name and date of birth — the same details as on your school or college record.</li>
-        <li>Link the three department accounts this scheme needs. This is not a document upload list.</li>
-        <li>Read the consent in plain language and agree to share those records for eligibility.</li>
-        <li>Submit, then track status in everyday words: submitted, in progress, needs action, or completed.</li>
-      </ol>
+      <p class="crumb"><a href="/">Home</a> / Scholarships / Post-matric</p>
+      <div class="scheme-split">
+        <div>
+          <h1 data-i18n="scheme.title"><span data-i18n-text>Post-Matric Scholarship</span> <span lang="mr" class="hi">/ उत्तर-माध्यमिक शिष्यवृत्ती</span></h1>
+          <p class="lede" data-i18n="scheme.lede">Financial assistance for eligible students after Class 10. This service collects only the consent you give, then checks eligibility using records already held by other departments. You do not upload documents here.</p>
+          <p class="scheme-actions">
+            <a class="btn primary" href="#apply" data-nav="apply">Apply for scholarship</a>
+            <a class="btn" href="#status" data-nav="status">Track an application</a>
+          </p>
+        </div>
+        <aside class="scheme-rail">
+          <h2>How this service works</h2>
+          <ol class="how">
+            <li>Fill your name and date of birth — the same details as on your school or college record.</li>
+            <li>Link the three department accounts this scheme needs. This is not a document upload list.</li>
+            <li>Read the consent in plain language and agree to share those records for eligibility.</li>
+            <li>Submit, then track status in everyday words: submitted, in progress, needs action, or completed.</li>
+          </ol>
+          <dl class="facts">
+            <div><dt>Scheme year</dt><dd>2026–27</dd></div>
+            <div><dt>Who can apply</dt><dd>Students studying after Class 10 in a recognised institution in Maharashtra</dd></div>
+            <div><dt>What is checked</dt><dd>Income and caste (Revenue), marks (Education), bank account for payment (DBT)</dd></div>
+          </dl>
+        </aside>
+      </div>
     </section>
 
     <section id="view-apply" hidden>
+      <div class="apply-shell">
       <h1 data-i18n="apply.title">Apply for scholarship</h1>
       <ol class="steps" role="list" aria-label="Application steps">
         <li data-step="details">1. Applicant</li>
@@ -97,20 +104,20 @@
       </ol>
 
       <div id="panel-details">
-        <h2>Applicant details <span lang="hi" class="hi">/ अर्जदाराची माहिती</span></h2>
+        <h2>Applicant details <span lang="mr" class="hi">/ अर्जदाराची माहिती</span></h2>
         <p class="lede">Enter the name and date of birth used in school or college records. Next you will link department accounts — you will not be asked to paste identity numbers from other systems.</p>
-        <form id="detailsForm" action="/scholarship/" method="post">
+        <form id="detailsForm" action="/scholarship/" method="get">
           <div class="field">
-            <label for="givenName">Given name / <span lang="hi">नाव</span></label>
+            <label for="givenName">Given name / <span lang="mr">नाव</span></label>
             <input id="givenName" name="givenName" autocomplete="given-name" required maxlength="100"/>
           </div>
           <div class="field">
-            <label for="familyName">Family name / <span lang="hi">आडनाव</span></label>
+            <label for="familyName">Family name / <span lang="mr">आडनाव</span></label>
             <input id="familyName" name="familyName" autocomplete="family-name" required maxlength="100"/>
           </div>
           <div class="field">
-            <label for="nameDevanagari">Name in Marathi (optional) / <span lang="hi">मराठी नाव</span></label>
-            <input id="nameDevanagari" name="nameDevanagari" lang="hi" maxlength="200"/>
+            <label for="nameDevanagari">Name in Marathi (optional) / <span lang="mr">मराठी नाव</span></label>
+            <input id="nameDevanagari" name="nameDevanagari" lang="mr" maxlength="200"/>
           </div>
           <div class="field">
             <label for="fatherName">Father’s / guardian’s name</label>
@@ -133,7 +140,7 @@
       </div>
 
       <div id="panel-connect" hidden>
-        <h2>Connect accounts <span lang="hi" class="hi">/ खाती जोडा</span></h2>
+        <h2>Connect accounts <span lang="mr" class="hi">/ खाती जोडा</span></h2>
         <p>This scheme needs three department accounts — not individual documents. Connect only the departments below.</p>
         <p class="callout honesty"><strong>DigiLocker sandbox</strong> and <strong>OTP demo</strong> on this page are labelled mocks. They are <strong>not live SSO</strong>.</p>
         <p id="connectProgress" class="progress" role="status">Linked 0 of 3 departments</p>
@@ -145,22 +152,23 @@
 
       <div id="panel-consent" hidden>
         <h2>Consent to share records</h2>
-        <form id="consentForm" action="/scholarship/" method="post">
+        <form id="consentForm" action="/scholarship/" method="get">
           <p>I agree to share income and caste from Revenue, marks from Education, and bank details from DBT so this scholarship application can be checked for eligibility.</p>
-          <p lang="hi">मी महसूल विभागाकडून उत्पन्न व जात, शिक्षण विभागाकडून गुण, आणि DBT कडून बँक तपशील शिष्यवृत्ती पात्रतेसाठी देण्यास सहमत आहे.</p>
-          <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records consent with a labelled session stub. This is not live Aadhaar login and not live SSO.</p>
+          <p lang="mr">मी महसूल विभागाकडून उत्पन्न व जात, शिक्षण विभागाकडून गुण, आणि DBT कडून बँक तपशील शिष्यवृत्ती पात्रतेसाठी देण्यास सहमत आहे.</p>
+          <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records your agreement with a labelled session. This is not live Aadhaar login and not live SSO.</p>
           <label class="choice">
             <input type="checkbox" id="consentCheck" name="consent" required/>
-            I have read this and I agree / <span lang="hi">मी सहमत आहे</span>
+            I have read this and I agree / <span lang="mr">मी सहमत आहे</span>
           </label>
           <button type="submit" class="btn primary" id="submitBtn">Submit application</button>
         </form>
         <p id="submitStatus" class="status" aria-live="polite"></p>
       </div>
+      </div>
     </section>
 
     <section id="view-status" hidden>
-      <h1>Application status <span lang="hi" class="hi">/ अर्जाची स्थिती</span></h1>
+      <h1>Application status <span lang="mr" class="hi">/ अर्जाची स्थिती</span></h1>
       <p class="lede">Enter the application number shown after you submit. Status is written in everyday words — not technical codes.</p>
       <form id="trackForm" action="/scholarship/" method="get">
         <div class="field">
@@ -175,13 +183,13 @@
     </section>
 
     <section id="view-officer" hidden>
-      <h1 data-i18n="officer.title">Officer desk <span lang="hi" class="hi">/ अधिकारी कक्ष</span></h1>
+      <h1 data-i18n="officer.title"><span data-i18n-text>Officer desk</span> <span lang="mr" class="hi">/ अधिकारी कक्ष</span></h1>
       <p class="lede" data-i18n="officer.lede">Review applications for this scheme. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.</p>
 
       <div id="officerLogin">
         <h2>Officer login</h2>
         <p class="callout honesty"><strong>Officer login.</strong> This is a demonstration — not SSO. This desk is labelled as a demonstration. Use officer ID <code>officer</code> and password <code>demo-2026</code>.</p>
-        <form id="officerLoginForm" action="/scholarship/" method="post">
+        <form id="officerLoginForm" action="/scholarship/" method="get">
           <div class="field">
             <label for="officerUser">Officer ID</label>
             <input id="officerUser" name="officerUser" autocomplete="username" required maxlength="40"/>
@@ -197,12 +205,14 @@
 
       <div id="officerWork" hidden>
         <p class="callout honesty"><strong>AUTH STUBBED.</strong> Officer session is a labelled demonstration. This is not live SSO.</p>
-        <h2>Demonstration: department records unavailable</h2>
-        <p>For the live demo only: mark Revenue records unavailable, then restore them. Officers retry the application after the department is back. This needs the demonstration profile; otherwise the service reports that the control is not available.</p>
-        <p class="row">
-          <button type="button" class="btn" id="revenueDown">Mark Revenue records unavailable</button>
-          <button type="button" class="btn" id="revenueUp">Restore Revenue records</button>
-        </p>
+        <details class="demo-controls">
+          <summary>Demonstration: department records unavailable</summary>
+          <p>For the live demo only: mark Revenue records unavailable, then restore them. Officers retry the application after the department is back. This needs the demonstration profile; otherwise the service reports that the control is not available.</p>
+          <p class="row">
+            <button type="button" class="btn" id="revenueDown">Mark Revenue records unavailable</button>
+            <button type="button" class="btn" id="revenueUp">Restore Revenue records</button>
+          </p>
+        </details>
         <p id="officerCounts" class="progress" role="status"></p>
         <p id="officerMsg" class="status" aria-live="polite"></p>
         <div id="officerTable"></div>
@@ -247,7 +257,8 @@
 
   <footer>
     <p>Government of Maharashtra — Scholarship Portal. Content for SIH demonstration only.</p>
-    <p class="cutaway">Optional SIH cutaway after the citizen and officer beats (not the citizen product): <a href="/">Citizen services</a> · <a href="/demo.html">Samanvay operations</a> · <a href="/schemes.html">Published schemes</a> · <a href="/audit.html">Audit</a></p>
+    <p class="cutaway">Other citizen services: <a href="/">Home</a> · <a href="/licence/">Licence</a> · <a href="/farmer/">Farmer subsidy</a></p>
+    <p class="cutaway">Optional SIH cutaway after the citizen and officer beats (not the citizen product): <a href="/demo.html">Samanvay operations</a> · <a href="/schemes.html">Published schemes</a> · <a href="/audit.html">Audit</a></p>
   </footer>
   <script src="/shared/records.js"></script>
   <script src="/scholarship/portal.js"></script>

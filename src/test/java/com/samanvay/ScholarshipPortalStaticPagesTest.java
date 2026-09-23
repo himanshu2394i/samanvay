@@ -45,12 +45,14 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("data-i18n");
         assertThat(html).contains("Skip to main content");
         assertThat(html).contains("<main");
-        assertThat(html).contains("lang=\"hi\"");
+        assertThat(html).contains("lang=\"mr\"");
         assertThat(html).contains("AUTH STUBBED");
         assertThat(html).contains("not live SSO");
         assertThat(html).contains("Linked");
         assertThat(html).contains("of 3");
         assertThat(html).contains("/demo.html");
+        assertThat(html).contains("/licence/");
+        assertThat(html).contains("/farmer/");
         assertThat(html).doesNotContain("Control plane");
         assertThat(html).doesNotContain("/api/connector/chaos");
         assertThat(html).doesNotContain("/api/catalog/import");
@@ -103,12 +105,13 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(css).contains(":user-invalid");
         assertThat(css).contains("min-height: 48px");
         assertThat(css).contains("--sky");
+        assertThat(css).contains(".service-grid");
         assertThat(css).doesNotContain("--olive-980");
         assertThat(css).doesNotContain("IBM Plex");
     }
 
     @Test
-    void rootWelcomeSendsJudgesToTheScholarshipPortal() {
+    void rootDirectoryLinksScholarshipAsJudgePath() {
         String root = page("index.html");
         assertThat(root).contains("/scholarship/");
         assertThat(root).contains("Scholarship");
@@ -133,8 +136,11 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("configuration");
         assertThat(html).contains("no new Java");
         assertThat(html).contains("/scholarship/");
+        assertThat(html).contains("/licence/");
         assertThat(html).contains("/farmer/");
         assertThat(html).doesNotContain("Apply for scholarship");
+        assertThat(html).doesNotContain("no farmer portal");
+        assertThat(html).doesNotContain("no licence website");
         assertThat(html).contains("AUTH STUBBED");
         assertThat(html).contains("not live Keycloak");
     }

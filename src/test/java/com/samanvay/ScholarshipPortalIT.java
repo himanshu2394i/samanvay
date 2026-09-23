@@ -36,6 +36,16 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
         assertThat(root).contains("/farmer/");
         assertThat(root).contains("Citizen services");
         assertThat(root).doesNotContain("Control plane");
+
+        String licence = http.get().uri(url("/licence")).retrieve().body(String.class);
+        String farmer = http.get().uri(url("/farmer")).retrieve().body(String.class);
+        assertThat(licence).contains("Apply for licence");
+        assertThat(licence).contains("Government of Maharashtra");
+        assertThat(farmer).contains("Farmer subsidy");
+        assertThat(farmer).contains("Connect accounts");
+        assertThat(farmer).contains("Agriculture");
+        assertThat(farmer).doesNotContain("/onboard.html");
+        assertThat(farmer).doesNotContain("Bind a catalog journey");
     }
 
     @Test
