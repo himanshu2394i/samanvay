@@ -4,52 +4,43 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samanvay.shared.test.PostgresIntegrationTest;
 import com.samanvay.tracking.api.ApplicationSummary;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
 @SpringBootTest(classes = SamanvayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class ScholarshipPortalIT extends PostgresIntegrationTest {
+class IssuedRecordsIT extends PostgresIntegrationTest {
 
     @LocalServerPort
     int port;
 
-    @Test
-    void portalPagesAreASeparateProductSkin() {
-        RestClient http = RestClient.create();
-        String landing = http.get().uri(url("/scholarship")).retrieve().body(String.class);
-        String indexed = http.get().uri(url("/scholarship/index.html")).retrieve().body(String.class);
-        String root = http.get().uri(url("/")).retrieve().body(String.class);
-        assertThat(landing).contains("Government of Maharashtra");
-        assertThat(landing).contains("Apply for scholarship");
-        assertThat(landing).contains("Skip to main content");
-        assertThat(landing).doesNotContain("Control plane");
-        assertThat(indexed).contains("Scholarship Services");
-        assertThat(indexed).doesNotContain("nav-tools");
-        assertThat(root).contains("/scholarship/");
-        assertThat(root).contains("Scholarship");
-        assertThat(root).contains("/licence/");
-        assertThat(root).contains("/farmer/");
-        assertThat(root).contains("Citizen services");
-        assertThat(root).doesNotContain("Control plane");
+    @Autowired
+    JdbcTemplate jdbc;
 
-        String licence = http.get().uri(url("/licence")).retrieve().body(String.class);
-        String farmer = http.get().uri(url("/farmer")).retrieve().body(String.class);
-        assertThat(licence).contains("Apply for licence");
-        assertThat(licence).contains("Government of Maharashtra");
-        assertThat(farmer).contains("Farmer subsidy");
-        assertThat(farmer).contains("Connect accounts");
-        assertThat(farmer).contains("Agriculture");
-        assertThat(farmer).doesNotContain("/onboard.html");
-        assertThat(farmer).doesNotContain("Bind a catalog journey");
+    @Test
+    void lockerListsIssuedDocumentsForARealDepartmentSystem() {
+        RestClient http = RestClient.create();
+        List<?> revenue = http.get()
+                .uri(url("/api/connector/issued-documents?departmentCode=REVENUE"))
+                .retrieve()
+                .body(List.class);
+        assertThat(revenue).isNotEmpty();
+        String blob = revenue.toString();
+        assertThat(blob).contains("Income");
+        assertThat(blob).contains("Aaple Sarkar");
+        assertThat(blob).contains("Mahabhulekh");
+        assertThat(blob).contains("not live");
     }
 
     @Test
-    void portalHttpFlowStartsPostMatricScholarshipJourney() throws InterruptedException {
+    void applicationIssuedRecordsAreFetchedLiveAndNotWrittenToTracking() throws InterruptedException {
         RestClient http = RestClient.create();
         UUID citizenId = http.post()
                 .uri(url("/api/identity/citizens"))
@@ -70,11 +61,10 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                         """)
                 .retrieve()
                 .body(UUID.class);
-        assertThat(citizenId).isNotNull();
 
         String suffix = citizenId.toString().substring(0, 8);
         for (String department : new String[] {"REVENUE", "EDUCATION", "DBT"}) {
-            Map<?, ?> link = http.post()
+            http.post()
                     .uri(url("/api/identity/links"))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of(
@@ -91,9 +81,7 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                             "proof",
                             "sandbox"))
                     .retrieve()
-                    .body(Map.class);
-            assertThat(link.get("departmentCode")).isEqualTo(department);
-            assertThat(link.get("status")).isEqualTo("ACTIVE");
+                    .toBodilessEntity();
         }
 
         Map<?, ?> request = http.post()
@@ -112,7 +100,6 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                         new String[] {"INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"}))
                 .retrieve()
                 .body(Map.class);
-        assertThat(request.get("id")).isNotNull();
 
         http.post()
                 .uri(url("/api/consent/requests/" + request.get("id") + "/grant"))
@@ -122,18 +109,31 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                 .retrieve()
                 .toBodilessEntity();
 
-        Map<?, ?> started = http.post()
+        http.post()
                 .uri(url("/api/journeys/POST_MATRIC_SCHOLARSHIP/start"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("citizenId", citizenId, "submission", Map.of()))
                 .retrieve()
-                .body(Map.class);
-        assertThat(started.get("citizenId").toString()).isEqualTo(citizenId.toString());
-        assertThat(started.get("journeyCode")).isEqualTo("POST_MATRIC_SCHOLARSHIP");
+                .toBodilessEntity();
 
         ApplicationSummary app = awaitApplication(http, citizenId);
-        assertThat(app.referenceNo()).startsWith("MH-SCH-");
-        assertThat(app.status()).isIn("SUBMITTED", "VERIFIED", "PARTIALLY_VERIFIED");
+        List<Map> records = http.get()
+                .uri(url("/api/applications/" + app.referenceNo() + "/issued-records"))
+                .retrieve()
+                .body(List.class);
+        assertThat(records).isNotEmpty();
+        String blob = records.toString();
+        assertThat(blob).contains("Income");
+        assertThat(blob).contains("false");
+        assertThat(blob.toLowerCase()).contains("income");
+        assertThat(blob).containsAnyOf("1,85,000", "185000", "998877", "annualIncome");
+        assertThat(jdbc.queryForObject(
+                        "SELECT string_agg(t::text, ' ') FROM ("
+                                + "SELECT tracking_application.*::text AS t FROM tracking_application "
+                                + "UNION ALL SELECT tracking_step.*::text FROM tracking_step) s",
+                        String.class))
+                .doesNotContain("INCOME-AMT-998877")
+                .doesNotContain("1,85,000");
     }
 
     private ApplicationSummary awaitApplication(RestClient http, UUID citizenId) throws InterruptedException {

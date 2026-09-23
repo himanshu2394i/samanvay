@@ -40,8 +40,8 @@
     </nav>
     <main id="content" tabindex="-1">
       <h1 class="page-title">Published schemes</h1>
-      <p class="lede">The catalog has three journeys. Scholarship, licence, and farmer subsidy each have a ready citizen skin. Catalog proof is still configuration — no new Java for the farmer journey itself. Skins: <a href="/scholarship/">scholarship</a> · <a href="/licence/">licence</a> · <a href="/farmer/">farmer</a>.</p>
-      <p class="callout"><strong>FARMER_SUBSIDY</strong> landed as catalog rows, BPMN, and policy. That is configuration, not a new application — no new Java. The farmer skin is wired to that published code the same way licence is wired to BUSINESS_NOC.</p>
+      <p class="lede">These journeys live in the catalog. Farmer subsidy is configuration — no new Java. Scholarship, business licence, and the farmer citizen skin at /farmer/ prove the same interoperability layer, not separate products.</p>
+      <p class="callout"><strong>FARMER_SUBSIDY</strong> landed as catalog rows, BPMN, and policy. That is configuration, not a new Java module. The page at <a href="/farmer/">/farmer/</a> is only a third caller skin. Beat 8 of the demo.</p>
       <p id="status" class="status" aria-live="polite"></p>
       <div id="schemeList"><p class="loading">Reading published journeys…</p></div>
     </main>
@@ -53,9 +53,9 @@
       try {
         const journeys = await api("/api/catalog/journeys");
         const notes = {
-          POST_MATRIC_SCHOLARSHIP: "Citizen portal at /scholarship/. Concrete first journey.",
-          BUSINESS_NOC: "Second catalog journey. Citizen skin at /licence/.",
-          FARMER_SUBSIDY: "Farmer subsidy as configuration — no new Java. Catalog + BPMN. Citizen skin at /farmer/.",
+          FARMER_SUBSIDY: "Added as configuration — no new Java. Catalog + BPMN + policy only. Citizen skin at /farmer/.",
+          POST_MATRIC_SCHOLARSHIP: "Concrete first journey. The Scholarship Portal calls this journey.",
+          BUSINESS_NOC: "Second journey on the same core. Parallel department fan-out.",
         };
         box.innerHTML = tableHtml(
           "Catalog journeys",

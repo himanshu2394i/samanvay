@@ -42,7 +42,7 @@ const I18N = {
     "nav.officer": "Officer desk",
     "scheme.title": "Post-Matric Scholarship",
     "scheme.lede":
-      "Financial assistance for eligible students after Class 10. This service collects only the consent you give, then checks eligibility using records already held by other departments. You do not upload documents here.",
+      "Post-matric scholarship on the pattern of MahaDBT. Income and caste from Revenue (Aaple Sarkar), marks from Education, bank from MahaDBT. On this laptop those systems are mocks.",
     "apply.title": "Apply for scholarship",
     "officer.title": "Officer desk",
     "officer.lede":
@@ -287,7 +287,7 @@ async function renderDepts() {
         ok
           ? "<p class=\"hint\">This department account is linked for this application.</p>"
           : `<div class="row">
-        <button type="button" class="btn primary" data-proof="digilocker">Connect with DigiLocker sandbox</button>
+        <button type="button" class="btn primary" data-proof="digilocker">Pull issued documents (DigiLocker sandbox)</button>
         <button type="button" class="btn" data-proof="otp">Connect with local ID + OTP (demo)</button>
       </div>`
       }
@@ -320,24 +320,34 @@ function openProof(dept, kind) {
   if (err) err.hidden = true;
   const deptName = DEPTS.find((d) => d.code === dept).name;
   if (kind === "digilocker") {
-    otp.hidden = true;
-    title.textContent = "DigiLocker sandbox";
-    body.textContent =
-      "This is a DigiLocker sandbox mock for " +
-      deptName +
-      ". It is not live DigiLocker and not live SSO. No DigiLocker credentials are sent.";
-    document.getElementById("proofConfirm").textContent = "Connect with sandbox proof";
-  } else {
-    otp.hidden = false;
-    title.textContent = "Local ID + OTP demo";
-    body.textContent =
-      "Verify " +
-      deptName +
-      " with a local ID and OTP demo. This is a labelled demo — not a live telecom OTP and not live SSO.";
-    document.getElementById("localId").value = "MH-" + dept + "-DEMO";
-    document.getElementById("otp").value = "000000";
-    document.getElementById("proofConfirm").textContent = "Verify OTP demo";
+    openLocker(dept, deptName, async () => {
+      await api("/api/identity/links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          citizenId: citizenId(),
+          departmentCode: dept,
+          localIdType: dept,
+          localId: "DEMO-" + dept + "-" + Date.now(),
+          provider: "DIGILOCKER",
+          proof: "sandbox",
+        }),
+      });
+      setStatus(document.getElementById("connectStatus"), "ok", "Issued document pulled. Department account is linked.");
+      announce("Department account connected");
+      await renderDepts();
+    });
+    return;
   }
+  otp.hidden = false;
+  title.textContent = "Local ID + OTP demo";
+  body.textContent =
+    "Verify " +
+    deptName +
+    " with a local ID and OTP demo. This is a labelled demo — not a live telecom OTP and not live SSO.";
+  document.getElementById("localId").value = "MH-" + dept + "-DEMO";
+  document.getElementById("otp").value = "000000";
+  document.getElementById("proofConfirm").textContent = "Verify OTP demo";
   dlg.showModal();
 }
 
@@ -483,6 +493,7 @@ async function loadStatus(ref) {
     setStatus(msg, status.kind, status.text);
     const submitted = when(app.submittedAt);
     const items = (steps || []).map((s) => `<li>${esc(humanStep(s))}</li>`).join("");
+    const papers = await loadIssuedPapers(ref);
     card.innerHTML = `<article class="card">
       <p><strong>Application number:</strong> ${esc(app.referenceNo)}</p>
       <p><strong>Scheme:</strong> Post-matric scholarship</p>
@@ -490,7 +501,7 @@ async function loadStatus(ref) {
       <p><strong>Status:</strong> <span class="chip ${esc(status.kind)}">${esc(status.text)}</span></p>
       <h2>Records requested</h2>
       <ol class="timeline">${items || "<li>Waiting for department checks to appear.</li>"}</ol>
-    </article>`;
+    </article>` + renderIssuedPapers(papers);
   } catch (e) {
     card.innerHTML = "";
     setStatus(msg, "bad", e && e.status === 404 ? "That application number was not found." : friendly(e));
@@ -579,6 +590,7 @@ async function loadOfficerCase(ref) {
     const mine = (exceptions || []).filter((x) => app.instanceId && x.instanceId === app.instanceId);
     const status = humanStatus(app.status);
     const items = (steps || []).map((s) => `<li>${esc(humanStep(s))}</li>`).join("");
+    const papers = await loadIssuedPapers(ref);
     const needsRetry = mine.length > 0 || (app.status && String(app.status).startsWith("PARTIAL"));
     if (empty) empty.hidden = true;
     body.hidden = false;
@@ -589,7 +601,7 @@ async function loadOfficerCase(ref) {
       <h3>Department records</h3>
       <ol class="timeline">${items || "<li>Waiting for department checks to appear.</li>"}</ol>
       ${mine.length ? `<p>A department record could not be fetched. Restore the department if it was marked unavailable, then Retry.</p>` : ""}
-    </article>`;
+    </article>` + renderIssuedPapers(papers);
     if (retryBtn) {
       retryBtn.hidden = !needsRetry;
       retryBtn.dataset.instance = app.instanceId || "";

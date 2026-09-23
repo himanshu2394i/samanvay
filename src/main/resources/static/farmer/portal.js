@@ -1,29 +1,13 @@
 const JOURNEY = "FARMER_SUBSIDY";
 const KEY_CITIZEN = "mhFarmerCitizen";
 const KEY_REF = "mhFarmerRef";
-const KEY_OFFICER = "officerDemoFarmer";
+const KEY_OFFICER = "mhFarmerOfficer";
 const KEY_LANG = "mhFarmerLang";
 const KEY_CASE = "mhFarmerOfficerCase";
-const AGRI_SOURCE = "agriculture-rest-mock";
 const DEPTS = [
-  {
-    code: "REVENUE",
-    name: "Revenue Department",
-    hi: "महसूल विभाग",
-    shares: "land parcel",
-  },
-  {
-    code: "AGRICULTURE",
-    name: "Agriculture Department",
-    hi: "कृषी विभाग",
-    shares: "crop record",
-  },
-  {
-    code: "DBT",
-    name: "Direct Benefit Transfer (DBT)",
-    hi: "थेट लाभ हस्तांतरण",
-    shares: "bank account for subsidy payment",
-  },
+  { code: "REVENUE", name: "Revenue Department", hi: "महसूल विभाग", shares: "land parcel" },
+  { code: "AGRICULTURE", name: "Department of Agriculture", hi: "कृषि विभाग", shares: "crop record" },
+  { code: "DBT", name: "Direct Benefit Transfer", hi: "थेट लाभ हस्तांतरण", shares: "bank account" },
 ];
 
 const STATUS_COPY = {
@@ -42,11 +26,11 @@ const I18N = {
     "nav.officer": "Officer desk",
     "scheme.title": "Farmer subsidy",
     "scheme.lede":
-      "Income support for eligible cultivators. This service collects only the consent you give, then checks land, crop, and bank records already held by Revenue, Agriculture, and DBT. You do not upload documents here.",
-    "apply.title": "Apply for farmer subsidy",
+      "Farmer subsidy on the pattern of MahaDBT Farmer plus Mahabhulekh 7/12. This laptop uses mocks — it does not log you into Bhulekh.",
+    "apply.title": "Apply for subsidy",
     "officer.title": "Officer desk",
     "officer.lede":
-      "Review farmer subsidy applications. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.",
+      "Review applications for this scheme. Status is written for officers: submitted, in progress, needs action, or completed. Open an application number to see which department records have arrived. You do not need technical codes.",
   },
   mr: {
     "nav.scheme": "योजना",
@@ -55,8 +39,8 @@ const I18N = {
     "nav.officer": "अधिकारी कक्ष",
     "scheme.title": "शेतकरी अनुदान",
     "scheme.lede":
-      "पात्र शेतकऱ्यांसाठी उत्पन्न आधार. येथे कागदपत्रे अपलोड करू नका — महसूल, कृषी आणि DBT नोंदी तपासल्या जातात.",
-    "apply.title": "शेतकरी अनुदानासाठी अर्ज",
+      "महाराष्ट्रातील पात्र शेतकऱ्यांसाठी सहाय्य. संमतीनंतर महसूल, कृषि आणि DBT यांच्या नोंदी वापरल्या जातात.",
+    "apply.title": "अनुदानासाठी अर्ज",
     "officer.title": "अधिकारी कक्ष",
     "officer.lede":
       "या योजनेतील अर्ज तपासा. स्थिती अधिकाऱ्यांसाठी आहे: प्राप्त, प्रगतीत, कृती आवश्यक, किंवा पूर्ण. कोणत्या विभाग नोंदी आल्या हे पाहण्यासाठी अर्ज क्रमांक उघडा.",
@@ -70,10 +54,7 @@ function applyLang(lang) {
   sessionStorage.setItem(KEY_LANG, use);
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const text = pack[el.dataset.i18n];
-    if (!text) return;
-    const primary = el.querySelector("[data-i18n-text]");
-    if (primary) primary.textContent = text;
-    else if (!el.children.length) el.textContent = text;
+    if (text) el.textContent = text;
   });
   const enBtn = document.getElementById("langEn");
   const mrBtn = document.getElementById("langMr");
@@ -286,7 +267,7 @@ async function renderDepts() {
         ok
           ? "<p class=\"hint\">This department account is linked for this application.</p>"
           : `<div class="row">
-        <button type="button" class="btn primary" data-proof="digilocker">Connect with DigiLocker sandbox</button>
+        <button type="button" class="btn primary" data-proof="digilocker">Pull issued documents (DigiLocker sandbox)</button>
         <button type="button" class="btn" data-proof="otp">Connect with local ID + OTP (demo)</button>
       </div>`
       }
@@ -319,24 +300,34 @@ function openProof(dept, kind) {
   if (err) err.hidden = true;
   const deptName = DEPTS.find((d) => d.code === dept).name;
   if (kind === "digilocker") {
-    otp.hidden = true;
-    title.textContent = "DigiLocker sandbox";
-    body.textContent =
-      "This is a DigiLocker sandbox mock for " +
-      deptName +
-      ". It is not live DigiLocker and not live SSO. No DigiLocker credentials are sent.";
-    document.getElementById("proofConfirm").textContent = "Connect with sandbox proof";
-  } else {
-    otp.hidden = false;
-    title.textContent = "Local ID + OTP demo";
-    body.textContent =
-      "Verify " +
-      deptName +
-      " with a local ID and OTP demo. This is a labelled demo — not a live telecom OTP and not live SSO.";
-    document.getElementById("localId").value = "MH-" + dept + "-DEMO";
-    document.getElementById("otp").value = "000000";
-    document.getElementById("proofConfirm").textContent = "Verify OTP demo";
+    openLocker(dept, deptName, async () => {
+      await api("/api/identity/links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          citizenId: citizenId(),
+          departmentCode: dept,
+          localIdType: dept,
+          localId: "DEMO-" + dept + "-" + Date.now(),
+          provider: "DIGILOCKER",
+          proof: "sandbox",
+        }),
+      });
+      setStatus(document.getElementById("connectStatus"), "ok", "Issued document pulled. Department account is linked.");
+      announce("Department account connected");
+      await renderDepts();
+    });
+    return;
   }
+  otp.hidden = false;
+  title.textContent = "Local ID + OTP demo";
+  body.textContent =
+    "Verify " +
+    deptName +
+    " with a local ID and OTP demo. This is a labelled demo — not a live telecom OTP and not live SSO.";
+  document.getElementById("localId").value = "MH-" + dept + "-DEMO";
+  document.getElementById("otp").value = "000000";
+  document.getElementById("proofConfirm").textContent = "Verify OTP demo";
   dlg.showModal();
 }
 
@@ -409,7 +400,7 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
         citizenId: citizenId(),
         requesterId: "AGRICULTURE",
         purposeCode: "FARMER_SUBSIDY",
-        purposeText: "share land parcel, crop record, and bank account for farmer subsidy",
+        purposeText: "share land parcel from Revenue, crop record from Agriculture, bank from DBT for farmer subsidy",
         categories: ["LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT"],
       }),
     });
@@ -482,6 +473,7 @@ async function loadStatus(ref) {
     setStatus(msg, status.kind, status.text);
     const submitted = when(app.submittedAt);
     const items = (steps || []).map((s) => `<li>${esc(humanStep(s))}</li>`).join("");
+    const papers = await loadIssuedPapers(ref);
     card.innerHTML = `<article class="card">
       <p><strong>Application number:</strong> ${esc(app.referenceNo)}</p>
       <p><strong>Scheme:</strong> Farmer subsidy</p>
@@ -489,7 +481,7 @@ async function loadStatus(ref) {
       <p><strong>Status:</strong> <span class="chip ${esc(status.kind)}">${esc(status.text)}</span></p>
       <h2>Records requested</h2>
       <ol class="timeline">${items || "<li>Waiting for department checks to appear.</li>"}</ol>
-    </article>`;
+    </article>` + renderIssuedPapers(papers);
   } catch (e) {
     card.innerHTML = "";
     setStatus(msg, "bad", e && e.status === 404 ? "That application number was not found." : friendly(e));
@@ -538,7 +530,7 @@ async function loadOfficer() {
     const apps = await api("/api/applications?size=20");
     const rows = (apps || []).filter((a) => a.journeyCode === JOURNEY);
     if (!rows.length) {
-      box.innerHTML = "<p>No farmer subsidy applications yet. When a citizen submits, the application appears here for review.</p>";
+      box.innerHTML = "<p>No subsidy applications yet. When a citizen submits, the application appears here for review.</p>";
       setStatus(msg, "", "");
       return;
     }
@@ -578,6 +570,7 @@ async function loadOfficerCase(ref) {
     const mine = (exceptions || []).filter((x) => app.instanceId && x.instanceId === app.instanceId);
     const status = humanStatus(app.status);
     const items = (steps || []).map((s) => `<li>${esc(humanStep(s))}</li>`).join("");
+    const papers = await loadIssuedPapers(ref);
     const needsRetry = mine.length > 0 || (app.status && String(app.status).startsWith("PARTIAL"));
     if (empty) empty.hidden = true;
     body.hidden = false;
@@ -588,7 +581,7 @@ async function loadOfficerCase(ref) {
       <h3>Department records</h3>
       <ol class="timeline">${items || "<li>Waiting for department checks to appear.</li>"}</ol>
       ${mine.length ? `<p>A department record could not be fetched. Restore the department if it was marked unavailable, then Retry.</p>` : ""}
-    </article>`;
+    </article>` + renderIssuedPapers(papers);
     if (retryBtn) {
       retryBtn.hidden = !needsRetry;
       retryBtn.dataset.instance = app.instanceId || "";
@@ -600,29 +593,6 @@ async function loadOfficerCase(ref) {
     }
     body.hidden = true;
     if (retryBtn) retryBtn.hidden = true;
-  }
-}
-
-async function flipFire(act, btn) {
-  setBusy(btn, true, act === "kill" ? "Marking unavailable…" : "Restoring…");
-  try {
-    await api("/api/connector/chaos/" + encodeURIComponent(AGRI_SOURCE) + "/" + act, { method: "POST" });
-    setStatus(
-      document.getElementById("officerMsg"),
-      "ok",
-      act === "kill"
-        ? "Agriculture records are marked unavailable for this demonstration."
-        : "Agriculture records are available again. Open an application that needs action and Retry."
-    );
-    announce(act === "kill" ? "Agriculture records unavailable" : "Agriculture records restored");
-  } catch (e) {
-    const msg =
-      e && e.status === 404
-        ? "This demonstration control is not available on this boot. Restart with the demonstration profile, then try again."
-        : friendly(e);
-    setStatus(document.getElementById("officerMsg"), "bad", msg);
-  } finally {
-    setBusy(btn, false);
   }
 }
 
@@ -657,8 +627,6 @@ document.getElementById("officerSignOut").addEventListener("click", () => {
   sessionStorage.removeItem(KEY_CASE);
   renderOfficer();
 });
-document.getElementById("agriDown").addEventListener("click", (event) => flipFire("kill", event.currentTarget));
-document.getElementById("agriUp").addEventListener("click", (event) => flipFire("revive", event.currentTarget));
 document.getElementById("officerRetry").addEventListener("click", async (event) => {
   const btn = event.currentTarget;
   const id = btn.dataset.instance;
@@ -683,7 +651,7 @@ document.getElementById("langMr").addEventListener("click", () => applyLang("mr"
 function friendly(e) {
   const msg = (e && e.message) || "Something went wrong. Try again.";
   if (/Failed to fetch|NetworkError/i.test(msg)) {
-    return "The farmer subsidy service could not be reached. Confirm the application is running.";
+    return "The subsidy service could not be reached. Confirm the application is running.";
   }
   if (e && e.status === 400) return "That request was not accepted. Check the form and try again.";
   if (e && e.status === 404) return "Nothing matching that request was found.";
