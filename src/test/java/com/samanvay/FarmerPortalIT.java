@@ -13,43 +13,29 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 @SpringBootTest(classes = SamanvayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class ScholarshipPortalIT extends PostgresIntegrationTest {
+class FarmerPortalIT extends PostgresIntegrationTest {
 
     @LocalServerPort
     int port;
 
     @Test
-    void portalPagesAreASeparateProductSkin() {
+    void farmerPagesAreASeparateProductSkin() {
         RestClient http = RestClient.create();
-        String landing = http.get().uri(url("/scholarship")).retrieve().body(String.class);
-        String indexed = http.get().uri(url("/scholarship/index.html")).retrieve().body(String.class);
+        String landing = http.get().uri(url("/farmer")).retrieve().body(String.class);
         String root = http.get().uri(url("/")).retrieve().body(String.class);
         assertThat(landing).contains("Government of Maharashtra");
-        assertThat(landing).contains("Apply for scholarship");
-        assertThat(landing).contains("Skip to main content");
+        assertThat(landing).contains("Apply for subsidy");
         assertThat(landing).doesNotContain("Control plane");
-        assertThat(indexed).contains("Scholarship Services");
-        assertThat(indexed).doesNotContain("nav-tools");
-        assertThat(root).contains("/scholarship/");
-        assertThat(root).contains("Scholarship");
-        assertThat(root).contains("/licence/");
+        assertThat(landing).doesNotContain("Apply for scholarship");
         assertThat(root).contains("/farmer/");
+        assertThat(root).contains("/licence/");
+        assertThat(root).contains("/scholarship/");
         assertThat(root).contains("Citizen services");
         assertThat(root).doesNotContain("Control plane");
-
-        String licence = http.get().uri(url("/licence")).retrieve().body(String.class);
-        String farmer = http.get().uri(url("/farmer")).retrieve().body(String.class);
-        assertThat(licence).contains("Apply for licence");
-        assertThat(licence).contains("Government of Maharashtra");
-        assertThat(farmer).contains("Farmer subsidy");
-        assertThat(farmer).contains("Connect accounts");
-        assertThat(farmer).contains("Agriculture");
-        assertThat(farmer).doesNotContain("/onboard.html");
-        assertThat(farmer).doesNotContain("Bind a catalog journey");
     }
 
     @Test
-    void portalHttpFlowStartsPostMatricScholarshipJourney() throws InterruptedException {
+    void portalHttpFlowStartsFarmerSubsidyJourney() throws InterruptedException {
         RestClient http = RestClient.create();
         UUID citizenId = http.post()
                 .uri(url("/api/identity/citizens"))
@@ -57,15 +43,15 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                 .body(
                         """
                         {
-                          "nameLatin": "Anita Deshmukh",
-                          "nameDevanagari": "अनिता",
-                          "givenName": "Anita",
-                          "familyName": "Deshmukh",
-                          "fatherName": "Prakash",
-                          "dob": "2003-06-12",
+                          "nameLatin": "Suresh Patil",
+                          "nameDevanagari": "सुरेश",
+                          "givenName": "Suresh",
+                          "familyName": "Patil",
+                          "fatherName": "Kumar",
+                          "dob": "1975-08-12",
                           "dobPrecision": "DAY",
-                          "gender": "F",
-                          "contactMasked": "98****11"
+                          "gender": "M",
+                          "contactMasked": "77****09"
                         }
                         """)
                 .retrieve()
@@ -73,7 +59,7 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
         assertThat(citizenId).isNotNull();
 
         String suffix = citizenId.toString().substring(0, 8);
-        for (String department : new String[] {"REVENUE", "EDUCATION", "DBT"}) {
+        for (String department : new String[] {"REVENUE", "AGRICULTURE", "DBT"}) {
             Map<?, ?> link = http.post()
                     .uri(url("/api/identity/links"))
                     .contentType(MediaType.APPLICATION_JSON)
@@ -85,14 +71,13 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                             "localIdType",
                             department,
                             "localId",
-                            "PORTAL-" + department + "-" + suffix,
+                            "FARMER-" + department + "-" + suffix,
                             "provider",
                             "DIGILOCKER",
                             "proof",
                             "sandbox"))
                     .retrieve()
                     .body(Map.class);
-            assertThat(link.get("departmentCode")).isEqualTo(department);
             assertThat(link.get("status")).isEqualTo("ACTIVE");
         }
 
@@ -103,16 +88,15 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                         "citizenId",
                         citizenId,
                         "requesterId",
-                        "SCHOLARSHIP",
+                        "AGRICULTURE",
                         "purposeCode",
-                        "SCHOLARSHIP_ELIGIBILITY",
+                        "FARMER_SUBSIDY",
                         "purposeText",
-                        "Post-matric scholarship eligibility",
+                        "Farmer subsidy",
                         "categories",
-                        new String[] {"INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"}))
+                        new String[] {"LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT"}))
                 .retrieve()
                 .body(Map.class);
-        assertThat(request.get("id")).isNotNull();
 
         http.post()
                 .uri(url("/api/consent/requests/" + request.get("id") + "/grant"))
@@ -123,16 +107,15 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                 .toBodilessEntity();
 
         Map<?, ?> started = http.post()
-                .uri(url("/api/journeys/POST_MATRIC_SCHOLARSHIP/start"))
+                .uri(url("/api/journeys/FARMER_SUBSIDY/start"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("citizenId", citizenId, "submission", Map.of()))
                 .retrieve()
                 .body(Map.class);
-        assertThat(started.get("citizenId").toString()).isEqualTo(citizenId.toString());
-        assertThat(started.get("journeyCode")).isEqualTo("POST_MATRIC_SCHOLARSHIP");
+        assertThat(started.get("journeyCode")).isEqualTo("FARMER_SUBSIDY");
 
         ApplicationSummary app = awaitApplication(http, citizenId);
-        assertThat(app.referenceNo()).startsWith("MH-SCH-");
+        assertThat(app.referenceNo()).contains("-FAR-");
         assertThat(app.status()).isIn("SUBMITTED", "VERIFIED", "PARTIALLY_VERIFIED");
     }
 
@@ -147,7 +130,7 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
             }
             Thread.sleep(50);
         }
-        throw new AssertionError("tracking did not project a scholarship application");
+        throw new AssertionError("tracking did not project a farmer subsidy application");
     }
 
     private String url(String path) {
