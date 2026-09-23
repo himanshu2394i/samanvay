@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Samanvay — Technical Approach</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #fff; }
+    body {
+      font-family: "Segoe UI", "IBM Plex Sans", Arial, sans-serif;
+      color: #1a2744;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 28px 0;
+    }
+    header { text-align: center; position: relative; margin-bottom: 12px; }
+    .brand {
+      position: absolute; left: 0; top: 2px;
+      background: #12203a; color: #fff; border-radius: 999px;
+      padding: 7px 16px; font-weight: 700; font-size: 14px;
+    }
+    h1 { font-size: 32px; letter-spacing: .03em; font-weight: 800; color: #12203a; }
+    .stack { margin-top: 6px; font-size: 15px; color: #c45a12; font-weight: 700; }
+    .row {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1.15fr 1.2fr 1.15fr 1fr;
+      gap: 12px;
+      min-height: 0;
+      padding-bottom: 54px;
+    }
+    .col {
+      border-radius: 12px;
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-evenly;
+      gap: 8px;
+    }
+    .col h2 { font-size: 13px; letter-spacing: .08em; text-align: center; font-weight: 800; }
+    .s1 { background: #e8f1fb; } .s1 h2 { color: #2b5c9e; }
+    .s2 { background: #dce7f5; } .s2 h2 { color: #14365c; }
+    .s3 { background: #fde8d8; } .s3 h2 { color: #c45a12; }
+    .s4 { background: #d8efe6; } .s4 h2 { color: #1b6b55; }
+    .s5 { background: #fff4d6; } .s5 h2 { color: #9a6b00; }
+    .box {
+      background: #fff;
+      border: 1.5px solid #c5d0e0;
+      border-radius: 8px;
+      padding: 10px 8px;
+      font-size: 15px;
+      line-height: 1.3;
+      text-align: center;
+      font-weight: 700;
+    }
+    .box span { display: block; font-weight: 500; color: #5a6a84; font-size: 13px; margin-top: 3px; }
+    .navy { background: #14365c; color: #fff; border-color: #14365c; }
+    .navy span { color: #c9d8ea; }
+    .teal { background: #1b6b55; color: #fff; border-color: #1b6b55; }
+    .teal span { color: #d4efe6; }
+    .orange { background: #c45a12; color: #fff; border-color: #c45a12; }
+    .orange span { color: #ffe4cc; }
+    .warn { background: #fff7e8; border-color: #e8b86a; }
+    .ok { background: #eef8f2; border-color: #8bc9a8; }
+    .arrow { text-align: center; color: #3d5a80; font-weight: 800; font-size: 14px; line-height: 1; }
+    .note { font-size: 12.5px; color: #4a5c78; text-align: center; font-weight: 500; padding: 4px 2px; }
+    .footer {
+      position: fixed; left: 0; right: 0; bottom: 0; height: 42px;
+      background: #1b4f9c; color: #fff; display: flex;
+      align-items: center; justify-content: space-between;
+      padding: 0 28px; font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Samanvay</div>
+    <h1>TECHNICAL APPROACH — CONTROL PLANE DECIDES, DATA PLANE MOVES</h1>
+    <p class="stack">Java 21 · Spring Boot 4 · Modulith · Postgres 16 · BPMN 2.0 · Keycloak · Resilience4j · REST · SOAP · SFTP · JDBC</p>
+  </header>
+  <div class="row">
+    <div class="col s1">
+      <h2>1 · CALLERS (NOT PRODUCTS)</h2>
+      <div class="box">SCHOLARSHIP PORTAL<span>Revenue · Education · DBT</span></div>
+      <div class="box">LICENCE / NOC PORTAL<span>Municipal · Fire · MPCB</span></div>
+      <div class="box">FARMER SUBSIDY PORTAL<span>Land · Agri · DBT — catalog config only, zero new Java</span></div>
+      <p class="note">One Spring Boot deployable. Module edges fail the build (Modulith + ArchUnit).</p>
+    </div>
+    <div class="col s2">
+      <h2>2 · CONTROL PLANE</h2>
+      <div class="box navy">IDENTITY<span>Citizen links. No auto-merge.</span></div>
+      <div class="box navy">CONSENT<span>Purpose-bound artifact. Issues the grant. Revoke increments version.</span></div>
+      <div class="box navy">CATALOG<span>Departments, canonical schemas, journeys, mappings</span></div>
+      <div class="box navy">REGISTRY<span>Pointers only — what exists where. Never the payload.</span></div>
+      <p class="note">AccessAuthority runs all three checks as one decision.</p>
+    </div>
+    <div class="col s3">
+      <h2>3 · AUTHORIZATION SPINE</h2>
+      <div class="box orange">SIGNED ACCESS GRANT<span>60-second TTL · single-use nonce · consent_version · typed into ConnectorRuntime</span></div>
+      <div class="arrow">▼</div>
+      <div class="box">NO OVERLOAD WITHOUT A GRANT<span>There is no code path that can call a department “just this once”.</span></div>
+      <div class="arrow">▼</div>
+      <div class="box warn">REVOKE MID-FLIGHT<span>In-flight grants fail verification. Next fetch denied within 60s.</span></div>
+      <p class="note">Inspired by Account Aggregator consent — Samanvay is not an aggregator and does not store papers.</p>
+    </div>
+    <div class="col s4">
+      <h2>4 · DATA PLANE</h2>
+      <div class="box teal">ORCHESTRATION<span>BPMN 2.0 (Flowable behind a port). Parallel fan-out. Retry / degrade.</span></div>
+      <div class="arrow">▼</div>
+      <div class="box teal">CONNECTOR<span>Adapter + mapping DSL. REST / SOAP / SFTP / JDBC.</span></div>
+      <div class="arrow">▼</div>
+      <div class="box">IN-MEMORY CANONICAL MAP<span>Normalize → quality → workflow variable. Write: freshness + audit only.</span></div>
+      <div class="box">TRACKING + NOTIFICATIONS<span>One reference number. Events to citizen and officer.</span></div>
+    </div>
+    <div class="col s5">
+      <h2>5 · ISSUERS &amp; PROOF</h2>
+      <div class="box">SYSTEMS OF RECORD<span>Aaple Sarkar · Mahabhulekh · Fire · MPCB · MahaDBT stay owners</span></div>
+      <div class="box">DIGILOCKER (OPTIONAL PIPE)<span>Issued copies, not department login, not source of truth</span></div>
+      <div class="box navy">HASH-CHAINED AUDIT<span>Grant, fetch, retry, revoke. Tamper a row → verify fails.</span></div>
+      <div class="box ok">IF SOURCE DOWN<span>PARTIALLY_VERIFIED + officer queue. Circuit breaker + timer retry.</span></div>
+      <p class="note">Demo: labelled sandbox + mock adapters. Live DigiLocker / MeitY is a partner-account step.</p>
+    </div>
+  </div>
+  <div class="footer">
+    <span>@SIH Idea submission — Samanvay · SIH26129</span>
+    <span>Technical approach</span>
+  </div>
+</body>
+</html>
