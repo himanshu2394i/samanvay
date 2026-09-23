@@ -1,3 +1,9 @@
-# Every pull request needs a review from the technical lead before merging.
+# Every pull request needs a review from a code owner before merging.
 # See branch protection on `main`: reviews from code owners are required.
-* @himanshu2394i
+#
+# Two owners, not one: GitHub never lets an author approve their own PR,
+# and for a while the technical lead was the only code owner AND the
+# author of most PRs (Phase 0/1/2, authored via Cursor) - a structural
+# deadlock, not a bug in branch protection. With two owners, either can
+# review the other's work.
+* @himanshu2394i @DevGirdhar05

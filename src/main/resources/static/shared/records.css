@@ -1,0 +1,88 @@
+.papers {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.paper {
+  background: #fffdf6;
+  border: 1px solid #c4b896;
+  border-top: 6px solid #c05600;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 1px 0 #eee4c8;
+}
+
+.paper-sys {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5c4a1a;
+}
+
+.paper h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.paper-fields {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.paper-fields th,
+.paper-fields td {
+  text-align: left;
+  padding: 0.35rem 0.5rem 0.35rem 0;
+  border-bottom: 1px solid #e6dcc0;
+  vertical-align: top;
+}
+
+.paper-fields th {
+  width: 40%;
+  font-weight: 600;
+  color: #3d4a5c;
+}
+
+#lockerDlg {
+  width: min(36rem, calc(100vw - 2rem));
+  padding: 1.1rem 1.2rem;
+  border: 2px solid #1254c0;
+}
+
+#lockerDlg::backdrop {
+  background: rgb(0 40 90 / 45%);
+}
+
+.locker-brand {
+  margin: 0 0 0.5rem;
+  font-weight: 800;
+  color: #1254c0;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.locker-brand span {
+  font-weight: 600;
+  color: #9b1c1c;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.locker-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+}
+
+.locker-list li {
+  margin: 0 0 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #c5d0dc;
+  background: #f4f7fb;
+}
+
+.locker-list span {
+  color: #3d4a5c;
+  font-size: 0.95rem;
+}

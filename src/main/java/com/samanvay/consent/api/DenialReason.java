@@ -1,0 +1,13 @@
+package com.samanvay.consent.api;
+
+public enum DenialReason {
+    NO_ACTIVE_LINK,
+    NO_CONSENT,
+    CONSENT_EXPIRED,
+    CONSENT_REVOKED,
+    FREQUENCY_EXCEEDED,
+    NO_POINTER,
+    POINTER_EXPIRED,
+    INSUFFICIENT_CLEARANCE,
+    STALE_NOT_ACCEPTED
+}

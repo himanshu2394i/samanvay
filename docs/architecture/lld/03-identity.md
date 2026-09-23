@@ -206,18 +206,27 @@ actually predicts a correct match best.
 ### 5.1 Citizen-asserted linking
 
 ```
-Citizen authenticates to the DEPARTMENT's own IdP (brokered via Keycloak)
+GET  /api/identity/citizens/{id}/connect-accounts?journeyCode=…
+        │  missing departments only (one row per department, not per document)
+        │  providers from GET /api/identity/proof-providers (LinkProofProvider SPI)
         │
-        │ POST /api/identity/links  { departmentCode, localIdType, proof }
+Citizen presents a typed proof from a labeled LinkProofProvider
+        (DigiLocker sandbox mock or Local ID + OTP demo; not Keycloak SSO)
+        │
+        │ POST /api/identity/links  { departmentCode, localIdType, localId, provider, proof }
         ▼
-IdentityLinking.assertLink(citizenId, departmentCode, type, localId, proof)
+IdentityLinking.assertLink(...)
         │
-        ├─▶ verify proof against the department IdP's assertion
+        ├─▶ LinkProofProvider.verify(...) — missing/invalid proof is rejected
+        ├─▶ skip if this citizen already has an ACTIVE link to the department
         ├─▶ INSERT identity_link (provenance = CITIZEN_ASSERTED, status = ACTIVE)
         │      — UNIQUE(department_code, local_id_type, local_id_token) rejects
         │        a second citizen asserting the same local id
         └─▶ publish LinkAsserted
 ```
+
+Journey start (`POST /api/journeys/{code}/start`) refuses with `MISSING_DEPARTMENT_LINKS`
+until every distinct source department in the journey policy has an active link.
 
 ### 5.2 Officer review queue (bulk-confirm path for high-confidence clusters)
 
@@ -259,4 +268,5 @@ reviewQueue(filter, page)  → sorted by score desc within priority
 | `CandidateScorerTest` | A `YEAR`-precision DOB doesn't falsely reject a same-year, different-day match; a Devanagari/Latin name pair scores as a strong match |
 | `NoiseFloorTest` | A score of 0.55 produces no `identity_candidate_match` row at all |
 | `ConfirmRequiresReviewerRoleTest` | `confirm()` called without `IDENTITY_REVIEWER` is rejected before touching any row |
-| `DuplicateLocalIdIT extends PostgresIntegrationTest` | Two citizens asserting the same `(departmentCode, localIdType, localId)` — the second fails, the first is untouched |
+| `ConnectAccountsIT` | Scholarship checklist is 3 departments not 4 documents; already-linked skipped; links via #16 LinkProofProvider SPI |
+| `IdentityProofProvidersIT` | GET /api/identity/proof-providers lists DigiLocker sandbox + OTP demo; typed POST /links; skip already-linked |

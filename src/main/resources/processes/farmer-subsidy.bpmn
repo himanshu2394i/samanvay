@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="https://samanvay.dev/bpmn">
+  <process id="farmer-subsidy" name="Farmer subsidy" isExecutable="true">
+    <startEvent id="start"/>
+    <parallelGateway id="fanout"/>
+    <serviceTask id="fetchLandParcel" name="Fetch 7/12 land parcel"/>
+    <serviceTask id="fetchCrop" name="Fetch crop record"/>
+    <serviceTask id="fetchBank" name="Fetch bank"/>
+    <parallelGateway id="join"/>
+    <endEvent id="end"/>
+    <sequenceFlow sourceRef="start" targetRef="fanout"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchLandParcel"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchCrop"/>
+    <sequenceFlow sourceRef="fanout" targetRef="fetchBank"/>
+    <sequenceFlow sourceRef="fetchLandParcel" targetRef="join"/>
+    <sequenceFlow sourceRef="fetchCrop" targetRef="join"/>
+    <sequenceFlow sourceRef="fetchBank" targetRef="join"/>
+    <sequenceFlow sourceRef="join" targetRef="end"/>
+  </process>
+</definitions>
