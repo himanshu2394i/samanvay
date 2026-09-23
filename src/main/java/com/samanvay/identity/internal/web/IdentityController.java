@@ -3,9 +3,13 @@ package com.samanvay.identity.internal.web;
 import com.samanvay.identity.api.AuthProof;
 import com.samanvay.identity.api.Candidate;
 import com.samanvay.identity.api.CitizenProfiles;
+import com.samanvay.identity.api.ConnectAccounts;
 import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.identity.api.IdentityResolution;
 import com.samanvay.identity.api.Link;
+import com.samanvay.identity.api.LinkProofInvalidException;
+import com.samanvay.identity.api.LinkProofKind;
+import com.samanvay.identity.api.LinkProofProviderInfo;
 import com.samanvay.identity.api.Profile;
 import com.samanvay.identity.api.ProfileDraft;
 import com.samanvay.identity.api.ReviewFilter;
@@ -18,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -44,14 +49,29 @@ class IdentityController {
         return profiles.profile(id);
     }
 
+    @GetMapping("/proof-providers")
+    List<LinkProofProviderInfo> proofProviders() {
+        return linking.availableProofProviders();
+    }
+
     @PostMapping("/links")
     Link assertLink(@RequestBody LinkBody body) {
-        return linking.assertLink(body.citizenId(), body.departmentCode(), body.localIdType(), body.localId(), new AuthProof(body.proof()));
+        return linking.assertLink(
+                body.citizenId(),
+                body.departmentCode(),
+                body.localIdType(),
+                body.localId(),
+                new AuthProof(parseProvider(body.provider()), body.proof()));
     }
 
     @GetMapping("/citizens/{id}/links")
     List<Link> links(@PathVariable UUID id) {
         return linking.activeLinks(id);
+    }
+
+    @GetMapping("/citizens/{id}/connect-accounts")
+    ConnectAccounts connectAccounts(@PathVariable UUID id, @RequestParam String journeyCode) {
+        return linking.connectAccounts(id, journeyCode);
     }
 
     @GetMapping("/review-queue")
@@ -69,7 +89,19 @@ class IdentityController {
         resolution.reject(id, body.reviewerId(), body.note());
     }
 
-    record LinkBody(UUID citizenId, String departmentCode, String localIdType, String localId, String proof) {}
+    record LinkBody(
+            UUID citizenId, String departmentCode, String localIdType, String localId, String provider, String proof) {}
 
     record ReviewBody(String reviewerId, String note) {}
+
+    private static LinkProofKind parseProvider(String provider) {
+        if (provider == null || provider.isBlank()) {
+            throw new LinkProofInvalidException();
+        }
+        try {
+            return LinkProofKind.valueOf(provider);
+        } catch (IllegalArgumentException ex) {
+            throw new LinkProofInvalidException();
+        }
+    }
 }

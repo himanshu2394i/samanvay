@@ -57,7 +57,10 @@ class ResolutionQueueTest {
                 new CandidateScorer(),
                 mock(ReviewerAuth.class),
                 e -> {},
-                mock(AuditService.class));
+                mock(AuditService.class),
+                List.of(),
+                mock(com.samanvay.catalog.api.JourneyCatalog.class),
+                mock(com.samanvay.catalog.api.DepartmentCatalog.class));
         var rec = JsonMapper.builder()
                 .build()
                 .readTree(

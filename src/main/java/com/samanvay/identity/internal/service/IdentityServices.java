@@ -4,23 +4,34 @@ import com.samanvay.audit.api.ActorType;
 import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.audit.api.Outcome;
+import com.samanvay.catalog.api.Department;
+import com.samanvay.catalog.api.DepartmentCatalog;
+import com.samanvay.catalog.api.JourneyCatalog;
+import com.samanvay.catalog.api.JourneyDefinition;
 import com.samanvay.identity.api.AuthProof;
 import com.samanvay.identity.api.Candidate;
 import com.samanvay.identity.api.CandidateNotFoundException;
 import com.samanvay.identity.api.CandidateRaised;
 import com.samanvay.identity.api.CandidateRef;
 import com.samanvay.identity.api.CitizenProfiles;
+import com.samanvay.identity.api.ConnectAccounts;
+import com.samanvay.identity.api.DepartmentLinkNeed;
 import com.samanvay.identity.api.DuplicateLocalIdException;
 import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.identity.api.IdentityResolution;
 import com.samanvay.identity.api.Link;
 import com.samanvay.identity.api.LinkAsserted;
+import com.samanvay.identity.api.LinkProofContext;
 import com.samanvay.identity.api.LinkProofInvalidException;
+import com.samanvay.identity.api.LinkProofKind;
+import com.samanvay.identity.api.LinkProofProvider;
+import com.samanvay.identity.api.LinkProofProviderInfo;
 import com.samanvay.identity.api.LinkRevoked;
 import com.samanvay.identity.api.Profile;
 import com.samanvay.identity.api.ProfileDraft;
 import com.samanvay.identity.api.ReviewFilter;
 import com.samanvay.identity.api.ReviewerRequiredException;
+import com.samanvay.identity.api.VerifiedLocalId;
 import com.samanvay.identity.internal.domain.CandidateMatchEntity;
 import com.samanvay.identity.internal.domain.CitizenEntity;
 import com.samanvay.identity.internal.domain.LinkEntity;
@@ -31,6 +42,8 @@ import com.samanvay.identity.internal.repository.LinkRepository;
 import com.samanvay.identity.internal.repository.ProfileRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,6 +70,9 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
     private final ReviewerAuth reviewerAuth;
     private final ApplicationEventPublisher events;
     private final AuditService audit;
+    private final List<LinkProofProvider> proofProviders;
+    private final JourneyCatalog journeys;
+    private final DepartmentCatalog departments;
 
     IdentityServices(
             CitizenRepository citizens,
@@ -66,7 +82,10 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
             CandidateScorer scorer,
             ReviewerAuth reviewerAuth,
             ApplicationEventPublisher events,
-            AuditService audit) {
+            AuditService audit,
+            List<LinkProofProvider> proofProviders,
+            JourneyCatalog journeys,
+            DepartmentCatalog departments) {
         this.citizens = citizens;
         this.profiles = profiles;
         this.links = links;
@@ -75,6 +94,9 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
         this.reviewerAuth = reviewerAuth;
         this.events = events;
         this.audit = audit;
+        this.proofProviders = proofProviders;
+        this.journeys = journeys;
+        this.departments = departments;
     }
 
     @Override
@@ -111,15 +133,17 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
     @Override
     @Transactional
     public Link assertLink(UUID citizenId, String departmentCode, String localIdType, String localId, AuthProof proof) {
-        if (proof == null || proof.assertion() == null || proof.assertion().isBlank()) {
-            throw new LinkProofInvalidException();
+        VerifiedLocalId verified = verifyProof(proof, citizenId, departmentCode, localIdType, localId);
+        Optional<Link> existing = activeLink(citizenId, departmentCode);
+        if (existing.isPresent()) {
+            return existing.get();
         }
         LinkEntity e = new LinkEntity();
         e.setId(UUID.randomUUID());
         e.setCitizenId(citizenId);
         e.setDepartmentCode(departmentCode);
-        e.setLocalIdType(localIdType);
-        e.setLocalIdToken(localId);
+        e.setLocalIdType(verified.localIdType());
+        e.setLocalIdToken(verified.localId());
         e.setProvenance("CITIZEN_ASSERTED");
         e.setStatus("ACTIVE");
         e.setVerifiedAt(Instant.now());
@@ -134,6 +158,33 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
     }
 
     @Override
+    public ConnectAccounts connectAccounts(UUID citizenId, String journeyCode) {
+        JourneyDefinition journey = journeys.byCode(journeyCode);
+        Map<String, List<String>> byDept = new LinkedHashMap<>();
+        for (String category : journey.requiredCategories()) {
+            String dept = journey.policy().sourceDepartment(category);
+            byDept.computeIfAbsent(dept, key -> new ArrayList<>()).add(category);
+        }
+        List<DepartmentLinkNeed> needs = byDept.entrySet().stream()
+                .map(entry -> {
+                    Optional<Link> link = activeLink(citizenId, entry.getKey());
+                    String name = departments
+                            .byCode(entry.getKey())
+                            .map(Department::name)
+                            .orElse(entry.getKey());
+                    return new DepartmentLinkNeed(
+                            entry.getKey(),
+                            name,
+                            List.copyOf(entry.getValue()),
+                            link.isPresent(),
+                            link.map(Link::localIdType).orElse(null),
+                            link.map(Link::localIdToken).orElse(null));
+                })
+                .toList();
+        return new ConnectAccounts(journey.code(), needs, availableProofProviders());
+    }
+
+    @Override
     public Optional<Link> activeLink(UUID citizenId, String departmentCode) {
         return links.findByCitizenIdAndDepartmentCodeAndStatus(citizenId, departmentCode, "ACTIVE").map(this::toLink);
     }
@@ -141,6 +192,14 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
     @Override
     public List<Link> activeLinks(UUID citizenId) {
         return links.findByCitizenIdAndStatus(citizenId, "ACTIVE").stream().map(this::toLink).toList();
+    }
+
+    @Override
+    public List<LinkProofProviderInfo> availableProofProviders() {
+        return proofProviders.stream()
+                .filter(p -> p.kind() != LinkProofKind.DEPT_IDP)
+                .map(p -> new LinkProofProviderInfo(p.kind(), p.label()))
+                .toList();
     }
 
     @Override
@@ -238,6 +297,18 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
         c.setReviewedBy(reviewerId);
         c.setReviewedAt(Instant.now());
         candidates.save(c);
+    }
+
+    private VerifiedLocalId verifyProof(
+            AuthProof proof, UUID citizenId, String departmentCode, String localIdType, String localId) {
+        if (proof == null || proof.provider() == null || proof.payload() == null || proof.payload().isBlank()) {
+            throw new LinkProofInvalidException();
+        }
+        LinkProofProvider provider = proofProviders.stream()
+                .filter(p -> p.kind() == proof.provider())
+                .findFirst()
+                .orElseThrow(LinkProofInvalidException::new);
+        return provider.verify(proof, new LinkProofContext(citizenId, departmentCode, localIdType, localId));
     }
 
     private Profile toProfile(ProfileEntity p) {

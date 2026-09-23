@@ -36,8 +36,10 @@ That asymmetry drives every decision in this module.
 
 ### Explicitly not responsible for
 
-- **Authenticating the citizen.** Keycloak does that. This module consumes a verified
-  subject.
+- **Authenticating the citizen.** Keycloak brokering is aspirational. Linking consumes a
+  verified `LinkProofProvider` assertion (DigiLocker sandbox mock and Local ID + OTP demo
+  today). Do not treat stub headers as live SSO. The caller **Connect accounts** checklist
+  lists missing departments for a journey; it is not live Keycloak department SSO.
 - **Fetching department records.** It does not depend on `connector` — see §6.
 - **Deciding whether an access is allowed.** It answers *"is there an active link?"*;
   `AccessAuthority` combines that with consent and sensitivity.
@@ -50,6 +52,10 @@ public interface IdentityLinking {
     /** Citizen-asserted link, created after the citizen authenticates to the department IdP. */
     Link assertLink(UUID citizenId, String departmentCode,
                     LocalIdType type, String localId, AuthProof proof);
+
+    List<LinkProofProviderInfo> availableProofProviders();
+
+    ConnectAccounts connectAccounts(UUID citizenId, String journeyCode);
 
     Optional<Link> activeLink(UUID citizenId, String departmentCode);
     List<Link> activeLinks(UUID citizenId);
@@ -160,7 +166,8 @@ rather than to population — the mitigation for the reviewer-volume risk in
 
 ## 8. Acceptance criteria
 
-- [ ] A citizen can assert a link only after authenticating to that department's IdP
+- [ ] A citizen can assert a link only after a `LinkProofProvider` verifies a typed proof
+  (sandbox/demo providers today; not a silent header or Keycloak-as-live)
 - [ ] `INSERT` of an `ACTIVE` + `PROBABILISTIC` link **fails at the database**
 - [ ] Only `IDENTITY_REVIEWER` can confirm a candidate; the confirmation is audited with the score
 - [ ] Deterministic exact-ID matches auto-link; everything else queues

@@ -12,4 +12,8 @@ public interface IdentityLinking {
     List<Link> activeLinks(UUID citizenId);
 
     void revokeLink(UUID linkId, String reason);
+
+    List<LinkProofProviderInfo> availableProofProviders();
+
+    ConnectAccounts connectAccounts(UUID citizenId, String journeyCode);
 }

@@ -24,12 +24,20 @@ public class StepStateEntity {
     @Column(name = "next_retry_at")
     private Instant nextRetryAt;
 
+    public UUID getId() {
+        return id;
+    }
+
     public void setId(UUID id) {
         this.id = id;
     }
 
     public void setInstanceId(UUID instanceId) {
         this.instanceId = instanceId;
+    }
+
+    public String getStepCode() {
+        return stepCode;
     }
 
     public void setStepCode(String stepCode) {

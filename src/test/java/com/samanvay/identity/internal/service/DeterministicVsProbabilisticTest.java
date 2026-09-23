@@ -10,6 +10,7 @@ import com.samanvay.identity.internal.repository.CandidateMatchRepository;
 import com.samanvay.identity.internal.repository.CitizenRepository;
 import com.samanvay.identity.internal.repository.LinkRepository;
 import com.samanvay.identity.internal.repository.ProfileRepository;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,10 @@ class DeterministicVsProbabilisticTest {
                 new CandidateScorer(),
                 mock(ReviewerAuth.class),
                 e -> {},
-                mock(AuditService.class));
+                mock(AuditService.class),
+                List.of(),
+                mock(com.samanvay.catalog.api.JourneyCatalog.class),
+                mock(com.samanvay.catalog.api.DepartmentCatalog.class));
         var rec = JsonMapper.builder().build().readTree("{\"localId\":\"RC-1\",\"name\":\"X\"}");
         assertThat(svc.submitCandidate("REVENUE", rec).kind()).isEqualTo("ALREADY_LINKED");
     }

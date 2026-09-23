@@ -1,6 +1,7 @@
 package com.samanvay.catalog.internal.web;
 
 import com.samanvay.catalog.api.CatalogOnboarding;
+import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
 import com.samanvay.catalog.api.ConnectorTestReport;
@@ -11,8 +12,11 @@ import com.samanvay.catalog.api.DepartmentCatalog;
 import com.samanvay.catalog.api.DepartmentDraft;
 import com.samanvay.catalog.api.JourneyCatalog;
 import com.samanvay.catalog.api.JourneyDefinition;
+import com.samanvay.catalog.api.ImportPreview;
 import com.samanvay.catalog.api.MappingDefinition;
 import com.samanvay.catalog.api.MappingDraft;
+import com.samanvay.catalog.api.SchemaCatalog;
+import com.samanvay.catalog.api.SpecImport;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,12 +31,24 @@ class CatalogController {
 
     private final DepartmentCatalog departments;
     private final JourneyCatalog journeys;
+    private final ConnectorCatalog connectors;
     private final CatalogOnboarding onboarding;
+    private final SpecImport importer;
+    private final SchemaCatalog schemas;
 
-    CatalogController(DepartmentCatalog departments, JourneyCatalog journeys, CatalogOnboarding onboarding) {
+    CatalogController(
+            DepartmentCatalog departments,
+            JourneyCatalog journeys,
+            ConnectorCatalog connectors,
+            CatalogOnboarding onboarding,
+            SpecImport importer,
+            SchemaCatalog schemas) {
         this.departments = departments;
         this.journeys = journeys;
+        this.connectors = connectors;
         this.onboarding = onboarding;
+        this.importer = importer;
+        this.schemas = schemas;
     }
 
     @GetMapping("/departments")
@@ -40,9 +56,19 @@ class CatalogController {
         return departments.all();
     }
 
+    @GetMapping("/journeys")
+    List<JourneyDefinition> journeys() {
+        return journeys.all();
+    }
+
     @GetMapping("/journeys/{code}")
     JourneyDefinition journey(@PathVariable String code) {
         return journeys.byCode(code);
+    }
+
+    @GetMapping("/connectors")
+    List<ConnectorDefinition> connectors() {
+        return connectors.published();
     }
 
     @PostMapping("/departments")
@@ -74,4 +100,16 @@ class CatalogController {
     ConnectorDefinition publish(@PathVariable String ref, @RequestBody ConnectorTestReport report) {
         return onboarding.publish(ref, report);
     }
+
+    @GetMapping("/schemas")
+    List<String> schemaRefs() {
+        return schemas.refs();
+    }
+
+    @PostMapping("/import/openapi")
+    ImportPreview importOpenApi(@RequestBody ImportBody body) {
+        return importer.preview(body.spec(), body.operationId(), body.targetSchemaRef());
+    }
+
+    record ImportBody(String spec, String operationId, String targetSchemaRef) {}
 }

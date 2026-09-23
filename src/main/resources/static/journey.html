@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Journey | Samanvay</title>
+  <link rel="preload" href="/fonts/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/console.css"/>
+</head>
+<body>
+  <a class="skip-link visually-hidden" href="#content">Skip to content</a>
+  <p id="live" class="visually-hidden" aria-live="polite"></p>
+  <div class="tricolor" aria-hidden="true"></div>
+  <p class="sandbox"><strong>AUTH STUBBED.</strong> Government of Maharashtra interoperability operations. This is a labelled demonstration — not live Keycloak SSO.</p>
+  <div class="shell">
+    <header class="mast">
+      <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">State operations</span></div>
+      <p class="tag">Government of Maharashtra · Interoperability middle layer. One application, federated department steps.</p>
+    </header>
+    <nav class="bar" aria-label="State operations">
+      <ul class="nav-primary" role="list">
+        <li><a href="/scholarship/">Scholarship Portal</a></li>
+        <li><a href="/demo.html">Operations</a></li>
+        <li><a href="/journey.html" class="active" aria-current="page">Journey</a></li>
+        <li><a href="/ops.html">Exceptions</a></li>
+        <li><a href="/audit.html">Audit</a></li>
+        <li><a href="/schemes.html">Published schemes</a></li>
+      </ul>
+      <div class="nav-tools">
+        <span class="nav-tools-label">Staff tools</span>
+        <ul role="list">
+          <li><a href="/caller.html" class="side">External caller</a></li>
+          <li><a href="/command.html" class="side">Telemetry</a></li>
+          <li><a href="/onboard.html" class="side">Onboard</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="content" tabindex="-1">
+      <h1 class="page-title">Journey timeline</h1>
+      <p class="lede">Identity, consent, cross-department orchestration, then failure or recovery. Numbers and steps come from tracking and catalog, not a hardcoded script.</p>
+      <ol class="spine" id="beats" aria-label="Timeline stages">
+        <li data-beat="identity">Identity</li>
+        <li data-beat="consent">Consent</li>
+        <li data-beat="depts">Orchestration</li>
+        <li data-beat="recovery">Recovery</li>
+      </ol>
+      <label for="ref">Application reference</label>
+      <input id="ref" name="ref" placeholder="MH-…" autocomplete="off" spellcheck="false"/>
+      <div class="row">
+        <button type="button" class="primary" id="loadBtn">Load timeline</button>
+        <button type="button" class="secondary" id="retryBtn">Retry pending</button>
+      </div>
+      <p id="status" class="status" aria-live="polite"></p>
+      <div id="meta"></div>
+      <ol class="timeline" id="tl"></ol>
+    </main>
+  </div>
+  <script src="/console.js"></script>
+  <script>
+    const refEl = document.getElementById("ref");
+    const statusEl = document.getElementById("status");
+    const beats = document.getElementById("beats");
+    refEl.value = qs("ref") || "";
+    document.getElementById("loadBtn").onclick = load;
+    document.getElementById("retryBtn").onclick = retry;
+    async function retry() {
+      const meta = document.getElementById("meta");
+      const btn = document.getElementById("retryBtn");
+      if (!refEl.value.trim()) {
+        setStatus(statusEl, "warn", "Load an application reference first.");
+        return;
+      }
+      setBusy(btn, true, "Retrying…");
+      try {
+        const app = await api("/api/applications/" + encodeURIComponent(refEl.value.trim()));
+        if (!app.instanceId) throw new Error("This application has no journey instance yet. Wait a moment and load again.");
+        await api("/api/journeys/instances/" + app.instanceId + "/retry", {method: "POST"});
+        setStatus(statusEl, "ok", "Retry requested. Reloading timeline.");
+        announce("Pending steps retry requested.");
+        await load();
+      } catch (e) {
+        showErr(meta, e);
+        setStatus(statusEl, "bad", friendlyError(e));
+      } finally {
+        setBusy(btn, false);
+      }
+    }
+    async function load() {
+      const ref = refEl.value.trim();
+      const tl = document.getElementById("tl");
+      const meta = document.getElementById("meta");
+      const btn = document.getElementById("loadBtn");
+      if (!ref) {
+        setBusy(btn, true, "Looking up…");
+        try {
+          const apps = await api("/api/applications?size=1");
+          if (apps[0]) { refEl.value = apps[0].referenceNo; setBusy(btn, false); return load(); }
+          tl.innerHTML = "";
+          meta.innerHTML = emptyBox("No application reference yet", 'The timeline appears when an external caller starts a catalog journey. Use the <a href="/caller.html">caller demo</a>.');
+          setStatus(statusEl, "", "");
+          setSpine(beats, {});
+        } catch (e) {
+          showErr(meta, e);
+          setStatus(statusEl, "bad", friendlyError(e));
+        } finally {
+          setBusy(btn, false);
+        }
+        return;
+      }
+      history.replaceState(null, "", "/journey.html?ref=" + encodeURIComponent(ref));
+      setBusy(btn, true, "Loading…");
+      meta.innerHTML = loading("Loading application…");
+      tl.innerHTML = skeletonTimeline(5);
+      try {
+        const app = await api("/api/applications/" + encodeURIComponent(ref));
+        const steps = await api("/api/applications/" + encodeURIComponent(ref) + "/steps");
+        const journey = await api("/api/catalog/journeys/" + encodeURIComponent(app.journeyCode)).catch(() => null);
+        const [profile, links, consents, state, exceptions] = await Promise.all([
+          app.citizenId ? api("/api/identity/citizens/" + app.citizenId).catch(() => null) : null,
+          app.citizenId ? api("/api/identity/citizens/" + app.citizenId + "/links").catch(() => []) : [],
+          app.citizenId ? api("/api/consent/citizens/" + app.citizenId).catch(() => []) : [],
+          app.instanceId ? api("/api/journeys/instances/" + app.instanceId).catch(() => null) : null,
+          api("/api/journeys/exceptions"),
+        ]);
+        const mine = exceptions.filter(x => x.instanceId === app.instanceId);
+        meta.innerHTML = `<p class="ref-line"><strong class="mono">${esc(app.referenceNo)}</strong>
+          · journey <span class="mono">${esc(app.journeyCode)}</span>
+          · status <span class="${tone(app.status)}">${esc(app.status)}</span>
+          · instance <span class="mono">${esc(app.instanceId || "-")}</span>
+          · submitted ${esc(when(app.submittedAt))}</p>`;
+        const items = [];
+        items.push({
+          cls: profile ? "ok" : "warn",
+          kind: "identity",
+          title: "Identity",
+          body: profile
+            ? `${esc(profile.nameLatin)} · ${esc(profile.citizenId)} · ${links.length} department link(s): ${esc(links.map(l => l.departmentCode + ":" + l.localIdType).join(", ") || "none")}`
+            : "Citizen profile not loaded. Linking happens before department fetches.",
+        });
+        const granted = (consents || []).filter(c => c.status === "GRANTED" || c.status === "ACTIVE");
+        const revoked = (consents || []).filter(c => c.status === "REVOKED");
+        items.push({
+          cls: revoked.length && !granted.length ? "bad" : (consents.length ? "ok" : "warn"),
+          kind: "consent",
+          title: "Consent",
+          body: consents.length
+            ? `${consents.length} artifact(s). Granted/active ${granted.length}. Revoked ${revoked.length}. ${esc((consents[0] && consents[0].purposeCode) || "")}`
+            : "No consent artifacts for this citizen. Department fetches should not proceed without grant.",
+        });
+        const byCat = Object.fromEntries(steps.map(s => [s.stepCode, s]));
+        const cats = (journey && journey.requiredCategories) || steps.map(s => s.stepCode);
+        cats.forEach(cat => {
+          const s = byCat[cat];
+          const dept = (journey && journey.policy && journey.policy.sources && journey.policy.sources[cat]) || (s && s.departmentCode) || "?";
+          const st = s ? s.status : "NOT_STARTED";
+          items.push({
+            cls: tone(st) || (s ? "" : "warn"),
+            kind: "dept",
+            title: `Department · ${dept} · ${cat}`,
+            body: s
+              ? `${esc(st)} · source ${esc(s.source)} · ${esc(unwrap(s.outcome))} · ${esc(when(s.completedAt || s.startedAt))}`
+              : "No tracking step yet for this required category.",
+          });
+        });
+        const degraded = app.status === "PARTIALLY_VERIFIED" || steps.some(s => s.status === "PENDING_SOURCE" || s.status === "FAILED") || mine.length;
+        items.push({
+          cls: degraded ? "warn" : "ok",
+          kind: "recovery",
+          title: degraded ? "Degraded / recovery" : "Recovery",
+          body: degraded
+            ? `Orchestration ${esc(state && state.status || app.status)}. Open exceptions: ${mine.length || 0}. ${mine.map(x => esc(x.stepCode) + ": " + esc(x.reason)).join("; ") || "Pending source or failed step. Use Incident to kill/revive (demo profile) then Retry."}`
+            : `No open degradation. Journey state ${esc(state && state.status || app.status)}.`,
+        });
+        tl.innerHTML = items.map((i, n) =>
+          `<li class="${i.cls} kind-${i.kind}"><span class="stage-num" aria-hidden="true">${n + 1}</span><div><strong>${i.title}</strong><p class="stage-body">${i.body}</p></div></li>`
+        ).join("");
+        const deptItems = items.filter(i => i.kind === "dept");
+        const deptBad = deptItems.some(i => i.cls === "bad");
+        const deptWarn = deptItems.some(i => i.cls === "warn");
+        setSpine(beats, {
+          identity: items[0].cls || "idle",
+          consent: items[1].cls || "idle",
+          depts: deptBad ? "bad" : (deptWarn ? "warn" : (deptItems.length ? "ok" : "idle")),
+          recovery: degraded ? "now" : "ok",
+        });
+        setStatus(statusEl, "", "");
+        announce("Journey timeline loaded for " + ref);
+      } catch (e) {
+        showErr(meta, e);
+        tl.innerHTML = "";
+        setSpine(beats, {});
+        setStatus(statusEl, "bad", friendlyError(e));
+      } finally {
+        setBusy(btn, false);
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

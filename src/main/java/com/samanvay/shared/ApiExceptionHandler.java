@@ -17,6 +17,7 @@ class ApiExceptionHandler {
         detail.setType(java.net.URI.create("https://samanvay.dev/problems/" + ex.problemType()));
         detail.setInstance(java.net.URI.create(request.getRequestURI()));
         detail.setProperty("reason", ex.reason());
+        ex.properties().forEach(detail::setProperty);
         return detail;
     }
 }

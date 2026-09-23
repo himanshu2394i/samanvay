@@ -12,7 +12,7 @@ import java.util.List;
 final class NoHardcodedJourneyCodes extends ArchCondition<JavaClass> {
 
     static final List<String> LITERALS =
-            List.of("POST_MATRIC_SCHOLARSHIP", "BUSINESS_NOC", "SCHOLARSHIP");
+            List.of("POST_MATRIC_SCHOLARSHIP", "BUSINESS_NOC", "FARMER_SUBSIDY", "SCHOLARSHIP");
 
     NoHardcodedJourneyCodes() {
         super("not hardcode journey or department codes");

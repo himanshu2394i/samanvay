@@ -2,71 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Samanvay — scholarship</title>
-  <style>
-    body { font-family: sans-serif; max-width: 40rem; margin: 2rem auto; }
-    label { display: block; margin-top: 0.6rem; }
-    button { margin-top: 1rem; }
-    pre { background: #f4f4f4; padding: 0.8rem; overflow: auto; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Citizen services | Government of Maharashtra</title>
+  <link rel="stylesheet" href="/scholarship/portal.css"/>
 </head>
 <body>
-  <h1>Post-matric scholarship</h1>
-  <p>Thin Journey 1 UI. Auth is stubbed (Phase 1). Payloads are never stored.</p>
-  <label>Citizen id <input id="citizenId" size="40"/></label>
-  <button type="button" onclick="registerCitizen()">Register Ramesh</button>
-  <button type="button" onclick="linkAndConsent()">Link + consent</button>
-  <button type="button" onclick="startJourney()">Start scholarship</button>
-  <label>Reference <input id="ref" size="30"/></label>
-  <button type="button" onclick="loadStatus()">Load status</button>
-  <pre id="out"></pre>
-  <script>
-    const out = document.getElementById('out');
-    const log = (x) => out.textContent = typeof x === 'string' ? x : JSON.stringify(x, null, 2);
-    async function registerCitizen() {
-      const id = await (await fetch('/api/identity/citizens', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          nameLatin:'Ramesh Kumar', nameDevanagari:'रमेश', familyName:'Kumar',
-          fatherName:'Suresh', dob:'2004-01-15', dobPrecision:'DAY'
-        })
-      })).json();
-      document.getElementById('citizenId').value = id;
-      log({citizenId:id});
-    }
-    async function linkAndConsent() {
-      const citizenId = document.getElementById('citizenId').value;
-      for (const [departmentCode, localIdType, localId] of [
-        ['REVENUE','RATION','RC-4471-88'],
-        ['EDUCATION','STUDENT','STU-1001'],
-        ['DBT','DBT','DBT-55']
-      ]) {
-        await fetch('/api/identity/links', {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({citizenId, departmentCode, localIdType, localId, proof:'stub'})});
-      }
-      const req = await (await fetch('/api/consent/requests', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({citizenId, requesterId:'SCHOLARSHIP', purposeCode:'SCHOLARSHIP_ELIGIBILITY',
-          purposeText:'Scholarship', categories:['INCOME_CERTIFICATE','CASTE_CERTIFICATE','MARKS','BANK_ACCOUNT']})
-      })).json();
-      const art = await (await fetch('/api/consent/requests/'+req.id+'/grant', {method:'POST',
-        headers:{'Content-Type':'application/json','X-Auth-Jti':'ui-session'},
-        body: JSON.stringify({citizenId})})).json();
-      log({linked:true, consent:art});
-    }
-    async function startJourney() {
-      const citizenId = document.getElementById('citizenId').value;
-      const inst = await (await fetch('/api/journeys/POST_MATRIC_SCHOLARSHIP/start', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({citizenId, submission:{}})
-      })).json();
-      log(inst);
-    }
-    async function loadStatus() {
-      const ref = document.getElementById('ref').value;
-      const app = await (await fetch('/api/applications/'+ref)).json();
-      const steps = await (await fetch('/api/applications/'+ref+'/steps')).json();
-      log({app, steps});
-    }
-  </script>
+  <a class="skip-link" href="#content">Skip to main content</a>
+  <div class="tricolor" aria-hidden="true"></div>
+  <p class="sandbox"><strong>Demonstration.</strong> Three independent government services. Each is a caller of the interoperability middle layer. This directory is not Samanvay and is not live SSO.</p>
+  <header class="mast">
+    <div class="mast-inner">
+      <div>
+        <p class="gov" lang="hi">महाराष्ट्र शासन</p>
+        <p class="gov">Government of Maharashtra — Citizen services</p>
+        <p class="dept">Choose a service. You should not need to fill the same details twice across departments.</p>
+      </div>
+    </div>
+  </header>
+  <main id="content" tabindex="-1">
+    <p class="crumb">Home</p>
+    <h1>Citizen services</h1>
+    <p class="lede">These are separate department portals. They look like government services because they are. The interoperability layer they call is not on this page.</p>
+    <ul class="services">
+      <li>
+        <a href="/scholarship/">
+          <strong>Scholarship Portal</strong>
+          <span>Directorate of Higher Education. Revenue, Education, and DBT records.</span>
+        </a>
+      </li>
+      <li>
+        <a href="/licence/">
+          <strong>Business licence / NOC</strong>
+          <span>Directorate of Industries. Municipal, Fire, Pollution, and Revenue records.</span>
+        </a>
+      </li>
+      <li>
+        <a href="/farmer/">
+          <strong>Farmer subsidy</strong>
+          <span>Department of Agriculture. Revenue, Agriculture, and DBT records.</span>
+        </a>
+      </li>
+    </ul>
+  </main>
+  <footer>
+    <p>Government of Maharashtra. SIH demonstration only.</p>
+    <p class="cutaway">Optional middle-layer cutaway (not a citizen product): <a href="/demo.html">Samanvay operations</a> · <a href="/schemes.html">Published schemes</a></p>
+  </footer>
 </body>
 </html>

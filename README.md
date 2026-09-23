@@ -15,7 +15,7 @@ ownership of their data; Samanvay owns only the *interoperability state* — ide
 consent, discovery metadata, workflow, tracking, audit and mappings.
 
 Citizen journeys (scholarship, business licensing, farmer subsidy) exist as **evidence that
-the platform is generic**, not as the product.
+the platform is generic**, not as the product .
 
 ## Design principles
 
@@ -31,7 +31,7 @@ the platform is generic**, not as the product.
 ## Documentation
 
 | Document | Contents |
-|---|---|
+|---|---| 
 | [docs/architecture/HLD.md](docs/architecture/HLD.md) | **High Level Design — combined.** Single source of truth for principles, flows and technology decisions |
 | [docs/architecture/hld/](docs/architecture/hld/README.md) | High Level Design — one charter per module, plus the dependency graph |
 | [docs/architecture/LLD.md](docs/architecture/LLD.md) | **Low Level Design — combined.** Package layout, DB conventions, error handling, testing, cross-module sequence diagrams |
@@ -56,8 +56,7 @@ the platform is generic**, not as the product.
 **Backend** Java 21 · Spring Boot 4 (Spring Framework 7) · Spring Modulith 2.x ·
 PostgreSQL 16 · Flowable 8.x (behind a port) · Keycloak · Resilience4j · Flyway
 
-**Frontend** React 18 · TypeScript · Vite · React Router · TanStack Query · Zod · React
-Hook Form
+**Frontend** Thin static HTML (government portals + operations cutaways). No React SPA (HLD §11).
 
 **Runtime** Docker Compose — fully offline, deterministic seed data
 
@@ -67,8 +66,24 @@ Requires: Java 21+ (JDK 25 works fine — Maven compiles down to release 21), Do
 
 ```bash
 docker compose up -d          # starts Postgres
-./mvnw spring-boot:run        # Windows: .\mvnw.cmd spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
+
+Judge path: `http://localhost:8080/` — Maharashtra **Citizen services** (three independent portals).
+
+| URL | What judges see |
+|---|---|
+| `/` | Citizen services directory |
+| `/scholarship/` | Scholarship Portal (Higher Education) |
+| `/licence/` | Business licence / NOC (Industries) |
+| `/farmer/` | Farmer subsidy (Agriculture) — catalog journey, caller skin |
+| `/demo.html` | Optional Samanvay operations cutaway |
+
+Spoken eight-minute walk: [docs/demo/JUDGE_SCRIPT.md](docs/demo/JUDGE_SCRIPT.md). One-pager: [docs/demo/ONE_PAGER.md](docs/demo/ONE_PAGER.md). Technical rehearsal: [docs/demo/PHASE4_RUNBOOK.md](docs/demo/PHASE4_RUNBOOK.md).
+
+Officer desk (all portals): `officer` / `demo-2026` — labelled demonstration login, not live SSO. Revenue unavailable/restore and audit tamper need the `demo` profile.
+
+Samanvay remains the interoperability middle layer. The portals are callers, not the product.
 
 ## Contributing
 
