@@ -1,0 +1,92 @@
+:root {
+  --navy: #0e2a4a;
+  --navy-2: #163a63;
+  --ink: #1a2744;
+  --muted: #5a6a84;
+  --paper: #f6f3ea;
+  --card: #fffcf6;
+  --saffron: #c45a12;
+  --teal: #1b6b55;
+  --bluebar: #1b4f9c;
+  --hair: #d8cbb3;
+  --gold: #b08948;
+  --deny: #8b2e2e;
+  --ok: #1b6b55;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Source Sans 3", "Segoe UI", sans-serif;
+}
+
+.slide {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  padding: 28px 48px 64px;
+  background:
+    radial-gradient(1200px 400px at 90% -10%, rgba(196, 90, 18, 0.07), transparent 55%),
+    linear-gradient(#f6f3ea, #f3efe4);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: 92px;
+}
+
+.pill {
+  background: var(--navy);
+  color: #fff;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  flex: 0 0 auto;
+}
+
+.titles { flex: 1; text-align: center; }
+.titles h1 {
+  font-family: "Libre Baskerville", Georgia, serif;
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: 0.02em;
+}
+.titles p {
+  margin-top: 6px;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.logo { height: 88px; width: auto; flex: 0 0 auto; }
+
+.footer {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 48px;
+  background: var(--bluebar);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 36px;
+  font-size: 16px;
+}
+
+.kicker {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--saffron);
+}

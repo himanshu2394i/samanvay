@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Samanvay — Technical approach</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;500;600;700&display=swap"/>
+  <link rel="stylesheet" href="sih-deck.css"/>
+  <style>
+    .stack {
+      text-align: center;
+      color: var(--saffron);
+      font-weight: 700;
+      font-size: 16px;
+      margin: -6px 0 16px;
+    }
+    .skins {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .skin {
+      background: var(--card);
+      border: 1px solid var(--hair);
+      border-radius: 14px;
+      padding: 12px 16px;
+      text-align: center;
+    }
+    .skin b { display: block; color: var(--navy); font-size: 18px; }
+    .skin span { color: var(--muted); font-size: 14.5px; }
+
+    .planes {
+      display: grid;
+      grid-template-columns: 1fr 180px 1fr;
+      gap: 16px;
+      align-items: stretch;
+      margin-bottom: 16px;
+    }
+    .plane {
+      border-radius: 18px;
+      padding: 22px 22px 18px;
+      color: #fff;
+      min-height: 340px;
+    }
+    .plane h2 { font-size: 22px; letter-spacing: 0.04em; margin-bottom: 12px; }
+    .ctrl { background: var(--navy); }
+    .data { background: var(--teal); }
+    .plane ul { list-style: none; font-size: 17px; line-height: 1.55; }
+    .plane li { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.12); }
+    .plane li:last-child { border-bottom: 0; }
+    .grant {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .arrow {
+      width: 0; height: 0;
+      border-top: 18px solid transparent;
+      border-bottom: 18px solid transparent;
+      border-left: 28px solid var(--saffron);
+    }
+    .gbox {
+      background: var(--saffron);
+      color: #fff;
+      border-radius: 12px;
+      padding: 12px 10px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 15px;
+      line-height: 1.3;
+    }
+    .audit {
+      border: 1.5px solid #e0b07a;
+      background: #fff8ef;
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 14px;
+    }
+    .audit b { color: var(--saffron); }
+    .issuers {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+    }
+    .iss {
+      background: var(--card);
+      border: 1px solid var(--hair);
+      border-radius: 12px;
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 14px;
+    }
+    .iss b { display: block; color: var(--navy); margin-bottom: 2px; }
+    .path { margin-top: 10px; font-size: 14.5px; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <div class="top">
+      <div class="pill">Samanvay</div>
+      <div class="titles">
+        <h1>Technical approach</h1>
+      </div>
+      <img class="logo" src="sih-logo.png" alt="Smart India Hackathon 2026"/>
+    </div>
+    <p class="stack">Java 21 · Spring Boot 4 · Modulith · Postgres 16 · BPMN 2.0 · Resilience4j · REST · SOAP · SFTP · JDBC · Keycloak planned (AUTH STUBBED in demo)</p>
+
+    <div class="skins">
+      <div class="skin"><b>Scholarship</b><span>Revenue · Education · DBT — judge path at /scholarship/</span></div>
+      <div class="skin"><b>Licence / NOC</b><span>Municipal · Fire · Pollution · Revenue — /licence/</span></div>
+      <div class="skin"><b>Farmer subsidy</b><span>Revenue · Agriculture · DBT — /farmer/ · catalog + BPMN, no new Java</span></div>
+    </div>
+
+    <div class="planes">
+      <div class="plane ctrl">
+        <h2>Control plane — decides</h2>
+        <ul>
+          <li>Identity — citizen links. No auto-merge.</li>
+          <li>Consent — purpose-bound artifact. Issues the grant. Revoke increments version.</li>
+          <li>Catalog — departments, schemas, journeys, mappings.</li>
+          <li>Registry — pointers only: what exists where. Never the payload.</li>
+        </ul>
+      </div>
+      <div class="grant">
+        <div class="gbox">Signed access grant<br/>60s · single-use<br/>typed into runtime</div>
+        <div class="arrow"></div>
+        <div class="gbox" style="background:#0e2a4a">No fetch<br/>without a grant</div>
+      </div>
+      <div class="plane data">
+        <h2>Data plane — moves</h2>
+        <ul>
+          <li>Orchestration — BPMN fan-out, retry, degrade.</li>
+          <li>Connector — adapter + mapping DSL.</li>
+          <li>In-memory canonical map — write freshness + audit only.</li>
+          <li>Tracking — one reference: MH-SCH / MH-NOC / MH-FAR.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="audit">
+      <b>Cross-cutting audit — hash-chained ledger.</b>
+      Every grant, fetch, retry, and revoke. Tamper a row → chain verify fails. Live fetch with provenance; certificates stay at the issuer. Inspired by Account Aggregator consent — Samanvay is not an aggregator and does not store papers.
+    </div>
+
+    <div class="issuers">
+      <div class="iss"><b>Aaple Sarkar</b>income / caste</div>
+      <div class="iss"><b>Mahabhulekh</b>7/12 land</div>
+      <div class="iss"><b>Fire e-approval</b>fire NOC</div>
+      <div class="iss"><b>MPCB / MAITRI</b>pollution clearance</div>
+      <div class="iss"><b>MahaDBT</b>bank / subsidy</div>
+      <div class="iss"><b>DigiLocker*</b>issued copies, not consent</div>
+    </div>
+    <p class="path">Path: identity link + consent → signed grant → adapter fetch (not stored) → canonical map → track / officer. *DigiLocker is an optional issued-copy pipe, not department login and not the consent store. Demo uses labelled sandbox + mock adapters.</p>
+
+    <div class="footer">
+      <span>@SIH Idea submission — Template</span>
+      <span>3</span>
+    </div>
+  </div>
+</body>
+</html>

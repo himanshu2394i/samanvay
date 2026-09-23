@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Samanvay — Research</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;600;700&display=swap"/>
+  <link rel="stylesheet" href="sih-deck.css"/>
+  <style>
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--hair);
+      border-radius: 16px;
+      padding: 22px 26px 24px;
+      min-height: 820px;
+    }
+    h2 { color: var(--navy); font-size: 20px; margin: 4px 0 10px; }
+    ul { padding-left: 20px; font-size: 16.5px; line-height: 1.42; }
+    li { margin-bottom: 7px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 18px;
+      font-size: 15px;
+    }
+    th, td { border: 1px solid var(--hair); padding: 8px 10px; text-align: left; }
+    th { background: var(--navy); color: #fff; font-weight: 600; }
+    tr:last-child td { background: #eef8f2; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <div class="top">
+      <div class="pill">Samanvay</div>
+      <div class="titles"><h1>Research and references</h1></div>
+      <img class="logo" src="sih-logo.png" alt="Smart India Hackathon 2026"/>
+    </div>
+    <div class="grid">
+      <article class="card">
+        <h2>Problem &amp; policy</h2>
+        <ul>
+          <li>SIH26129 — GoM / MSINS: interoperability without replacing existing systems</li>
+          <li>India Stack / DEPA-style consent artefacts (purpose, requester, revoke)</li>
+          <li>MeitY DigiLocker issued-document model (issuer push + citizen pull) — copies, not Samanvay consent</li>
+        </ul>
+        <h2>Maharashtra systems of record (adapted, not scraped)</h2>
+        <ul>
+          <li>Aaple Sarkar — aaplesarkar.mahaonline.gov.in — income / caste</li>
+          <li>Mahabhulekh — bhulekh.mahabhumi.gov.in — 7/12 Record of Rights</li>
+          <li>MahaDBT — mahadbt.maharashtra.gov.in — scholarship / farmer payment</li>
+          <li>Fire e-approval — mahafireservice.gov.in/e-fire.php</li>
+          <li>MAITRI / MPCB — maitri.maharashtra.gov.in — pollution clearance</li>
+          <li>MahaVastu / BPMS — mahavastu.maharashtra.gov.in</li>
+        </ul>
+        <h2>Novelty vs alternatives</h2>
+        <table>
+          <tr><th>Approach</th><th>Speed</th><th>Fit</th></tr>
+          <tr><td>Point-to-point</td><td>Low</td><td>Poor — N×N</td></tr>
+          <tr><td>REST / SOAP only</td><td>Medium</td><td>Misses SFTP / JDBC</td></tr>
+          <tr><td>Generic ESB / lake</td><td>High</td><td>Stores papers</td></tr>
+          <tr><td>Samanvay (federated layer)</td><td>High</td><td>Pointers + 60s grant + live fetch</td></tr>
+        </table>
+      </article>
+      <article class="card">
+        <h2>Standards we implement against</h2>
+        <ul>
+          <li>BPMN 2.0 for cross-department journeys</li>
+          <li>OIDC / SAML via Keycloak when live (demo: AUTH STUBBED)</li>
+          <li>REST, SOAP/XML, SFTP/CSV, JDBC</li>
+          <li>JSON Schema canonical model + JSONPath mapping DSL</li>
+          <li>Hash-chained audit (tamper-evident ledger)</li>
+        </ul>
+        <h2>This prototype</h2>
+        <ul>
+          <li>docs/architecture/HLD.md and LLD.md</li>
+          <li>docs/demo/PHASE4_RUNBOOK.md · JUDGE_SCRIPT.md</li>
+          <li>github.com/himanshu2394i/samanvay</li>
+        </ul>
+        <h2>Honest demo boundary</h2>
+        <ul>
+          <li>Issuer APIs and DigiLocker partner credentials are mocked / sandboxed until departments and MeitY onboard.</li>
+          <li>Samanvay is not an aggregator and does not persist certificates.</li>
+          <li>A downed source surfaces as needs action + officer retry — the citizen file is not restarted.</li>
+        </ul>
+      </article>
+    </div>
+    <div class="footer">
+      <span>@SIH Idea submission — Template</span>
+      <span>6</span>
+    </div>
+  </div>
+</body>
+</html>

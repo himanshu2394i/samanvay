@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Samanvay — Feasibility</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;600;700&display=swap"/>
+  <link rel="stylesheet" href="sih-deck.css"/>
+  <style>
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+      height: 820px;
+    }
+    .col {
+      background: var(--card);
+      border: 1px solid var(--hair);
+      border-radius: 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .col h2 {
+      padding: 16px 22px;
+      color: #fff;
+      font-size: 22px;
+    }
+    .c1 h2 { background: var(--navy); }
+    .c2 h2 { background: var(--saffron); }
+    .c3 h2 { background: var(--teal); }
+    .col ul { padding: 18px 24px 24px 42px; font-size: 18px; line-height: 1.45; color: var(--ink); }
+    .col li { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <div class="top">
+      <div class="pill">Samanvay</div>
+      <div class="titles"><h1>Feasibility and viability</h1></div>
+      <img class="logo" src="sih-logo.png" alt="Smart India Hackathon 2026"/>
+    </div>
+    <div class="cols">
+      <article class="col c1">
+        <h2>Feasible now</h2>
+        <ul>
+          <li>Core already runs: Java 21 / Boot 4 / Postgres / three published journeys.</li>
+          <li>Heterogeneous mocks are the proof (SOAP, REST, JDBC, SFTP).</li>
+          <li>PS constraint met: no replacement of existing department systems.</li>
+          <li>Onboarding a journey is catalog + connectors + BPMN, not a rewrite. Farmer subsidy proves this — zero new Java, ready skin at /farmer/.</li>
+          <li>Demo is fully offline — venue network is not a dependency.</li>
+        </ul>
+      </article>
+      <article class="col c2">
+        <h2>Challenges / risks</h2>
+        <ul>
+          <li>Live DigiLocker / Aadhaar needs a MeitY partner account (not on this laptop).</li>
+          <li>Real department APIs need MoU / NIC / department credentials.</li>
+          <li>Keycloak brokering and BPMN depth are fiddly in production. Demo identity is AUTH STUBBED.</li>
+          <li>Probabilistic identity merge is unsafe if auto-applied.</li>
+          <li>Officer queues and SLA if a source stays down — not a gateway retry loop.</li>
+        </ul>
+      </article>
+      <article class="col c3">
+        <h2>How we overcome them</h2>
+        <ul>
+          <li>Sandbox labelled as sandbox; issuer mocks stand in for systems of record.</li>
+          <li>WorkflowEngine port: BPMN today, YAML DAG fallback in ~2 days.</li>
+          <li>CHECK + service + RBAC: a probabilistic match never becomes an active link.</li>
+          <li>Degraded mode + officer retry (mark a department unavailable in demo, restore, retry).</li>
+          <li>Recorded backup walkthrough if live demo fails.</li>
+        </ul>
+      </article>
+    </div>
+    <div class="footer">
+      <span>@SIH Idea submission — Template</span>
+      <span>4</span>
+    </div>
+  </div>
+</body>
+</html>

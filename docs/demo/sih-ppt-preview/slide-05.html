@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Samanvay — Impact</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;600;700&display=swap"/>
+  <link rel="stylesheet" href="sih-deck.css"/>
+  <style>
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--hair);
+      border-radius: 16px;
+      padding: 22px 24px 24px;
+      min-height: 210px;
+    }
+    .card h2 { color: var(--navy); font-size: 22px; margin-bottom: 8px; }
+    .card p { font-size: 18px; line-height: 1.4; color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <div class="top">
+      <div class="pill">Samanvay</div>
+      <div class="titles"><h1>Impact and benefits</h1></div>
+      <img class="logo" src="sih-logo.png" alt="Smart India Hackathon 2026"/>
+    </div>
+    <div class="grid">
+      <article class="card">
+        <h2>Citizens</h2>
+        <p>Facts already issued (income, caste, 7/12, marks, land, crop) are fetched live under consent — not re-uploaded, not stored in a lake. One application number. Revoke and the next fetch is denied; nothing to purge.</p>
+      </article>
+      <article class="card">
+        <h2>Officers</h2>
+        <p>One file, not three portals. See which issuer answered. Retry a downed department without restarting the citizen journey. Status in officer words: submitted, in progress, needs action, completed.</p>
+      </article>
+      <article class="card">
+        <h2>Departments</h2>
+        <p>Keep their system of record. Plug in via adapter + mapping. A new scheme is configuration — farmer subsidy already demonstrates this, with a citizen skin on the same core.</p>
+      </article>
+      <article class="card">
+        <h2>State / economic</h2>
+        <p>Avoid a fourth silo or a central data lake. An interoperability layer is cheaper to extend than N×N bilateral integrations.</p>
+      </article>
+      <article class="card">
+        <h2>Social / privacy</h2>
+        <p>Sensitive discovery (for example a caste pointer) is consent-gated. Provenance on every field. Tamper-evident audit for RTI / inquiry. DigiLocker is not treated as consent.</p>
+      </article>
+      <article class="card">
+        <h2>Environment</h2>
+        <p>Fewer duplicate physical certificates and counter visits; digital reuse of already-issued records, fetched on demand.</p>
+      </article>
+    </div>
+    <div class="footer">
+      <span>@SIH Idea submission — Template</span>
+      <span>5</span>
+    </div>
+  </div>
+</body>
+</html>
