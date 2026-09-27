@@ -5,13 +5,10 @@ import com.samanvay.connector.api.AdapterResponse;
 import com.samanvay.connector.api.ProtocolAdapter;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
+import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -19,20 +16,17 @@ import tools.jackson.databind.json.JsonMapper;
 class RestAdapter implements ProtocolAdapter {
 
     private final MockDepartmentBackend mocks;
-    private final RestClient http;
+    private final DeadlineHttp http;
     private final JsonMapper json = JsonMapper.builder().build();
 
     /**
-     * {@code samanvay.connector.timeout} bounds connect and read of every real department call,
-     * so a hung department surfaces as a timeout (and a released one-check claim) instead of
-     * holding the claim forever.
+     * Real department calls go through {@link DeadlineHttp}: one total deadline over the whole
+     * exchange (retries, connect, full body), cancelled when it runs out, so a hung or trickling
+     * department surfaces as a timeout (and a released one-check claim).
      */
-    RestAdapter(MockDepartmentBackend mocks, @Value("${samanvay.connector.timeout:PT10S}") Duration timeout) {
+    RestAdapter(MockDepartmentBackend mocks, DeadlineHttp http) {
         this.mocks = mocks;
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(timeout);
-        factory.setReadTimeout(timeout);
-        this.http = RestClient.builder().requestFactory(factory).build();
+        this.http = http;
     }
 
     @Override
@@ -47,7 +41,7 @@ class RestAdapter implements ProtocolAdapter {
             return new AdapterResponse(body, body.toString().length());
         }
         String url = "https://" + request.host() + encodePath(request.endpoint(), request.boundInputs());
-        String raw = http.get().uri(url).retrieve().body(String.class);
+        String raw = http.get(URI.create(url));
         JsonNode body = json.readTree(raw == null ? "{}" : raw);
         return new AdapterResponse(body, raw == null ? 0 : raw.length());
     }

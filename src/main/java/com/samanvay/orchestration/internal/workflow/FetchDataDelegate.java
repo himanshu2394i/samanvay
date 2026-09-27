@@ -7,6 +7,7 @@ import com.samanvay.consent.api.AccessRequest;
 import com.samanvay.consent.api.ConsentUsage;
 import com.samanvay.consent.api.DenialReason;
 import com.samanvay.consent.api.InvalidGrantException;
+import com.samanvay.consent.api.UsageClaim;
 import com.samanvay.connector.api.Capability;
 import com.samanvay.connector.api.ConnectorResult;
 import com.samanvay.connector.api.ConnectorRuntime;
@@ -27,7 +28,9 @@ import tools.jackson.core.JacksonException;
  * own transaction, so the claim is visible to (and blocks) any concurrent check before the
  * department is called, and no database transaction is held open across the HTTP call. That is
  * why the fetch must not run inside a caller's transaction. After the call the claim is marked
- * USED on success and released (deleted, with an audit row) on any other outcome.
+ * USED on success and released (deleted, with an audit row) on any other outcome. If the claim
+ * was lost meanwhile (taken over after going stale, so its token no longer matches), the fetched
+ * result is thrown away and {@code Unavailable(CLAIM_LOST)} returned instead.
  */
 @Component
 public class FetchDataDelegate {
@@ -51,9 +54,10 @@ public class FetchDataDelegate {
             }
             return denied.reason().name();
         }
-        var result = callAndSettle(((AccessDecision.Granted) decision).grant(), inputs);
+        var result = callAndSettle((AccessDecision.Granted) decision, inputs);
         return switch (result) {
             case ConnectorResult.Success s -> "COMPLETED";
+            case ConnectorResult.Unavailable u when u.kind() == FailureKind.CLAIM_LOST -> "CLAIM_LOST";
             case ConnectorResult.Unavailable u when u.retryable() -> "PENDING_SOURCE";
             case ConnectorResult.NotFound nf -> "NOT_FOUND";
             case ConnectorResult.Invalid inv -> "INVALID";
@@ -67,23 +71,29 @@ public class FetchDataDelegate {
         if (decision instanceof AccessDecision.Denied) {
             return new ConnectorResult.Unavailable(FailureKind.GRANT_INVALID, false);
         }
-        return callAndSettle(((AccessDecision.Granted) decision).grant(), inputs);
+        return callAndSettle((AccessDecision.Granted) decision, inputs);
     }
 
-    private ConnectorResult callAndSettle(AccessGrant grant, ExecutionInputs inputs) {
+    private ConnectorResult callAndSettle(AccessDecision.Granted granted, ExecutionInputs inputs) {
+        AccessGrant grant = granted.grant();
+        UsageClaim claim = granted.claim();
         ConnectorResult result;
         try {
             result = connectorRuntime.execute(grant, Capability.FETCH, inputs);
         } catch (RuntimeException e) {
-            usage.release(grant, failureReason(e));
+            if (claim != null) {
+                usage.release(grant, claim, failureReason(e));
+            }
             throw e;
         }
-        if (result instanceof ConnectorResult.Success) {
-            usage.markUsed(grant);
-        } else {
-            usage.release(grant, failureReason(result));
+        if (claim == null) {
+            return result;
         }
-        return result;
+        boolean held = result instanceof ConnectorResult.Success
+                ? usage.markUsed(grant, claim)
+                : usage.release(grant, claim, failureReason(result));
+        // Lost claim: another check owns the row now. Never return (or let anyone store) this result.
+        return held ? result : new ConnectorResult.Unavailable(FailureKind.CLAIM_LOST, false);
     }
 
     /**

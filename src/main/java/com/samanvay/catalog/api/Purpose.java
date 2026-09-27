@@ -14,7 +14,7 @@ import java.util.List;
  * @param requesterRule how the requester is fixed; see {@link RequesterRule}
  * @param maxDurationDays cap on a consent's lifetime, or {@code null} for the platform default
  * @param durationRule when the consent is meant to end within the cap (informational)
- * @param frequency how often data may be checked under it; ONCE and ONCE_PER_DOCUMENT_PER_APPLICATION are enforced as one check per document per application (V189), other values are recorded only
+ * @param frequency how often data may be checked under it, or {@code null} (legacy purposes); see {@link Frequency}
  * @param labelEn English label, {@code null} while {@code labelEnStatus} is MISSING
  * @param labelMr Marathi label, {@code null} while {@code labelMrStatus} is MISSING
  * @param separateOptIn must be asked for on its own, never bundled with another purpose
@@ -31,7 +31,7 @@ public record Purpose(
         RequesterRule requesterRule,
         Integer maxDurationDays,
         String durationRule,
-        String frequency,
+        Frequency frequency,
         String labelEn,
         String labelMr,
         LabelStatus labelEnStatus,
@@ -47,6 +47,47 @@ public record Purpose(
          * the purpose's {@code requesterDepartment}); with no such award the request is refused.
          */
         PRIOR_AWARD_DEPARTMENT
+    }
+
+    /**
+     * How often data may be checked under a purpose. The only allowed values (V190 CHECK
+     * constraints on catalog_purpose and consent_artifact). {@link #fromCode} fails loudly on
+     * anything else, so a typo can never silently switch a rule off.
+     */
+    public enum Frequency {
+        /** One check (of a document, for an application): enforced (V189 consent_usage). */
+        ONCE(true),
+        /** One check of each document per application: enforced (V189 consent_usage). */
+        ONCE_PER_DOCUMENT_PER_APPLICATION(true),
+        /** Recorded only; the 24-hour frequency limit applies. */
+        ONCE_PER_PAYMENT(false),
+        /** Recorded only; the 24-hour frequency limit applies. */
+        ONCE_PER_YEAR(false);
+
+        private final boolean oneCheckPerApplication;
+
+        Frequency(boolean oneCheckPerApplication) {
+            this.oneCheckPerApplication = oneCheckPerApplication;
+        }
+
+        /** Enforced as one check per document per application. */
+        public boolean oneCheckPerApplication() {
+            return oneCheckPerApplication;
+        }
+
+        /** {@code null} for {@code null}; an unknown value throws {@link IllegalStateException}. */
+        public static Frequency fromCode(String code) {
+            if (code == null) {
+                return null;
+            }
+            for (Frequency f : values()) {
+                if (f.name().equals(code)) {
+                    return f;
+                }
+            }
+            throw new IllegalStateException("unknown consent frequency '" + code + "'; allowed: "
+                    + java.util.Arrays.toString(values()));
+        }
     }
 
     /** Review state of a translated label. */

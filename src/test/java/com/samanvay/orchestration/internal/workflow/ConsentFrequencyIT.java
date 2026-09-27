@@ -4,6 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samanvay.SamanvayApplication;
+import com.samanvay.connector.internal.protocol.DeadlineHttp;
+import com.samanvay.connector.internal.protocol.ExchangeDeadlineExceededException;
+import com.samanvay.connector.internal.protocol.TricklingDepartment;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.samanvay.consent.api.AccessAuthority;
 import com.samanvay.consent.api.AccessGrant;
 import com.samanvay.consent.api.AccessRequest;
@@ -56,66 +61,12 @@ import org.springframework.web.client.ResourceAccessException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * One check per document per application (V189 consent_usage), against real Postgres, the real
- * AccessAuthority and the real usage settlement. Only the department call is a stub, which
+ * One check per document per application (V189/V190 consent_usage), against real Postgres, the
+ * real AccessAuthority and the real usage settlement. Only the department call is a stub, which
  * counts its calls.
  */
 @SpringBootTest(classes = SamanvayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class ConsentFrequencyIT extends PostgresIntegrationTest {
-
-    static final String OFFICER_COPY = "This document has already been checked for this application. "
-            + "The citizen's permission allows one check.";
-    static final DataCategory DOC = DataCategory.INCOME_CERTIFICATE;
-
-    @LocalServerPort
-    int port;
-
-    @Autowired
-    JdbcTemplate jdbc;
-
-    @Autowired
-    CitizenProfiles profiles;
-
-    @Autowired
-    IdentityLinking linking;
-
-    @Autowired
-    AccessAuthority access;
-
-    @Autowired
-    ConsentUsage usage;
-
-    @Value("${samanvay.connector.timeout}")
-    Duration connectorTimeout;
-
-    CountingDepartment department;
-    FetchDataDelegate delegate;
-    UUID citizen;
-    UUID consentId;
-
-    @BeforeEach
-    void citizenWithOneCheckConsent() throws InterruptedException {
-        department = new CountingDepartment();
-        delegate = new FetchDataDelegate(access, department, usage);
-        String subject = "cit-p2f-" + UUID.randomUUID();
-        citizen = profiles.registerSelf(new ProfileDraft(
-                "Sunita Pawar", "सुनीता", "Sunita", "Pawar", "Ramesh",
-                LocalDate.of(2004, 6, 1), "DAY", "F", "98****11"), subject);
-        linking.assertLink(citizen, "REVENUE", "RATION", "RC-p2f-" + Long.toHexString(System.nanoTime()),
-                com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        var http = TestHttp.as(TestTokens.citizen(subject));
-        Map<?, ?> created = http.post().uri(url("/api/consent/requests")).contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("citizenId", citizen, "purposeCode", "SCH_ELIGIBILITY_CHECK"))
-                .retrieve().body(Map.class);
-        Map<?, ?> artifact = http.post().uri(url("/api/consent/requests/" + created.get("id") + "/grant"))
-                .contentType(MediaType.APPLICATION_JSON).body(Map.of("citizenId", citizen))
-                .retrieve().body(Map.class);
-        consentId = UUID.fromString(artifact.get("id").toString());
-        assertThat(jdbc.queryForObject("SELECT frequency FROM consent_artifact WHERE id = ?", String.class, consentId))
-                .as("frequency copied from the catalog purpose at grant time")
-                .isEqualTo("ONCE_PER_DOCUMENT_PER_APPLICATION");
-        awaitPointer();
-    }
+class ConsentFrequencyIT extends OneCheckITSupport {
 
     // ---- 1. concurrent checks ----------------------------------------------------------------
 
@@ -349,6 +300,103 @@ class ConsentFrequencyIT extends PostgresIntegrationTest {
         assertThat(department.calls.get()).isEqualTo(1);
     }
 
+    // ---- total deadline: a trickled body is cut off, the claim released, the retry succeeds ----
+
+    @Test
+    void bodyTrickledPastTheTotalLimitIsCutOffReleasedAndTheRetrySucceeds() throws Exception {
+        long gap = 100; // one byte every 100 ms: a socket read timeout would never fire
+        Duration total = Duration.ofMillis(800);
+        try (TricklingDepartment dept = new TricklingDepartment(gap)) {
+            DeadlineHttp http = new DeadlineHttp(Duration.ofSeconds(5), total);
+            JsonMapper json = JsonMapper.builder().build();
+            department.onCall = g -> new ConnectorResult.Success(
+                    json.readTree(http.get(dept.uri(department.calls.get() == 1 ? "/slow" : "/fast"))), null);
+            String app = app();
+            long before = headSeq();
+            long start = System.nanoTime();
+            assertThatThrownBy(() -> delegate.executeForResult(fetch(app), inputs()))
+                    .isInstanceOf(ExchangeDeadlineExceededException.class);
+            long tookMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            assertThat(tookMs).as("cut off at the total limit").isLessThan(total.toMillis() + 1500)
+                    .isLessThan(TricklingDepartment.trickleMillis(gap) / 2);
+            assertThat(usageRows(app)).as("claim released").isEmpty();
+            assertThat(audit(before, "CONSENT_CHECK_RELEASED")).singleElement()
+                    .satisfies(r -> assertThat(r.get("reason")).isEqualTo("TIMEOUT"));
+
+            assertThat(delegate.executeForResult(fetch(app), inputs())).isInstanceOf(ConnectorResult.Success.class);
+            assertThat(department.calls.get()).isEqualTo(2);
+            assertThat(usageRows(app)).extracting(r -> r.get("state")).containsExactly("USED");
+            assertThat(dept.trickleEnded.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(dept.trickleCompleted).as("the late body was never fully sent").isFalse();
+        }
+    }
+
+    // ---- the fetch path: authorize() is the outermost transaction ----------------------------
+
+    @Autowired
+    PlatformTransactionManager transactions;
+
+    @Test
+    void authorizeRunsOutermostAndTheDenialSurvivesAFailingFetchPath() {
+        jdbc.update("UPDATE consent_artifact SET status = 'REVOKED', revoked_at = now() WHERE id = ?", consentId);
+        java.util.concurrent.atomic.AtomicBoolean outerTx = new java.util.concurrent.atomic.AtomicBoolean(true);
+        FetchDataDelegate probed = new FetchDataDelegate(req -> {
+            outerTx.set(TransactionSynchronizationManager.isActualTransactionActive());
+            return access.authorize(req);
+        }, department, usage);
+        long before = headSeq();
+        assertThatThrownBy(() -> {
+                    assertThat(probed.execute(fetch(app()), inputs())).isEqualTo("CONSENT_REVOKED");
+                    throw new IllegalStateException("the fetch path fails after the refusal");
+                })
+                .hasMessageContaining("fails after the refusal");
+        assertThat(outerTx).as("no transaction around authorize(): it is the outermost").isFalse();
+        assertThat(audit(before, "GRANT_DENIED")).as("the refusal row is committed and stays").singleElement()
+                .satisfies(r -> assertThat(r.get("reason")).isEqualTo("CONSENT_REVOKED"));
+        assertThat(department.calls.get()).isZero();
+    }
+
+    @Test
+    void aFetchInsideACallerTransactionIsRefusedBeforeAnythingIsWritten() {
+        jdbc.update("UPDATE consent_artifact SET status = 'REVOKED', revoked_at = now() WHERE id = ?", consentId);
+        long before = headSeq();
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            assertThatThrownBy(() -> delegate.execute(fetch(app()), inputs()))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("outside a transaction");
+            status.setRollbackOnly(); // the caller's work fails and rolls back
+        });
+        assertThat(audit(before, "GRANT_DENIED"))
+                .as("nothing was written inside the caller's (rolled back) transaction")
+                .isEmpty();
+        assertThat(delegate.execute(fetch(app()), inputs())).as("outside a transaction").isEqualTo("CONSENT_REVOKED");
+        assertThat(audit(before, "GRANT_DENIED")).hasSize(1);
+    }
+
+    @Test
+    void grantedFetchThatFailsKeepsItsGrantAndReleaseRows() {
+        department.onCall = g -> {
+            throw HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE, "down", null, null, null);
+        };
+        long before = headSeq();
+        assertThatThrownBy(() -> delegate.execute(fetch(app()), inputs())).isInstanceOf(HttpServerErrorException.class);
+        assertThat(audit(before, "GRANT_ISSUED")).hasSize(1);
+        assertThat(audit(before, "CONSENT_CHECK_RELEASED")).hasSize(1);
+    }
+
+    // ---- V190 CHECK constraint on consent_artifact.frequency ---------------------------------
+
+    @Test
+    void misspelledConsentFrequencyIsRejectedByTheDatabase() {
+        assertThatThrownBy(() -> jdbc.update(
+                        "UPDATE consent_artifact SET frequency = 'ONCE_PER_DOCUMENT_PER_APPLICTION' WHERE id = ?",
+                        consentId))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+                .hasMessageContaining("consent_artifact_frequency_known");
+        assertThat(jdbc.queryForObject("SELECT frequency FROM consent_artifact WHERE id = ?", String.class, consentId))
+                .isEqualTo("ONCE_PER_DOCUMENT_PER_APPLICATION");
+    }
+
     // ---- 5. the constraint -------------------------------------------------------------------
 
     @Test
@@ -362,104 +410,11 @@ class ConsentFrequencyIT extends PostgresIntegrationTest {
                  ORDER BY k.ord
                 """);
         assertThat(rows).extracting(r -> r.get("type")).containsOnly("u");
-        assertThat(rows).extracting(r -> r.get("col")).containsExactly("consent_id", "document_type", "application_id");
+        assertThat(rows).extracting(r -> r.get("col")).containsExactly("consent_id", "document_type", "scope_key");
         assertThat(Files.readString(Path.of("src/main/resources/db/migration/V189__consent_usage_one_check.sql")))
                 .contains("CONSTRAINT consent_usage_one_check UNIQUE (consent_id, document_type, application_id)");
+        assertThat(Files.readString(Path.of("src/main/resources/db/migration/V190__frequency_values_and_claim_token.sql")))
+                .contains("RENAME COLUMN application_id TO scope_key");
     }
 
-    // ---- helpers -----------------------------------------------------------------------------
-
-    /** The department: counts calls and answers as told. */
-    static final class CountingDepartment implements ConnectorRuntime {
-        final AtomicInteger calls = new AtomicInteger();
-        volatile Function<AccessGrant, ConnectorResult> onCall = g -> success();
-
-        @Override
-        public ConnectorResult execute(AccessGrant grant, Capability capability, ExecutionInputs inputs) {
-            calls.incrementAndGet();
-            return onCall.apply(grant);
-        }
-    }
-
-    static ConnectorResult success() {
-        return new ConnectorResult.Success(JsonMapper.builder().build().createObjectNode().put("ok", true), null);
-    }
-
-    private AccessRequest fetch(String applicationId) {
-        return new AccessRequest(
-                new SubjectRef(citizen),
-                new RequesterRef("SCHOLARSHIP"),
-                DOC,
-                "REVENUE",
-                "rev-income@1",
-                PurposeCode.of("SCH_ELIGIBILITY_CHECK"),
-                null,
-                new PrincipalRef(PrincipalRef.Kind.OFFICER, "officer-p2-freq"),
-                applicationId);
-    }
-
-    private static ExecutionInputs inputs() {
-        return new ExecutionInputs(DOC, "wf-p2f", Map.of(), Map.of(), Map.of());
-    }
-
-    private static String app() {
-        return "app-p2f-" + UUID.randomUUID();
-    }
-
-    private void insertUsage(String app, UUID grantId, String state, long ageSeconds) {
-        jdbc.update("INSERT INTO consent_usage (id, consent_id, document_type, application_id, grant_id, state,"
-                        + " claimed_at, used_at) VALUES (?, ?, ?, ?, ?, ?, now() - make_interval(secs => ?),"
-                        + " CASE WHEN ? = 'USED' THEN now() END)",
-                UUID.randomUUID(), consentId, DOC.code(), app, grantId, state, (double) ageSeconds, state);
-    }
-
-    private List<Map<String, Object>> usageRows(String app) {
-        return jdbc.queryForList(
-                "SELECT state, grant_id, claimed_at FROM consent_usage WHERE consent_id = ? AND application_id = ?",
-                consentId, app);
-    }
-
-    /** Read on its own autocommit connection: sees only committed rows. */
-    private String committedState(UUID grantId) {
-        List<String> s = jdbc.queryForList("SELECT state FROM consent_usage WHERE grant_id = ?", String.class, grantId);
-        return s.isEmpty() ? null : s.get(0);
-    }
-
-    private List<Map<String, Object>> audit(long afterSeq, String action) {
-        return jdbc.queryForList(
-                "SELECT outcome, reason, grant_id, meta::text AS meta FROM audit.audit_entry"
-                        + " WHERE seq > ? AND subject_id = ? AND action = ?",
-                afterSeq, citizen.toString(), action);
-    }
-
-    private long headSeq() {
-        return jdbc.queryForObject("SELECT COALESCE(max(seq), 0) FROM audit.audit_entry", Long.class);
-    }
-
-    private int count(String sql, Object... args) {
-        return jdbc.queryForObject(sql, Integer.class, args);
-    }
-
-    private void awaitPointer() throws InterruptedException {
-        for (int i = 0; i < 100; i++) {
-            if (count("SELECT count(*) FROM registry_pointer WHERE subject_id = ? AND department_code = 'REVENUE'"
-                    + " AND data_category = ?", citizen, DOC.code()) > 0) {
-                return;
-            }
-            Thread.sleep(50);
-        }
-        throw new AssertionError("registry pointer never arrived");
-    }
-
-    private static void await(CountDownLatch latch) {
-        try {
-            latch.await(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private String url(String path) {
-        return "http://localhost:" + port + path;
-    }
 }

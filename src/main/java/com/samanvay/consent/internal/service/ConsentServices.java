@@ -36,7 +36,9 @@ import com.samanvay.consent.internal.repository.AccessGrantRepository;
 import com.samanvay.consent.internal.repository.ConsentArtifactRepository;
 import com.samanvay.consent.internal.repository.ConsentEventRepository;
 import com.samanvay.consent.internal.repository.ConsentRequestRepository;
+import com.samanvay.consent.api.UsageClaim;
 import com.samanvay.consent.internal.repository.ConsentUsageRepository.Claim;
+import com.samanvay.consent.internal.repository.ConsentUsageRepository.ClaimResult;
 import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.registry.api.DiscoveryRegistry;
 import com.samanvay.registry.api.Sensitivity;
@@ -265,7 +267,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         a.setValidFrom(now);
         a.setValidUntil(now.plus(lifetime));
         a.setFrequencyLimit(20);
-        a.setFrequency(purpose.frequency());
+        a.setFrequency(purpose.frequency() == null ? null : purpose.frequency().name());
         a.setStatus("ACTIVE");
         a.setVersion(1);
         a.setCitizenAuthRef(proof.citizenAuthRef());
@@ -351,7 +353,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
             return deny(req, DenialReason.FREQUENCY_EXCEEDED, null);
         }
         UUID grantId = UUID.randomUUID();
-        Claim claim = null;
+        ClaimResult claim = null;
         if (ConsentUsageService.oneCheck(c.frequency())) {
             // One check per document per application. Claimed after the consent checks and before
             // the registry lookup: that is before this transaction's first audit write, so no
@@ -362,7 +364,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 return deny(req, DenialReason.APPLICATION_REQUIRED, null, c.id(), null);
             }
             claim = usage.claim(c.id(), req.category().code(), req.applicationId(), grantId);
-            if (claim == Claim.REFUSED) {
+            if (claim.outcome() == Claim.REFUSED) {
                 return refuseRepeatCheck(req, c.id());
             }
         }
@@ -415,16 +417,17 @@ class ConsentServices implements ConsentService, AccessAuthority {
         persistGrant(grant);
         AuditEntry issuedEntry = entry(req, Outcome.ALLOWED, "GRANT_ISSUED", null, grant.id(), null, null);
         if (claim != null) {
-            issuedEntry.meta().put("usageClaim", claim.name());
+            issuedEntry.meta().put("usageClaim", claim.outcome().name());
+            issuedEntry.meta().put("usageClaimId", claim.id().toString());
         }
         audit.record(issuedEntry);
-        return new AccessDecision.Granted(grant);
+        return new AccessDecision.Granted(grant, claim == null ? null : new UsageClaim(claim.id(), claim.token()));
     }
 
     /** A denial after the one-check claim: the check did not happen, so the claim goes too. */
-    private AccessDecision.Denied dropClaim(UUID grantId, Claim claim, AccessDecision.Denied denied) {
+    private AccessDecision.Denied dropClaim(UUID grantId, ClaimResult claim, AccessDecision.Denied denied) {
         if (claim != null) {
-            usage.discard(grantId);
+            usage.discard(new UsageClaim(claim.id(), claim.token()));
         }
         return denied;
     }
@@ -580,6 +583,6 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 e.getRevokedAt(),
                 e.getRevokedBy(),
                 ConsentCopy.statusLabel(status),
-                e.getFrequency());
+                Purpose.Frequency.fromCode(e.getFrequency()));
     }
 }

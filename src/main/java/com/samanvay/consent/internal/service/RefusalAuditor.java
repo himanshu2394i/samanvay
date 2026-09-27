@@ -1,5 +1,6 @@
 package com.samanvay.consent.internal.service;
 
+import com.samanvay.audit.api.AuditChainLock;
 import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditService;
 import org.springframework.stereotype.Component;
@@ -14,7 +15,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>Only call it before the surrounding transaction has appended anything to
  * the audit chain: the chain's advisory lock is transaction-scoped, and a
- * suspended outer transaction holding it would block this one.
+ * suspended outer transaction holding it would block this one forever. That is
+ * checked, not just documented: if the calling transaction already holds the
+ * chain ({@link AuditChainLock}, set by the audit append), {@link #record}
+ * throws at once instead of deadlocking.
  */
 @Component
 class RefusalAuditor {
@@ -29,6 +33,10 @@ class RefusalAuditor {
     }
 
     void record(AuditEntry entry) {
+        if (AuditChainLock.heldByCurrentTransaction()) {
+            throw new IllegalStateException("refusal audit needs its own transaction, but the calling transaction"
+                    + " already appended to the audit chain and holds its lock: this would deadlock");
+        }
         ownTransaction.executeWithoutResult(tx -> audit.record(entry));
     }
 }

@@ -30,4 +30,4 @@ public record ConsentArtifact(
         Instant revokedAt,
         String revokedBy,
         String statusLabel,
-        String frequency) {}
+        com.samanvay.catalog.api.Purpose.Frequency frequency) {}
