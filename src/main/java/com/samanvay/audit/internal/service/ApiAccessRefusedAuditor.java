@@ -58,10 +58,13 @@ class ApiAccessRefusedAuditor {
     static ActorType actorType(String kind) {
         return switch (kind) {
             case "CITIZEN" -> ActorType.CITIZEN;
-            case "OFFICER", "REVIEWER" -> ActorType.OFFICER;
+            case "OFFICER" -> ActorType.OFFICER;
+            case "REVIEWER" -> ActorType.REVIEWER;
             case "ADMIN" -> ActorType.ADMIN;
             case "DEPARTMENT" -> ActorType.DEPARTMENT;
-            default -> ActorType.ANONYMOUS;
+            case "ANONYMOUS" -> ActorType.ANONYMOUS;
+            // a caller was present (token validated) but its kind is not a known principal
+            default -> ActorType.AUTHENTICATED;
         };
     }
 

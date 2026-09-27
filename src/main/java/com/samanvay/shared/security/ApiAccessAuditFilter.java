@@ -92,7 +92,7 @@ final class ApiAccessAuditFilter extends OncePerRequestFilter {
             String actorId = "anonymous";
             if (request.getAttribute(CALLER_ATTRIBUTE) instanceof Caller caller) {
                 if (caller.roles().isEmpty()) {
-                    actorKind = "NO_ROLE";
+                    actorKind = ApiAccessRefused.AUTHENTICATED;
                     actorId = caller.subject();
                 } else {
                     PrincipalRef p = caller.principal();

@@ -60,10 +60,31 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
                 "SELECT actor_type, actor_id FROM audit.audit_entry WHERE action = 'CANDIDATE_CONFIRMED' AND resource = ?",
                 candidate.toString());
         assertThat(entry.get("actor_id")).isEqualTo("reviewer-sub-9");
-        assertThat(entry.get("actor_type")).isEqualTo("OFFICER");
+        assertThat(entry.get("actor_type")).isEqualTo("REVIEWER");
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM audit.audit_entry WHERE actor_id = 'mallory'", Integer.class))
                 .isZero();
+    }
+
+    @Test
+    void reviewerRejectIsAuditedAsReviewer() {
+        UUID candidate = pendingCandidate();
+        int status = post(TestHttp.as(TestTokens.reviewer("reviewer-sub-10")),
+                "/api/identity/candidates/" + candidate + "/reject", Map.of("note", "different person"));
+        assertThat(status).isEqualTo(200);
+        Map<String, Object> entry = jdbc.queryForMap(
+                "SELECT actor_type, actor_id, reason FROM audit.audit_entry WHERE action = 'CANDIDATE_REJECTED' AND resource = ?",
+                candidate.toString());
+        assertThat(entry).containsEntry("actor_type", "REVIEWER").containsEntry("actor_id", "reviewer-sub-10")
+                .containsEntry("reason", "different person");
+    }
+
+    @Test
+    void validTokenWithoutARoleIsRefusedAndAuditedAsAuthenticated() {
+        String subject = "no-role-" + UUID.randomUUID();
+        assertThat(get(TestHttp.as(TestTokens.staffWithRoles(subject, List.of())), "/api/audit/head"))
+                .isEqualTo(403);
+        assertRefusalAudited("API_FORBIDDEN", "AUTHENTICATED", subject, "GET /api/audit/head");
     }
 
     @Test
