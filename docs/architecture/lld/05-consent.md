@@ -395,10 +395,55 @@ role denial) still gets exactly one `API_FORBIDDEN` row.
 **Retention.** Consent records are kept for 7 years after they end (revoked or expired). This
 is a platform policy, not a legal claim; no purge job exists yet.
 
-**Follow-ups that block Phase 2 acceptance:** enforcing `frequency` (usage rows) and a
-domicile data category. **Deferred:** department scoping (Phase 2 step 9), the offline
+**Follow-ups that block Phase 2 acceptance:** a domicile data category. (`frequency`
+enforcement: §7.4.) **Deferred:** department scoping (Phase 2 step 9), the offline
 verifier (Phase 2 PR 2), a job that marks rows `EXPIRED` (expiry is enforced at `authorize()`
 and at read time from `valid_until`), and the retention purge job.
+
+### 7.4 Phase 2: frequency enforcement, one check per document per application (V189)
+
+**Which consents.** `consent_artifact.frequency` (V189) is the purpose's `frequency`, copied at
+grant time like `data_types`. The rule applies only when it is `ONCE` or
+`ONCE_PER_DOCUMENT_PER_APPLICATION` (seeded on `SCH_IDENTITY_REVIEW` and
+`SCH_ELIGIBILITY_CHECK`); both mean one check of a document (data category) for an application
+(journey instance id). Every other value (`ONCE_PER_PAYMENT`, `ONCE_PER_YEAR`, anything
+unrecognised) and NULL (legacy purposes, consents granted before V189) is recorded but not
+enforced here: those consents keep only the 20-per-24h `frequency_limit`. A one-check consent
+asked for with no application id is refused `APPLICATION_REQUIRED`.
+
+**Table.** `consent_usage (consent_id, document_type, application_id, grant_id, state
+PENDING|USED, claimed_at, used_at)` with `CONSTRAINT consent_usage_one_check UNIQUE
+(consent_id, document_type, application_id)`.
+
+**Flow** (`FetchDataDelegate` + `ConsentServices.authorize`):
+
+1. `authorize()` (its own transaction; the fetch must not run inside a caller's transaction and
+   checks that) runs the consent checks, then claims:
+   `INSERT ... ON CONFLICT ON CONSTRAINT consent_usage_one_check DO UPDATE SET grant_id, claimed_at
+   WHERE state = 'PENDING' AND claimed_at < clock_timestamp() - 2 x samanvay.connector.timeout
+   RETURNING ...`. No row back = refused: `Denied(CHECK_ALREADY_USED)` and exactly one
+   `CONSENT_FREQUENCY_REFUSED` audit row (no `GRANT_DENIED` as well). The claim comes before the
+   registry lookup, i.e. before the transaction's first audit write, so a racing claim that waits
+   on ours holds no audit chain lock. A later refusal in the same `authorize()` (pointer, clearance,
+   staleness) deletes the claim again. The transaction commits before the connector is called.
+2. The connector runs with no transaction open.
+3. `Success` marks the row `USED`. Any other outcome (timeout, 5xx, unparseable body, output
+   schema failure, not found, breaker open, grant rejected, other exception) deletes the row and
+   writes one `CONSENT_CHECK_RELEASED` row (outcome `ERROR`, reason `TIMEOUT` / `REMOTE_FAULT` /
+   `MALFORMED_RESPONSE` / ...), so the citizen can be checked again. Exceptions are rethrown
+   unchanged.
+
+**Stale claims.** A `PENDING` row older than 2x `samanvay.connector.timeout` (default PT10S, so
+20 s; it also sets RestAdapter's connect and read timeouts) counts as released. The conditional
+`DO UPDATE` takes it over in one statement; two racing takeovers serialise on the row, and the
+second re-evaluates the `WHERE` against the first's fresh `claimed_at`, so only one wins. A
+`USED` row is never taken over.
+
+**Officer copy.** The refusal message, *"This document has already been checked for this
+application. The citizen's permission allows one check."*, lives in
+`src/main/resources/consent/officer-copy_en.properties` (the officer-facing table, read by
+`ConsentCopy.officerDenied`), checked for completeness by `ConsentCopyTableTest` and covered by the
+banned-phrase scan of `src/main`.
 
 ## 8. Error handling
 
@@ -431,3 +476,4 @@ and at read time from `valid_until`), and the retention purge job.
 | `NonceRaceIT extends PostgresIntegrationTest` | Two concurrent `markUsedIfUnused` calls on the same nonce: exactly one succeeds |
 | `ConsentVersionRevocationIT extends PostgresIntegrationTest` | A grant issued at version 1, then the consent revoked (→ version 2): `verifyOrThrow` on the old grant now throws |
 | `ConsentControllerIT` | `citizen_auth_ref` is captured from the actual authenticated session's token, not a client-supplied value |
+| `ConsentFrequencyIT extends PostgresIntegrationTest` (§7.4; real Postgres, real `AccessAuthority` and `ConsentUsage`, counting stub connector) | Two overlapping checks (barrier + latch): one success, one `CHECK_ALREADY_USED`, one refusal audit row, one connector call; timeout then retry succeeds with the failure audited and two calls; 5xx, unparseable and schema-failing replies release the claim; stale `PENDING` reclaimed (also under a race), fresh `PENDING` and `USED` not; other frequencies unlimited per application; the `UNIQUE` constraint is in `pg_constraint` |

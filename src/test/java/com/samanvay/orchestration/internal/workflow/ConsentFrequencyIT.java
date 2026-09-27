@@ -135,6 +135,7 @@ class ConsentFrequencyIT extends PostgresIntegrationTest {
             return success();
         };
         long before = headSeq();
+        List<String> outcomes = new ArrayList<>();
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             List<Future<String>> results = new ArrayList<>();
@@ -148,15 +149,14 @@ class ConsentFrequencyIT extends PostgresIntegrationTest {
                     return outcome;
                 }));
             }
-            List<String> outcomes = new ArrayList<>();
             for (Future<String> f : results) {
                 outcomes.add(f.get(30, TimeUnit.SECONDS));
             }
-            assertThat(outcomes).containsExactlyInAnyOrder("COMPLETED", "CHECK_ALREADY_USED");
         } finally {
             pool.shutdownNow();
         }
         assertThat(department.calls.get()).as("department called exactly once").isEqualTo(1);
+        assertThat(outcomes).containsExactlyInAnyOrder("COMPLETED", "CHECK_ALREADY_USED");
         List<Map<String, Object>> refusals = jdbc.queryForList(
                 "SELECT outcome, reason, meta::text AS meta FROM audit.audit_entry"
                         + " WHERE seq > ? AND subject_id = ? AND outcome = 'DENIED'",
