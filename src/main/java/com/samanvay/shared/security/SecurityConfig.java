@@ -27,6 +27,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -112,8 +114,8 @@ class SecurityConfig {
     @Bean
     JwtIssuerAuthenticationManagerResolver jwtIssuerResolver(SecurityRealmsProperties realms) {
         Map<String, AuthenticationManager> managers = new LinkedHashMap<>();
-        register(managers, realms.staff(), KeycloakJwtConverter.RealmKind.STAFF);
-        register(managers, realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);
+        register(managers, realms.audience(), realms.staff(), KeycloakJwtConverter.RealmKind.STAFF);
+        register(managers, realms.audience(), realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);
         // Unknown issuer -> null manager -> InvalidBearerTokenException -> 401.
         return new JwtIssuerAuthenticationManagerResolver(managers::get);
     }
@@ -130,30 +132,43 @@ class SecurityConfig {
 
     private static void register(
             Map<String, AuthenticationManager> managers,
+            String audience,
             SecurityRealmsProperties.Realm realm,
             KeycloakJwtConverter.RealmKind kind) {
         if (realm == null || realm.issuerUri() == null || realm.issuerUri().isBlank()) {
             throw new IllegalStateException("samanvay.security." + kind.name().toLowerCase() + ".issuer-uri must be set");
         }
-        JwtAuthenticationProvider provider = new JwtAuthenticationProvider(decoder(realm));
+        if (realm.allowedClients().isEmpty()) {
+            throw new IllegalStateException(
+                    "samanvay.security." + kind.name().toLowerCase() + ".allowed-clients must list the realm's clients");
+        }
+        JwtAuthenticationProvider provider = new JwtAuthenticationProvider(decoder(realm, audience));
         provider.setJwtAuthenticationConverter(new KeycloakJwtConverter(kind));
         managers.put(realm.issuerUri(), provider::authenticate);
     }
 
-    private static JwtDecoder decoder(SecurityRealmsProperties.Realm realm) {
+    static JwtDecoder decoder(SecurityRealmsProperties.Realm realm, String audience) {
         String issuer = realm.issuerUri();
+        // signature is checked by the decoder; then issuer + exp/nbf, then aud/azp/typ
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(issuer),
+                new KeycloakTokenValidator(audience, realm.allowedClients()));
         if (realm.publicKeyLocation() != null) {
             NimbusJwtDecoder d = NimbusJwtDecoder.withPublicKey(readPublicKey(realm)).build();
-            d.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefaultWithIssuer(issuer)));
+            d.setJwtValidator(validator);
             return d;
         }
         if (realm.jwkSetUri() != null && !realm.jwkSetUri().isBlank()) {
             NimbusJwtDecoder d = NimbusJwtDecoder.withJwkSetUri(realm.jwkSetUri()).build();
-            d.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
+            d.setJwtValidator(validator);
             return d;
         }
         // Lazy OIDC discovery: the app boots even if Keycloak is not up yet.
-        return new SupplierJwtDecoder(() -> JwtDecoders.fromIssuerLocation(issuer));
+        return new SupplierJwtDecoder(() -> {
+            NimbusJwtDecoder d = JwtDecoders.fromIssuerLocation(issuer);
+            d.setJwtValidator(validator);
+            return d;
+        });
     }
 
     private static RSAPublicKey readPublicKey(SecurityRealmsProperties.Realm realm) {

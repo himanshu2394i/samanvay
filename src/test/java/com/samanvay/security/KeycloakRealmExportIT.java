@@ -1,64 +1,27 @@
 package com.samanvay.security;
 
+import static com.samanvay.shared.test.KeycloakTestSupport.CITIZEN;
+import static com.samanvay.shared.test.KeycloakTestSupport.STAFF;
+import static com.samanvay.shared.test.KeycloakTestSupport.admin;
+import static com.samanvay.shared.test.KeycloakTestSupport.token;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dasniko.testcontainers.keycloak.KeycloakContainer;
-import java.net.URI;
+import com.samanvay.shared.test.KeycloakTestSupport;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Boots the pinned Keycloak with the committed realm exports (the same files
  * docker compose imports) and checks, through the admin REST API, the security
  * properties the application relies on. No admin-client dependency: plain JDK
- * HttpClient + Jackson.
+ * HttpClient + Jackson (see {@link KeycloakTestSupport}).
  */
 class KeycloakRealmExportIT {
-
-    static final String IMAGE = "quay.io/keycloak/keycloak:26.4";
-    static final String STAFF = "samanvay-staff";
-    static final String CITIZEN = "samanvay-citizen";
-
-    static KeycloakContainer keycloak;
-    static final HttpClient HTTP = HttpClient.newHttpClient();
-    static final ObjectMapper JSON = JsonMapper.builder().build();
-    static String adminToken;
-
-    @BeforeAll
-    static void start() throws Exception {
-        keycloak = new KeycloakContainer(IMAGE)
-                .withRealmImportFiles(
-                        "/keycloak-realms/samanvay-staff-realm.json", "/keycloak-realms/samanvay-citizen-realm.json");
-        keycloak.start();
-        adminToken = token("master", Map.of(
-                        "grant_type", "password",
-                        "client_id", "admin-cli",
-                        "username", keycloak.getAdminUsername(),
-                        "password", keycloak.getAdminPassword()))
-                .get("access_token")
-                .asString();
-    }
-
-    @AfterAll
-    static void stop() {
-        if (keycloak != null) {
-            keycloak.stop();
-        }
-    }
 
     @Test
     void realmRolesExist() throws Exception {
@@ -120,8 +83,7 @@ class KeycloakRealmExportIT {
                 "client_id", "dept-scholarship-dev",
                 "client_secret", secret,
                 "scope", "source:revenue-rest-mock source:education-soap-mock source:dbt-rest-mock"));
-        JsonNode claims = JSON.readTree(Base64.getUrlDecoder()
-                .decode(tokenResponse.get("access_token").asString().split("\\.")[1]));
+        JsonNode claims = KeycloakTestSupport.claims(tokenResponse.get("access_token").asString());
         assertThat(claims.get("client_id").asString()).isEqualTo("dept-scholarship-dev");
         assertThat(claims.get("azp").asString()).isEqualTo("dept-scholarship-dev");
         assertThat(claims.get("iss").asString()).endsWith("/realms/" + STAFF);
@@ -140,6 +102,34 @@ class KeycloakRealmExportIT {
         }
     }
 
+    @Test
+    void onlyTheApisOwnClientsCarryTheSamanvayApiAudience() throws Exception {
+        for (String[] rc : new String[][] {
+            {STAFF, "samanvay-staff-ui"}, {STAFF, "dept-scholarship-dev"}, {CITIZEN, "samanvay-citizen-ui"}
+        }) {
+            JsonNode client = admin("/admin/realms/" + rc[0] + "/clients?clientId=" + rc[1]).get(0);
+            List<String> audiences = new ArrayList<>();
+            client.path("protocolMappers").forEach(m -> {
+                if ("oidc-audience-mapper".equals(m.get("protocolMapper").asString())
+                        && "true".equals(m.get("config").path("access.token.claim").asString())) {
+                    audiences.add(m.get("config").path("included.custom.audience").asString());
+                }
+            });
+            assertThat(audiences).as(rc[1] + " audience mapper").containsExactly("samanvay-api");
+        }
+        for (String realm : List.of(STAFF, CITIZEN)) {
+            for (JsonNode client : admin("/admin/realms/" + realm + "/clients")) {
+                String id = client.get("clientId").asString();
+                if (id.startsWith("samanvay-") || id.startsWith("dept-")) {
+                    continue;
+                }
+                client.path("protocolMappers").forEach(m -> assertThat(m.path("config").path("included.custom.audience").asString(""))
+                        .as(realm + "/" + id + " must not get the API audience")
+                        .isNotEqualTo("samanvay-api"));
+            }
+        }
+    }
+
     private static String requirementOf(String realm, String flowAlias, String providerId) throws Exception {
         JsonNode executions = admin("/admin/realms/" + realm + "/authentication/flows/"
                 + URLEncoder.encode(flowAlias, StandardCharsets.UTF_8).replace("+", "%20") + "/executions");
@@ -155,32 +145,5 @@ class KeycloakRealmExportIT {
         List<String> out = new ArrayList<>();
         array.forEach(n -> out.add(field == null ? n.asString() : n.get(field).asString()));
         return out;
-    }
-
-    private static JsonNode admin(String path) throws Exception {
-        HttpResponse<String> res = HTTP.send(
-                HttpRequest.newBuilder(URI.create(keycloak.getAuthServerUrl() + path))
-                        .header("Authorization", "Bearer " + adminToken)
-                        .GET()
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
-        assertThat(res.statusCode()).as(path + " -> " + res.body()).isEqualTo(200);
-        return JSON.readTree(res.body());
-    }
-
-    private static JsonNode token(String realm, Map<String, String> form) throws Exception {
-        String body = form.entrySet().stream()
-                .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "="
-                        + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
-                .collect(Collectors.joining("&"));
-        HttpResponse<String> res = HTTP.send(
-                HttpRequest.newBuilder(URI.create(
-                                keycloak.getAuthServerUrl() + "/realms/" + realm + "/protocol/openid-connect/token"))
-                        .header("Content-Type", "application/x-www-form-urlencoded")
-                        .POST(HttpRequest.BodyPublishers.ofString(body))
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
-        assertThat(res.statusCode()).as("token " + realm + " -> " + res.body()).isEqualTo(200);
-        return JSON.readTree(res.body());
     }
 }

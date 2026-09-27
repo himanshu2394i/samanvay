@@ -176,6 +176,44 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void tokensForAnotherAudienceClientOrTypeAre401() {
+        String citizenRoute = "/api/identity/proof-providers";
+        String officerRoute = "/api/journeys/exceptions";
+        // sanity: the realistic tokens pass
+        assertThat(get(TestHttp.as(TestTokens.citizen("c-ok")), citizenRoute)).isEqualTo(200);
+        assertThat(get(TestHttp.as(TestTokens.officer("o-ok")), officerRoute)).isEqualTo(200);
+
+        assertThat(get(TestHttp.as(TestTokens.officerForOtherAudience("o")), officerRoute))
+                .as("aud without samanvay-api")
+                .isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.officerViaClient("o", "admin-cli")), officerRoute))
+                .as("Keycloak admin-cli (password grant) token")
+                .isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.officerViaClient("o", "account-console")), officerRoute))
+                .as("unlisted client")
+                .isEqualTo(401);
+        // each realm has its own allow-list: the citizen UI client is not a staff client
+        assertThat(get(TestHttp.as(TestTokens.officerViaClient("o", TestTokens.CITIZEN_UI_CLIENT)), officerRoute))
+                .as("citizen client id on a staff-realm token")
+                .isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.citizenWithoutAzp("c")), citizenRoute)).as("no azp").isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.citizenWithTyp("c", "ID")), citizenRoute)).as("ID token").isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.citizenWithTyp("c", "Refresh")), citizenRoute)).as("refresh").isEqualTo(401);
+    }
+
+    @Test
+    void staffRealmTokenOnCitizenRoutesIsAuthenticatedButForbidden() {
+        // A valid staff token authenticates (its realm is trusted) but carries no
+        // CITIZEN role - realm separation is enforced when authorizing: 403, not 401.
+        RestClient officer = TestHttp.as(TestTokens.officer("o-on-citizen-route"));
+        assertThat(post(officer, "/api/identity/links", Map.of())).isEqualTo(403);
+        assertThat(post(officer, "/api/consent/requests/" + UUID.randomUUID() + "/grant", Map.of())).isEqualTo(403);
+        assertThat(post(officer, "/api/consent/" + UUID.randomUUID() + "/revoke", Map.of())).isEqualTo(403);
+        RestClient admin = TestHttp.as(TestTokens.admin("a-on-citizen-route"));
+        assertThat(get(admin, "/api/identity/proof-providers")).isEqualTo(403);
+    }
+
+    @Test
     void departmentClientNeedsAScopeForEveryDataSourceOfTheJourney() {
         UUID citizen = profiles.register(draft());
         int status = post(

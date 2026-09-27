@@ -12,11 +12,20 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 UI_ORIGIN = "http://localhost:8080"
 # Data sources the dev department client may fetch from: one scope per source.
 DEPT_SOURCES = ["revenue-rest-mock", "education-soap-mock", "dbt-rest-mock"]
+# Every token the API accepts must name it in `aud` (checked by the resource
+# server together with an azp allow-list, see SecurityConfig). Only the clients
+# below get this mapper, so admin-cli/account-console tokens never qualify.
+API_AUDIENCE = "samanvay-api"
 
 
 def mapper(name, kind, **config):
     return {"name": name, "protocol": "openid-connect", "protocolMapper": kind,
             "consentRequired": False, "config": {k.replace("_", "."): v for k, v in config.items()}}
+
+
+def api_audience_mapper():
+    return mapper("samanvay-api audience", "oidc-audience-mapper", included_custom_audience=API_AUDIENCE,
+                  access_token_claim="true", id_token_claim="false", introspection_token_claim="true")
 
 
 def scope(name, description, mappers=(), in_token_scope=True):
@@ -110,7 +119,8 @@ def ui_client(client_id, name):
             "redirectUris": [UI_ORIGIN + "/*"], "webOrigins": [UI_ORIGIN],
             "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": UI_ORIGIN + "/*"},
             "defaultClientScopes": ["basic", "roles", "profile", "web-origins", "acr"],
-            "optionalClientScopes": []}
+            "optionalClientScopes": [],
+            "protocolMappers": [api_audience_mapper()]}
 
 
 def dev_user(username, roles, actions):
@@ -155,7 +165,8 @@ def staff_realm():
              "attributes": {"access.token.lifespan": "300"},
              # secret intentionally absent: Keycloak generates one at import.
              "defaultClientScopes": ["basic", "roles", "service_account"] + ["source:" + s for s in DEPT_SOURCES],
-             "optionalClientScopes": []},
+             "optionalClientScopes": [],
+             "protocolMappers": [api_audience_mapper()]},
         ],
         "users": [
             dev_user("dev-officer", ["officer"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"]),

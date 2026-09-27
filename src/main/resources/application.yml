@@ -41,7 +41,12 @@ samanvay:
     # Tokens from any other issuer are rejected with 401. Keys are fetched
     # lazily by OIDC discovery, so the app boots before Keycloak is up.
     # Optional per realm: jwk-set-uri, or public-key-location (pinned PEM).
+    # Every accepted token must have this in `aud` (Keycloak audience mapper on
+    # the clients below), typ=Bearer, and an azp from its realm's allow-list.
+    audience: samanvay-api
     staff:
       issuer-uri: ${SAMANVAY_STAFF_ISSUER_URI:http://localhost:8180/realms/samanvay-staff}
+      allowed-clients: samanvay-staff-ui, dept-scholarship-dev
     citizen:
       issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:http://localhost:8180/realms/samanvay-citizen}
+      allowed-clients: samanvay-citizen-ui
