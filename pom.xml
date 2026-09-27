@@ -212,11 +212,9 @@
             <version>3.1.0</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.jboss.logging</groupId>
-            <artifactId>jboss-logging</artifactId>
-            <scope>test</scope>
-        </dependency>
+        <!-- jboss-logging (needed to compile the Keycloak provider) is NOT declared
+             here: it is a runtime dependency of Hibernate, and a test-scoped
+             declaration would drop it from the packaged app (PackagedJarIT). -->
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
