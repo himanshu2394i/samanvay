@@ -150,8 +150,13 @@
     return h;
   }
 
-  /** fetch() for /api calls with the bearer token attached. */
-  function authFetch(path, opts, realmKey) {
+  /**
+   * fetch() for /api calls with the bearer token attached. Waits for sign-in to
+   * settle first: on the redirect back from Keycloak the page's own scripts run
+   * before the code-for-token exchange has finished.
+   */
+  async function authFetch(path, opts, realmKey) {
+    await ready;
     const o = Object.assign({}, opts || {});
     o.headers = withAuth(o.headers, realmKey);
     return fetch(path, o);
