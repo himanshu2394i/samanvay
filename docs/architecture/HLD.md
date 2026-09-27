@@ -114,8 +114,8 @@ consent artifacts and discovery metadata** — never the underlying data. Payloa
 fetched on demand, under authorization, and are never persisted.
 
 *Inspired by* India's consent-based, federated data-sharing model used in the Account
-Aggregator ecosystem, where the consent manager facilitates exchange without storing or
-processing the data. We generalise that principle from financial data to government
+Aggregator ecosystem, where the intermediary that records the citizen's permission
+facilitates exchange without storing or processing the data. We generalise that principle from financial data to government
 services; we do not claim to implement the AA specification.
 
 ### P2 — The control plane decides, the data plane moves

@@ -106,9 +106,7 @@ class ConnectAccountsIT extends PostgresIntegrationTest {
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "SCHOLARSHIP",
-                "SCHOLARSHIP_ELIGIBILITY",
-                "Post-matric scholarship",
-                List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT")));
+                "SCHOLARSHIP_ELIGIBILITY"));
         consents.grant(request.id(), citizen, new com.samanvay.consent.api.AuthProof("session-jti"));
         assertThat(journeys.start(
                         "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode(),

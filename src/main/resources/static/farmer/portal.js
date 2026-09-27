@@ -401,10 +401,7 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         citizenId: citizenId(),
-        requesterId: "AGRICULTURE",
         purposeCode: "FARMER_SUBSIDY",
-        purposeText: "share land parcel from Revenue, crop record from Agriculture, bank from DBT for farmer subsidy",
-        categories: ["LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT"],
       }),
     });
     await api("/api/consent/requests/" + req.id + "/grant", {

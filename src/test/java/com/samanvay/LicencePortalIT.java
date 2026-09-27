@@ -92,14 +92,8 @@ class LicencePortalIT extends PostgresIntegrationTest {
                 .body(Map.of(
                         "citizenId",
                         citizenId,
-                        "requesterId",
-                        "INDUSTRY",
                         "purposeCode",
-                        "BUSINESS_NOC",
-                        "purposeText",
-                        "Business licence / NOC",
-                        "categories",
-                        new String[] {"PROPERTY", "FIRE_NOC", "POLLUTION_CLEARANCE", "LAND_RECORD"}))
+                        "BUSINESS_NOC"))
                 .retrieve()
                 .body(Map.class);
 

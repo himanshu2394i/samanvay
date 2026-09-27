@@ -22,7 +22,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
  *   <li>Staff realm, client-credentials token (has a {@code client_id} claim and the
  *       realm role {@code department}): {@code DEPARTMENT} only, plus one data-source
  *       grant per {@code source:<code>} scope. The principal is the client id
- *       ({@code azp}), not the synthetic service-account user.
+ *       ({@code azp}, which must equal {@code client_id} - there is no fallback), not the
+ *       synthetic service-account user.
  * </ul>
  *
  * A people token can never become a department token and vice versa: the two
@@ -36,6 +37,9 @@ final class KeycloakJwtConverter implements Converter<Jwt, AbstractAuthenticatio
     }
 
     private static final Set<String> STAFF_ROLES = Set.of("officer", "reviewer", "admin");
+
+    /** Staff realm: catalog department code of the officer (user attribute) or department client (hardcoded). */
+    static final String DEPARTMENT_CLAIM = "department";
 
     private final RealmKind realm;
 
@@ -58,7 +62,8 @@ final class KeycloakJwtConverter implements Converter<Jwt, AbstractAuthenticatio
                 roles.add(SamanvayRoles.CITIZEN);
             }
         } else if (serviceAccount) {
-            if (realmRoles.contains(SamanvayRoles.KEYCLOAK_DEPARTMENT_ROLE) && clientId.equals(azp(jwt, clientId))) {
+            // azp is mandatory (KeycloakTokenValidator) and must be the service account's own client
+            if (realmRoles.contains(SamanvayRoles.KEYCLOAK_DEPARTMENT_ROLE) && clientId.equals(jwt.getClaimAsString("azp"))) {
                 roles.add(SamanvayRoles.DEPARTMENT);
                 subject = clientId;
                 for (String scope : scopes(jwt)) {
@@ -79,13 +84,13 @@ final class KeycloakJwtConverter implements Converter<Jwt, AbstractAuthenticatio
         List<GrantedAuthority> authorities = new java.util.ArrayList<>();
         roles.forEach(r -> authorities.add(new SimpleGrantedAuthority("ROLE_" + r)));
         sources.forEach(s -> authorities.add(new SimpleGrantedAuthority("SCOPE_" + SamanvayRoles.DATA_SOURCE_SCOPE_PREFIX + s)));
-        Caller caller = new Caller(subject, jwt.getId(), Set.copyOf(roles), Set.copyOf(sources));
+        String department = realm == RealmKind.STAFF ? blankToNull(jwt.getClaimAsString(DEPARTMENT_CLAIM)) : null;
+        Caller caller = new Caller(subject, jwt.getId(), Set.copyOf(roles), Set.copyOf(sources), department);
         return new SamanvayAuthentication(jwt, authorities, caller);
     }
 
-    private static String azp(Jwt jwt, String fallback) {
-        String azp = jwt.getClaimAsString("azp");
-        return azp == null ? fallback : azp;
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 
     private static Set<String> realmRoles(Jwt jwt) {

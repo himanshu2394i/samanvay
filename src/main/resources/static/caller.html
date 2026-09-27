@@ -266,10 +266,8 @@
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
             citizenId,
-            requesterId: (j.policy && j.policy.requester) || "CALLER",
-            purposeCode: (j.policy && j.policy.purpose) || j.code,
-            purposeText: j.name,
-            categories: j.requiredCategories || []
+            // requester, purpose text and categories come from the catalog purpose
+            purposeCode: (j.policy && j.policy.purpose) || j.code
           })
         });
         await api("/api/consent/requests/" + req.id + "/grant", {

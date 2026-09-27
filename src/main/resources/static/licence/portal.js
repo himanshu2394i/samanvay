@@ -403,10 +403,7 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         citizenId: citizenId(),
-        requesterId: "INDUSTRY",
         purposeCode: "BUSINESS_NOC",
-        purposeText: "share property from Municipal, fire NOC from Fire, pollution clearance, land from Revenue for business licence",
-        categories: ["PROPERTY", "FIRE_NOC", "POLLUTION_CLEARANCE", "LAND_RECORD"],
       }),
     });
     await api("/api/consent/requests/" + req.id + "/grant", {

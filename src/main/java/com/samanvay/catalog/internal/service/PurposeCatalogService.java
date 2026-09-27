@@ -21,6 +21,12 @@ class PurposeCatalogService implements PurposeCatalog {
             return Optional.empty();
         }
         return purposes.findById(code).map(p -> new Purpose(
-                p.getCode(), p.getText(), p.getRefUri(), p.getCategoryType(), "ACTIVE".equals(p.getStatus())));
+                p.getCode(),
+                p.getText(),
+                p.getRefUri(),
+                p.getCategoryType(),
+                "ACTIVE".equals(p.getStatus()),
+                p.getRequesterDepartment(),
+                p.getDataCategories() == null ? java.util.List.of() : java.util.List.of(p.getDataCategories())));
     }
 }

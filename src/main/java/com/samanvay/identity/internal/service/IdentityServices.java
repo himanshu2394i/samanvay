@@ -292,7 +292,7 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
         e.setCreatedAt(Instant.now());
         links.save(e);
         audit.record(new AuditEntry(
-                ActorType.OFFICER,
+                ActorType.REVIEWER,
                 reviewerId,
                 "CANDIDATE_CONFIRMED",
                 c.getCitizenId().toString(),
@@ -315,6 +315,18 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
         c.setReviewedBy(reviewerId);
         c.setReviewedAt(Instant.now());
         candidates.save(c);
+        audit.record(new AuditEntry(
+                ActorType.REVIEWER,
+                reviewerId,
+                "CANDIDATE_REJECTED",
+                c.getCitizenId().toString(),
+                candidateId.toString(),
+                c.getDepartmentCode(),
+                null,
+                null,
+                Outcome.ALLOWED,
+                note,
+                Map.of("score", c.getScore())));
     }
 
     private VerifiedLocalId verifyProof(

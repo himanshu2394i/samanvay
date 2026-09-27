@@ -228,7 +228,7 @@ class AuditAttributionIT extends PostgresIntegrationTest {
         linking.assertLink(citizen, "EDUCATION", "STUDENT", "ATTR-E-" + suffix, com.samanvay.identity.api.AuthProof.digiLockerSandbox());
         linking.assertLink(citizen, "DBT", "DBT", "ATTR-D-" + suffix, com.samanvay.identity.api.AuthProof.digiLockerSandbox());
         var request = consents.request(new ConsentRequestDraft(
-                citizen, "SCHOLARSHIP", "SCHOLARSHIP_ELIGIBILITY", "Post-matric scholarship", SCHOLARSHIP_CATEGORIES));
+                citizen, "SCHOLARSHIP", "SCHOLARSHIP_ELIGIBILITY"));
         consents.grant(request.id(), citizen, new AuthProof("attr-session"));
         // Pointers are projected after commit from LinkAsserted; wait for the real end state.
         Awaitility.await()

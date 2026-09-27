@@ -12,8 +12,15 @@ import java.util.Set;
  *     grants consent ({@code citizen_auth_ref})
  * @param roles platform roles, without the {@code ROLE_} prefix
  * @param dataSourceScopes data-source codes a department client may fetch from
+ * @param department staff realm only: the catalog department code in the token's
+ *     {@code department} claim (officers: admin-managed user attribute; department
+ *     clients: a hardcoded claim on the client), or {@code null}
  */
-public record Caller(String subject, String sessionId, Set<String> roles, Set<String> dataSourceScopes) {
+public record Caller(String subject, String sessionId, Set<String> roles, Set<String> dataSourceScopes, String department) {
+
+    public Caller(String subject, String sessionId, Set<String> roles, Set<String> dataSourceScopes) {
+        this(subject, sessionId, roles, dataSourceScopes, null);
+    }
 
     public boolean hasRole(String role) {
         return roles.contains(role);

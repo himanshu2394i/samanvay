@@ -13,7 +13,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Writes one chained audit entry per refused API call (401/403). Synchronous,
+ * Writes one chained audit entry per refused (403) API call. Synchronous,
  * in its own (REQUIRES_NEW) transaction through {@link AuditService#record},
  * so the chain lock covers read-previous-hash + insert even though the
  * request was refused in the security filter chain, outside any business
@@ -44,9 +44,9 @@ class ApiAccessRefusedAuditor {
         return new AuditEntry(
                 actorType(event.actorKind()),
                 clip(event.actorId(), 100),
-                event.status() == 401 ? UNAUTHENTICATED : FORBIDDEN,
+                event.status() == 401 ? UNAUTHENTICATED : FORBIDDEN, // 401s are no longer published
                 null,
-                clip(event.method() + " " + event.path(), 200),
+                clip(event.route(), 200),
                 null,
                 null,
                 null,
@@ -58,10 +58,13 @@ class ApiAccessRefusedAuditor {
     static ActorType actorType(String kind) {
         return switch (kind) {
             case "CITIZEN" -> ActorType.CITIZEN;
-            case "OFFICER", "REVIEWER" -> ActorType.OFFICER;
+            case "OFFICER" -> ActorType.OFFICER;
+            case "REVIEWER" -> ActorType.REVIEWER;
             case "ADMIN" -> ActorType.ADMIN;
             case "DEPARTMENT" -> ActorType.DEPARTMENT;
-            default -> ActorType.ANONYMOUS;
+            case "ANONYMOUS" -> ActorType.ANONYMOUS;
+            // a caller was present (token validated) but its kind is not a known principal
+            default -> ActorType.AUTHENTICATED;
         };
     }
 

@@ -1,0 +1,9 @@
+# Profile "demo": local docker-compose Keycloak over plain http (see
+# docker-compose.yml). Only dev/demo may use http issuers or show the
+# dev sign-in tools (paste-token bar, /shared/auth-dev.js).
+samanvay:
+  security:
+    staff:
+      issuer-uri: ${SAMANVAY_STAFF_ISSUER_URI:http://localhost:8180/realms/samanvay-staff}
+    citizen:
+      issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:http://localhost:8180/realms/samanvay-citizen}

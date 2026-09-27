@@ -8,7 +8,17 @@
   "verifyEmail": true,
   "loginWithEmailAllowed": true,
   "bruteForceProtected": true,
+  "resetPasswordAllowed": false,
   "accessTokenLifespan": 300,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@dev.samanvay.invalid",
+    "fromDisplayName": "Samanvay citizen services (DEV)",
+    "auth": "false",
+    "ssl": "false",
+    "starttls": "false"
+  },
   "otpPolicyType": "totp",
   "otpPolicyAlgorithm": "HmacSHA1",
   "otpPolicyDigits": 6,
@@ -218,7 +228,32 @@
         "web-origins",
         "acr"
       ],
-      "optionalClientScopes": []
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "samanvay-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "samanvay-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "admin-cli",
+      "name": "${client_admin-cli}",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
     }
   ],
   "users": [
@@ -234,16 +269,8 @@
           "DEV-ONLY test user - never import into a real environment"
         ]
       },
-      "credentials": [
-        {
-          "type": "password",
-          "value": "dev-citizen-change-me",
-          "temporary": true
-        }
-      ],
-      "requiredActions": [
-        "CONFIGURE_TOTP"
-      ],
+      "credentials": [],
+      "requiredActions": [],
       "realmRoles": [
         "citizen"
       ]
@@ -252,7 +279,7 @@
   "authenticationFlows": [
     {
       "alias": "citizen browser",
-      "description": "Username + one-time code",
+      "description": "Email one-time code, or passkey",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -275,7 +302,7 @@
     },
     {
       "alias": "citizen browser forms",
-      "description": "username then OTP",
+      "description": "username/email (or passkey), then email code unless passkey",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
@@ -288,23 +315,130 @@
           "authenticator": "auth-username-form"
         },
         {
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": true,
+          "flowAlias": "citizen email code"
+        }
+      ]
+    },
+    {
+      "alias": "citizen email code",
+      "description": "Email one-time code for every non-passkey sign-in",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "conditional-credential",
+          "authenticatorConfig": "not signed in with a passkey"
+        },
+        {
           "requirement": "REQUIRED",
           "priority": 20,
           "userSetupAllowed": false,
           "autheticatorFlow": false,
-          "authenticator": "auth-otp-form"
+          "authenticator": "samanvay-email-otp",
+          "authenticatorConfig": "email code settings"
+        }
+      ]
+    },
+    {
+      "alias": "citizen direct grant disabled",
+      "description": "Citizens never sign in with a password grant",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "deny-access-authenticator"
+        }
+      ]
+    },
+    {
+      "alias": "citizen registration",
+      "description": "Registration without a password",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": true,
+          "authenticator": "registration-page-form",
+          "flowAlias": "citizen registration form"
+        }
+      ]
+    },
+    {
+      "alias": "citizen registration form",
+      "description": "Profile only",
+      "providerId": "form-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "registration-user-creation"
+        },
+        {
+          "requirement": "DISABLED",
+          "priority": 60,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "registration-recaptcha-action"
+        },
+        {
+          "requirement": "DISABLED",
+          "priority": 70,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "registration-terms-and-conditions"
         }
       ]
     }
   ],
+  "authenticatorConfig": [
+    {
+      "alias": "not signed in with a passkey",
+      "config": {
+        "credentials": "webauthn-passwordless",
+        "included": "false"
+      }
+    },
+    {
+      "alias": "email code settings",
+      "config": {
+        "length": "6",
+        "ttlSeconds": "300",
+        "maxAttempts": "5"
+      }
+    }
+  ],
   "browserFlow": "citizen browser",
+  "directGrantFlow": "citizen direct grant disabled",
+  "registrationFlow": "citizen registration",
   "requiredActions": [
     {
       "alias": "CONFIGURE_TOTP",
       "name": "Configure OTP",
       "providerId": "CONFIGURE_TOTP",
-      "enabled": true,
-      "defaultAction": true,
+      "enabled": false,
+      "defaultAction": false,
       "priority": 10,
       "config": {}
     },
@@ -312,7 +446,7 @@
       "alias": "UPDATE_PASSWORD",
       "name": "Update Password",
       "providerId": "UPDATE_PASSWORD",
-      "enabled": true,
+      "enabled": false,
       "defaultAction": false,
       "priority": 30,
       "config": {}

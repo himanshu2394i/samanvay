@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -60,10 +61,31 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
                 "SELECT actor_type, actor_id FROM audit.audit_entry WHERE action = 'CANDIDATE_CONFIRMED' AND resource = ?",
                 candidate.toString());
         assertThat(entry.get("actor_id")).isEqualTo("reviewer-sub-9");
-        assertThat(entry.get("actor_type")).isEqualTo("OFFICER");
+        assertThat(entry.get("actor_type")).isEqualTo("REVIEWER");
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM audit.audit_entry WHERE actor_id = 'mallory'", Integer.class))
                 .isZero();
+    }
+
+    @Test
+    void reviewerRejectIsAuditedAsReviewer() {
+        UUID candidate = pendingCandidate();
+        int status = post(TestHttp.as(TestTokens.reviewer("reviewer-sub-10")),
+                "/api/identity/candidates/" + candidate + "/reject", Map.of("note", "different person"));
+        assertThat(status).isEqualTo(200);
+        Map<String, Object> entry = jdbc.queryForMap(
+                "SELECT actor_type, actor_id, reason FROM audit.audit_entry WHERE action = 'CANDIDATE_REJECTED' AND resource = ?",
+                candidate.toString());
+        assertThat(entry).containsEntry("actor_type", "REVIEWER").containsEntry("actor_id", "reviewer-sub-10")
+                .containsEntry("reason", "different person");
+    }
+
+    @Test
+    void validTokenWithoutARoleIsRefusedAndAuditedAsAuthenticated() {
+        String subject = "no-role-" + UUID.randomUUID();
+        assertThat(get(TestHttp.as(TestTokens.staffWithRoles(subject, List.of())), "/api/audit/head"))
+                .isEqualTo(403);
+        assertRefusalAudited("API_FORBIDDEN", "AUTHENTICATED", subject, "GET /api/audit/head");
     }
 
     @Test
@@ -79,11 +101,19 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
         assertThat(status).isEqualTo(403);
         assertThat(jdbc.queryForObject("SELECT status FROM identity_candidate_match WHERE id = ?", String.class, candidate))
                 .isEqualTo("PENDING");
-        assertRefusalAudited("API_FORBIDDEN", "OFFICER", "officer-spoof", "/api/identity/candidates/" + candidate + "/confirm");
+        assertRefusalAudited("API_FORBIDDEN", "OFFICER", "officer-spoof", "POST /api/identity/candidates/{id}/confirm");
     }
 
     @Test
-    void anonymousCallIs401ProblemDetailAndAudited() {
+    void actuatorEndpointsAreNotServed() {
+        for (String path : List.of("/actuator", "/actuator/health", "/actuator/metrics", "/actuator/env")) {
+            int status = TestHttp.anonymous().get().uri(url(path)).exchange((rq, rs) -> rs.getStatusCode().value());
+            assertThat(status).as(path).isEqualTo(404);
+        }
+    }
+
+    @Test
+    void anonymousCallIs401ProblemDetailAndNotChained() {
         UUID candidate = pendingCandidate();
         ResponseEntity<String> res = TestHttp.anonymous()
                 .post()
@@ -101,7 +131,10 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
                 .contains("\"status\":401")
                 .contains("\"reason\":\"UNAUTHENTICATED\"")
                 .contains("https://samanvay.dev/problems/security/unauthenticated");
-        assertRefusalAudited("API_UNAUTHENTICATED", "ANONYMOUS", "anonymous", "/api/identity/candidates/" + candidate + "/reject");
+        // counted and logged, not chained (RefusalRecordingIT)
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM audit.audit_entry WHERE action = 'API_UNAUTHENTICATED'", Integer.class))
+                .isZero();
     }
 
     @Test
@@ -112,12 +145,7 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
         UUID citizen = http.post().uri(url("/api/identity/citizens")).contentType(MediaType.APPLICATION_JSON)
                 .body(draftJson()).retrieve().body(UUID.class);
         Map<?, ?> request = http.post().uri(url("/api/consent/requests")).contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of(
-                        "citizenId", citizen,
-                        "requesterId", "SCHOLARSHIP",
-                        "purposeCode", "SCHOLARSHIP_ELIGIBILITY",
-                        "purposeText", "t",
-                        "categories", List.of("INCOME_CERTIFICATE")))
+                .body(Map.of("citizenId", citizen, "purposeCode", "SCHOLARSHIP_ELIGIBILITY"))
                 .retrieve().body(Map.class);
 
         // No token: the old "stub-session" default is gone.
@@ -176,6 +204,44 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void tokensForAnotherAudienceClientOrTypeAre401() {
+        String citizenRoute = "/api/identity/proof-providers";
+        String officerRoute = "/api/journeys/exceptions";
+        // sanity: the realistic tokens pass
+        assertThat(get(TestHttp.as(TestTokens.citizen("c-ok")), citizenRoute)).isEqualTo(200);
+        assertThat(get(TestHttp.as(TestTokens.officer("o-ok")), officerRoute)).isEqualTo(200);
+
+        assertThat(get(TestHttp.as(TestTokens.officerForOtherAudience("o")), officerRoute))
+                .as("aud without samanvay-api")
+                .isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.officerViaClient("o", "admin-cli")), officerRoute))
+                .as("Keycloak admin-cli (password grant) token")
+                .isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.officerViaClient("o", "account-console")), officerRoute))
+                .as("unlisted client")
+                .isEqualTo(401);
+        // each realm has its own allow-list: the citizen UI client is not a staff client
+        assertThat(get(TestHttp.as(TestTokens.officerViaClient("o", TestTokens.CITIZEN_UI_CLIENT)), officerRoute))
+                .as("citizen client id on a staff-realm token")
+                .isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.citizenWithoutAzp("c")), citizenRoute)).as("no azp").isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.citizenWithTyp("c", "ID")), citizenRoute)).as("ID token").isEqualTo(401);
+        assertThat(get(TestHttp.as(TestTokens.citizenWithTyp("c", "Refresh")), citizenRoute)).as("refresh").isEqualTo(401);
+    }
+
+    @Test
+    void staffRealmTokenOnCitizenRoutesIsAuthenticatedButForbidden() {
+        // A valid staff token authenticates (its realm is trusted) but carries no
+        // CITIZEN role - realm separation is enforced when authorizing: 403, not 401.
+        RestClient officer = TestHttp.as(TestTokens.officer("o-on-citizen-route"));
+        assertThat(post(officer, "/api/identity/links", Map.of())).isEqualTo(403);
+        assertThat(post(officer, "/api/consent/requests/" + UUID.randomUUID() + "/grant", Map.of())).isEqualTo(403);
+        assertThat(post(officer, "/api/consent/" + UUID.randomUUID() + "/revoke", Map.of())).isEqualTo(403);
+        RestClient admin = TestHttp.as(TestTokens.admin("a-on-citizen-route"));
+        assertThat(get(admin, "/api/identity/proof-providers")).isEqualTo(403);
+    }
+
+    @Test
     void departmentClientNeedsAScopeForEveryDataSourceOfTheJourney() {
         UUID citizen = profiles.register(draft());
         int status = post(
@@ -183,7 +249,23 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
                 "/api/journeys/POST_MATRIC_SCHOLARSHIP/start",
                 Map.of("citizenId", citizen, "submission", Map.of()));
         assertThat(status).isEqualTo(403);
-        assertRefusalAudited("API_FORBIDDEN", "DEPARTMENT", "dept-narrow", "/api/journeys/POST_MATRIC_SCHOLARSHIP/start");
+        assertRefusalAudited("API_FORBIDDEN", "DEPARTMENT", "dept-narrow", "POST /api/journeys/{code}/start");
+    }
+
+    @Test
+    void incompleteBodiesAre400InvalidRequestNot500() {
+        RestClient admin = TestHttp.as(TestTokens.admin("admin-bad-body"));
+        for (String path : List.of("/api/catalog/departments", "/api/catalog/connectors", "/api/catalog/mappings",
+                "/api/catalog/import/openapi")) {
+            assertThat(post(admin, path, Map.of())).as(path).isEqualTo(400);
+        }
+        Map<String, Object> problem = TestHttp.as(TestTokens.officer("officer-bad-body")).post()
+                .uri(url("/api/identity/citizens")).contentType(MediaType.APPLICATION_JSON).body(Map.of())
+                .exchange((rq, rs) -> {
+                    assertThat(rs.getStatusCode().value()).isEqualTo(400);
+                    return rs.bodyTo(new ParameterizedTypeReference<Map<String, Object>>() {});
+                });
+        assertThat(problem).containsEntry("reason", "INVALID_REQUEST");
     }
 
     @Test
@@ -193,11 +275,13 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
         }
     }
 
-    private void assertRefusalAudited(String action, String actorType, String actorId, String path) {
+    private void assertRefusalAudited(String action, String actorType, String actorId, String route) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT actor_type, actor_id, outcome FROM audit.audit_entry WHERE action = ? AND resource LIKE ? ORDER BY seq DESC",
+                "SELECT actor_type, actor_id, outcome FROM audit.audit_entry WHERE action = ? AND resource = ? AND actor_id = ? ORDER BY seq DESC",
                 action,
-                "%" + path);
+                route,
+                actorId);
+        String path = route;
         assertThat(rows).as("audit entry for refused " + path).isNotEmpty();
         assertThat(rows.getFirst().get("actor_type")).isEqualTo(actorType);
         assertThat(rows.getFirst().get("actor_id")).isEqualTo(actorId);

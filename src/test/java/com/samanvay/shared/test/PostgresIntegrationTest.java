@@ -2,35 +2,19 @@ package com.samanvay.shared.test;
 
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
-public abstract class PostgresIntegrationTest {
-
-    // Started once per JVM so Spring's cached context keeps a live JDBC URL.
-    // @Container would stop the instance between IT classes and break the cache.
-    public static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16")
-            .withDatabaseName("samanvay")
-            .withUsername("samanvay_migrate")
-            .withPassword("samanvay_migrate");
-
-    static {
-        POSTGRES.start();
-    }
+/** Shared Postgres plus real JWT validation against the per-JVM {@link TestTokens} realms. */
+public abstract class PostgresIntegrationTest extends PostgresContainerSupport {
 
     @DynamicPropertySource
-    static void datasourceProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", () -> "samanvay_app");
-        registry.add("spring.datasource.password", () -> "samanvay_app_dev_password");
-        registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.flyway.user", POSTGRES::getUsername);
-        registry.add("spring.flyway.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.placeholders.appRolePassword", () -> "samanvay_app_dev_password");
+    static void testTokenRealms(DynamicPropertyRegistry registry) {
         // Real JWT validation against per-JVM test keys (see TestTokens); no Keycloak needed.
         registry.add("samanvay.security.staff.issuer-uri", () -> TestTokens.STAFF_ISSUER);
         registry.add("samanvay.security.staff.public-key-location", () -> TestTokens.STAFF_PUBLIC_KEY_PEM.toUri().toString());
         registry.add("samanvay.security.citizen.issuer-uri", () -> TestTokens.CITIZEN_ISSUER);
         registry.add(
                 "samanvay.security.citizen.public-key-location", () -> TestTokens.CITIZEN_PUBLIC_KEY_PEM.toUri().toString());
+        // The real clients plus the department client ids tests use to tell departments apart.
+        registry.add("samanvay.security.staff.allowed-clients", () -> String.join(",", TestTokens.STAFF_CLIENTS));
     }
 }

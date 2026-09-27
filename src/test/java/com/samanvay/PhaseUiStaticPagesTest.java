@@ -167,10 +167,15 @@ class PhaseUiStaticPagesTest {
         assertThat(auth).doesNotContain("localStorage");
         assertThat(auth).doesNotContain("refresh_token");
         assertThat(auth).contains("\"Authorization\", \"Bearer \"");
-        assertThat(auth).contains("samanvay-staff-ui");
-        assertThat(auth).contains("samanvay-citizen-ui");
-        assertThat(auth).contains("Paste token");
+        // no IdP address or client of its own, and no dev tools: the server hands those out
+        assertThat(auth).contains("/ui/auth-config");
+        assertThat(auth).doesNotContain("localhost").doesNotContain("8180");
+        assertThat(auth).doesNotContain("samanvay-staff-ui").doesNotContain("samanvay-citizen-ui");
+        assertThat(auth).doesNotContain("Paste token").doesNotContain("prompt(");
         assertThat(page("console.js")).contains("SamanvayAuth.fetch");
+        // on the redirect back from Keycloak, page scripts call the API before the token
+        // exchange finishes: the authed fetch must wait for sign-in to settle
+        assertThat(auth).containsPattern("async function authFetch\\([^)]*\\) \\{(\\s*(/\\*[^*]*\\*/|//[^\\n]*))*\\s*await ready;");
         for (String name : new String[] {"command.html", "journey.html", "ops.html", "audit.html", "onboard.html", "schemes.html"}) {
             assertThat(page(name)).as(name).contains("<script src=\"/shared/auth.js\" data-realm=\"staff\"></script>");
         }

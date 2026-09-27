@@ -16,11 +16,13 @@ services:
       - samanvay-postgres-data:/var/lib/postgresql/data
 
   # DEV-ONLY identity provider. Imports the two realms in keycloak/realms on
-  # first start (staff: officer/reviewer/admin, password + TOTP required;
-  # citizen: username + one-time code). Passkeys are allowed in both.
+  # first start. Staff: passkey, or password + TOTP. Citizen: email one-time
+  # code (read it in Mailpit below), or passkey. The citizen email-code
+  # authenticator is built by the Maven build (./mvnw -DskipTests package, or
+  # any verify) into target/keycloak-providers - build before `up`.
   # `start-dev` = in-memory H2 + HTTP: never use this service outside a laptop.
   # The app finds it via samanvay.security.{staff,citizen}.issuer-uri
-  # (SAMANVAY_STAFF_ISSUER_URI / SAMANVAY_CITIZEN_ISSUER_URI).
+  # (dev/demo profiles default to http://localhost:8180).
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     command: ["start-dev", "--import-realm", "--http-port=8180", "--hostname=http://localhost:8180"]
@@ -31,6 +33,16 @@ services:
       - "8180:8180"
     volumes:
       - ./keycloak/realms:/opt/keycloak/data/import:ro
+      - ./target/keycloak-providers:/opt/keycloak/providers:ro
+    depends_on:
+      - mailpit
+
+  # DEV-ONLY mail catcher: the citizen realm sends sign-in codes to
+  # mailpit:1025. Inbox UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "8025:8025"
 
 volumes:
   samanvay-postgres-data:
