@@ -34,8 +34,8 @@ import java.util.UUID;
  */
 public final class TestTokens {
 
-    public static final String STAFF_ISSUER = "http://test-idp.invalid/realms/samanvay-staff";
-    public static final String CITIZEN_ISSUER = "http://test-idp.invalid/realms/samanvay-citizen";
+    public static final String STAFF_ISSUER = "https://test-idp.invalid/realms/samanvay-staff";
+    public static final String CITIZEN_ISSUER = "https://test-idp.invalid/realms/samanvay-citizen";
     public static final String AUDIENCE = "samanvay-api";
     public static final String STAFF_UI_CLIENT = "samanvay-staff-ui";
     public static final String CITIZEN_UI_CLIENT = "samanvay-citizen-ui";
@@ -116,7 +116,7 @@ public final class TestTokens {
 
     /** Signed with the staff key but claiming an issuer the app does not trust. */
     public static String unknownIssuerOfficer(String subject) {
-        return sign(STAFF_KEY, base("http://evil.invalid/realms/samanvay-staff", subject)
+        return sign(STAFF_KEY, base("https://evil.invalid/realms/samanvay-staff", subject)
                 .claim("realm_access", Map.of("roles", List.of("officer")))
                 .build());
     }

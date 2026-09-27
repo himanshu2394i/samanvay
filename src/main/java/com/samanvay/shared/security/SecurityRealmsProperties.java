@@ -29,7 +29,12 @@ public record SecurityRealmsProperties(String audience, Realm staff, Realm citiz
         }
     }
 
-    public record Realm(String issuerUri, String jwkSetUri, Resource publicKeyLocation, List<String> allowedClients) {
+    /**
+     * @param uiClientId the realm's public browser client, handed to the pages by
+     *     {@code /ui/auth-config} so the sign-in script has no hardcoded IdP
+     */
+    public record Realm(
+            String issuerUri, String jwkSetUri, Resource publicKeyLocation, List<String> allowedClients, String uiClientId) {
 
         public Realm {
             allowedClients = allowedClients == null ? List.of() : List.copyOf(allowedClients);

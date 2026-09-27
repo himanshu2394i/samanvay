@@ -112,7 +112,8 @@ class SecurityConfig {
     }
 
     @Bean
-    JwtIssuerAuthenticationManagerResolver jwtIssuerResolver(SecurityRealmsProperties realms) {
+    JwtIssuerAuthenticationManagerResolver jwtIssuerResolver(
+            SecurityRealmsProperties realms, RealmIssuerStartupCheck issuersChecked) {
         Map<String, AuthenticationManager> managers = new LinkedHashMap<>();
         register(managers, realms.audience(), realms.staff(), KeycloakJwtConverter.RealmKind.STAFF);
         register(managers, realms.audience(), realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);

@@ -69,8 +69,14 @@ docker compose up -d          # starts Postgres + dev Keycloak (http://localhost
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
 ```
 
+Use the `dev` or `demo` profile locally: only those two point at the compose Keycloak
+(`http://localhost:8180`, see `application-dev.yml`). Any other boot refuses to start unless
+`SAMANVAY_STAFF_ISSUER_URI` and `SAMANVAY_CITIZEN_ISSUER_URI` are set to https issuers.
+
 Every `/api/**` call needs a Keycloak bearer token (the actor is taken only from the token).
-Pages have a **Dev sign-in** bar (Authorization Code + PKCE, or paste a token). Dev realms are
+Pages have a sign-in bar (Authorization Code + PKCE; the issuer and client come from
+`GET /ui/auth-config`). Under `dev`/`demo` it becomes the **Dev sign-in** bar with a paste-token
+button; other profiles do not serve that script at all. Dev realms are
 imported from `keycloak/realms/` (regenerate with `python3 keycloak/gen_realms.py`):
 
 | Realm | Users (temporary password, change on first login) | Notes |

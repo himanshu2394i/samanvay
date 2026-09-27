@@ -19,6 +19,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.JsonNode;
@@ -29,6 +30,7 @@ import tools.jackson.databind.JsonNode;
  * realm's JWKS endpoint, exactly as in a deployment.
  */
 @SpringBootTest(classes = SamanvayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("dev") // the container's issuer is plain http, which only dev/demo accept
 class KeycloakTokensIT extends PostgresContainerSupport {
 
     @LocalServerPort
