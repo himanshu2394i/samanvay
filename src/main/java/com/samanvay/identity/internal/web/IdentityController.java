@@ -13,6 +13,7 @@ import com.samanvay.identity.api.LinkProofProviderInfo;
 import com.samanvay.identity.api.Profile;
 import com.samanvay.identity.api.ProfileDraft;
 import com.samanvay.identity.api.ReviewFilter;
+import com.samanvay.shared.InvalidRequestException;
 import com.samanvay.shared.security.Caller;
 import com.samanvay.shared.security.Callers;
 import com.samanvay.shared.security.CitizenAccess;
@@ -51,6 +52,9 @@ class IdentityController {
     /** A citizen token self-registers (bound to its subject, idempotent); an officer registers on someone's behalf. */
     @PostMapping("/citizens")
     UUID register(@RequestBody ProfileDraft draft) {
+        InvalidRequestException.requireText(draft.nameLatin(), "nameLatin");
+        InvalidRequestException.requirePresent(draft.dob(), "dob");
+        InvalidRequestException.requireText(draft.dobPrecision(), "dobPrecision");
         Caller caller = Callers.require();
         return caller.isCitizen() ? profiles.registerSelf(draft, caller.subject()) : profiles.register(draft);
     }

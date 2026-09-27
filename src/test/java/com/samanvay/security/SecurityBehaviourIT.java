@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -249,6 +250,22 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
                 Map.of("citizenId", citizen, "submission", Map.of()));
         assertThat(status).isEqualTo(403);
         assertRefusalAudited("API_FORBIDDEN", "DEPARTMENT", "dept-narrow", "POST /api/journeys/{code}/start");
+    }
+
+    @Test
+    void incompleteBodiesAre400InvalidRequestNot500() {
+        RestClient admin = TestHttp.as(TestTokens.admin("admin-bad-body"));
+        for (String path : List.of("/api/catalog/departments", "/api/catalog/connectors", "/api/catalog/mappings",
+                "/api/catalog/import/openapi")) {
+            assertThat(post(admin, path, Map.of())).as(path).isEqualTo(400);
+        }
+        Map<String, Object> problem = TestHttp.as(TestTokens.officer("officer-bad-body")).post()
+                .uri(url("/api/identity/citizens")).contentType(MediaType.APPLICATION_JSON).body(Map.of())
+                .exchange((rq, rs) -> {
+                    assertThat(rs.getStatusCode().value()).isEqualTo(400);
+                    return rs.bodyTo(new ParameterizedTypeReference<Map<String, Object>>() {});
+                });
+        assertThat(problem).containsEntry("reason", "INVALID_REQUEST");
     }
 
     @Test
