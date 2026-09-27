@@ -56,3 +56,13 @@ samanvay:
       issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:}
       ui-client-id: samanvay-citizen-ui
       allowed-clients: samanvay-citizen-ui
+
+# Actuator is on the classpath only for the Micrometer registry (refused-call
+# counter); no actuator endpoint is served over HTTP.
+management:
+  server:
+    port: -1
+  endpoints:
+    web:
+      exposure:
+        exclude: "*"

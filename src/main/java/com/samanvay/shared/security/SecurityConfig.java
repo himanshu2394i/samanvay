@@ -18,7 +18,10 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -122,8 +125,11 @@ class SecurityConfig {
     }
 
     @Bean
-    FilterRegistrationBean<ApiAccessAuditFilter> apiAccessAuditFilter(ApplicationEventPublisher events) {
-        var reg = new FilterRegistrationBean<>(new ApiAccessAuditFilter(events));
+    FilterRegistrationBean<ApiAccessAuditFilter> apiAccessAuditFilter(
+            ApplicationEventPublisher events,
+            @Qualifier("requestMappingHandlerMapping") RequestMappingHandlerMapping mapping,
+            MeterRegistry meters) {
+        var reg = new FilterRegistrationBean<>(new ApiAccessAuditFilter(events, RouteTemplates.from(mapping), meters));
         // Outside Spring Security's chain (DEFAULT_FILTER_ORDER = -100), so it
         // sees the final status of every refused /api request.
         reg.setOrder(-101);

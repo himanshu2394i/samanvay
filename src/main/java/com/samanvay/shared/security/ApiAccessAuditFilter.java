@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -14,27 +15,45 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Wraps the whole Spring Security chain for {@code /api/**} and, after the
- * response status is known, publishes {@link ApiAccessRefused} for every
- * 401/403 - whether it came from the entry point, the access-denied handler,
- * an own-record check in a controller, or a module's 403 exception.
+ * response status is known, records every refusal:
  *
- * <p>The audit write is best-effort <em>for the response only</em>: the
- * status and body are already committed, and an audit failure is logged
- * rather than turned into a 500 for a request that was correctly refused.
- * This is the one place where an audit failure does not propagate; a denied
- * request has no business effect to roll back.
+ * <ul>
+ *   <li><b>401</b> (no valid token - by definition anonymous): a log line and the
+ *       {@value #UNAUTHENTICATED_METRIC} counter, <em>not</em> the audit chain.
+ *       Anyone on the internet can produce these, and each chain append takes
+ *       the global chain lock, so a burst of anonymous calls must cost neither
+ *       chain rows nor lock time.
+ *   <li><b>403</b> (a validated caller refused - by the route rules, an
+ *       own-record check or a module's 403): {@link ApiAccessRefused}, which
+ *       {@code audit} writes to the hash chain attributed to that caller.
+ * </ul>
+ *
+ * <p>Both record the matched <em>route template</em> (e.g.
+ * {@code GET /api/journeys/instances/{id}}), never the raw URL, so request
+ * paths chosen by the caller never reach the chain or the metric tags.
+ *
+ * <p>Recording is best-effort <em>for the response only</em>: the status and
+ * body are already committed, and a failure is logged rather than turned into
+ * a 500 for a request that was correctly refused. A denied request has no
+ * business effect to roll back.
  */
 final class ApiAccessAuditFilter extends OncePerRequestFilter {
 
     /** Set by {@link CaptureCallerFilter} inside the security chain, which clears its context on exit. */
     static final String CALLER_ATTRIBUTE = ApiAccessAuditFilter.class.getName() + ".caller";
 
+    static final String UNAUTHENTICATED_METRIC = "samanvay.api.unauthenticated";
+
     private static final Logger log = LoggerFactory.getLogger(ApiAccessAuditFilter.class);
 
     private final ApplicationEventPublisher events;
+    private final RouteTemplates routes;
+    private final MeterRegistry meters;
 
-    ApiAccessAuditFilter(ApplicationEventPublisher events) {
+    ApiAccessAuditFilter(ApplicationEventPublisher events, RouteTemplates routes, MeterRegistry meters) {
         this.events = events;
+        this.routes = routes;
+        this.meters = meters;
     }
 
     @Override
@@ -51,13 +70,24 @@ final class ApiAccessAuditFilter extends OncePerRequestFilter {
         } finally {
             int status = response.getStatus();
             if (status == 401 || status == 403) {
-                publish(request, status);
+                record(request, status);
             }
         }
     }
 
-    private void publish(HttpServletRequest request, int status) {
+    private void record(HttpServletRequest request, int status) {
+        String route = RouteTemplates.UNMATCHED;
         try {
+            route = request.getMethod() + " " + routes.templateOf(request);
+            Object reasonAttribute = request.getAttribute(ProblemWriter.REASON_ATTRIBUTE);
+            String reason = reasonAttribute == null
+                    ? (status == 401 ? "UNAUTHENTICATED" : "FORBIDDEN")
+                    : reasonAttribute.toString();
+            if (status == 401) {
+                meters.counter(UNAUTHENTICATED_METRIC, "route", route, "reason", reason).increment();
+                log.info("refused unauthenticated API call: {} reason={}", route, reason);
+                return;
+            }
             String actorKind = ApiAccessRefused.ANONYMOUS;
             String actorId = "anonymous";
             if (request.getAttribute(CALLER_ATTRIBUTE) instanceof Caller caller) {
@@ -70,16 +100,9 @@ final class ApiAccessAuditFilter extends OncePerRequestFilter {
                     actorId = p.id();
                 }
             }
-            Object reason = request.getAttribute(ProblemWriter.REASON_ATTRIBUTE);
-            events.publishEvent(new ApiAccessRefused(
-                    status,
-                    request.getMethod(),
-                    request.getRequestURI(),
-                    actorKind,
-                    actorId,
-                    reason == null ? (status == 401 ? "UNAUTHENTICATED" : "FORBIDDEN") : reason.toString()));
+            events.publishEvent(new ApiAccessRefused(status, route, actorKind, actorId, reason));
         } catch (RuntimeException e) {
-            log.warn("audit of refused API call failed: {} {} -> {}", request.getMethod(), request.getRequestURI(), status, e);
+            log.warn("recording refused API call failed: {} -> {}", route, status, e);
         }
     }
 

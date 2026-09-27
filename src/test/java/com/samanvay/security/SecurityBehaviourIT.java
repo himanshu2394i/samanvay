@@ -79,11 +79,19 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
         assertThat(status).isEqualTo(403);
         assertThat(jdbc.queryForObject("SELECT status FROM identity_candidate_match WHERE id = ?", String.class, candidate))
                 .isEqualTo("PENDING");
-        assertRefusalAudited("API_FORBIDDEN", "OFFICER", "officer-spoof", "/api/identity/candidates/" + candidate + "/confirm");
+        assertRefusalAudited("API_FORBIDDEN", "OFFICER", "officer-spoof", "POST /api/identity/candidates/{id}/confirm");
     }
 
     @Test
-    void anonymousCallIs401ProblemDetailAndAudited() {
+    void actuatorEndpointsAreNotServed() {
+        for (String path : List.of("/actuator", "/actuator/health", "/actuator/metrics", "/actuator/env")) {
+            int status = TestHttp.anonymous().get().uri(url(path)).exchange((rq, rs) -> rs.getStatusCode().value());
+            assertThat(status).as(path).isEqualTo(404);
+        }
+    }
+
+    @Test
+    void anonymousCallIs401ProblemDetailAndNotChained() {
         UUID candidate = pendingCandidate();
         ResponseEntity<String> res = TestHttp.anonymous()
                 .post()
@@ -101,7 +109,10 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
                 .contains("\"status\":401")
                 .contains("\"reason\":\"UNAUTHENTICATED\"")
                 .contains("https://samanvay.dev/problems/security/unauthenticated");
-        assertRefusalAudited("API_UNAUTHENTICATED", "ANONYMOUS", "anonymous", "/api/identity/candidates/" + candidate + "/reject");
+        // counted and logged, not chained (RefusalRecordingIT)
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM audit.audit_entry WHERE action = 'API_UNAUTHENTICATED'", Integer.class))
+                .isZero();
     }
 
     @Test
@@ -216,7 +227,7 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
                 "/api/journeys/POST_MATRIC_SCHOLARSHIP/start",
                 Map.of("citizenId", citizen, "submission", Map.of()));
         assertThat(status).isEqualTo(403);
-        assertRefusalAudited("API_FORBIDDEN", "DEPARTMENT", "dept-narrow", "/api/journeys/POST_MATRIC_SCHOLARSHIP/start");
+        assertRefusalAudited("API_FORBIDDEN", "DEPARTMENT", "dept-narrow", "POST /api/journeys/{code}/start");
     }
 
     @Test
@@ -226,11 +237,13 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
         }
     }
 
-    private void assertRefusalAudited(String action, String actorType, String actorId, String path) {
+    private void assertRefusalAudited(String action, String actorType, String actorId, String route) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT actor_type, actor_id, outcome FROM audit.audit_entry WHERE action = ? AND resource LIKE ? ORDER BY seq DESC",
+                "SELECT actor_type, actor_id, outcome FROM audit.audit_entry WHERE action = ? AND resource = ? AND actor_id = ? ORDER BY seq DESC",
                 action,
-                "%" + path);
+                route,
+                actorId);
+        String path = route;
         assertThat(rows).as("audit entry for refused " + path).isNotEmpty();
         assertThat(rows.getFirst().get("actor_type")).isEqualTo(actorType);
         assertThat(rows.getFirst().get("actor_id")).isEqualTo(actorId);
