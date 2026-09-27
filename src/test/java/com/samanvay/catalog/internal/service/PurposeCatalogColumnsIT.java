@@ -14,7 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** V186: every consent-relevant purpose attribute is catalog data and reaches Java intact. */
+/** V186/V188: every consent-relevant purpose attribute is catalog data and reaches Java intact. */
 @SpringBootTest(classes = SamanvayApplication.class)
 class PurposeCatalogColumnsIT extends PostgresIntegrationTest {
 
@@ -23,6 +23,9 @@ class PurposeCatalogColumnsIT extends PostgresIntegrationTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    com.samanvay.catalog.api.JourneyCatalog journeys;
 
     @Test
     void everyColumnRoundTrips() {
@@ -79,6 +82,27 @@ class PurposeCatalogColumnsIT extends PostgresIntegrationTest {
         assertThat(p.maxDurationDays()).isNull();
         assertThat(p.labelEnStatus()).isEqualTo(Purpose.LabelStatus.MISSING);
         assertThat(p.separateOptIn()).isFalse();
+    }
+
+    @Test
+    void academicYearStartMonthIsSchemeConfigNotPurposeData() {
+        assertThat(columns("catalog_purpose"))
+                .as("academic year belongs to the scheme's journey config, never to catalog_purpose")
+                .doesNotContain("academic_year_start_month");
+        assertThat(jdbc.queryForList("SELECT * FROM catalog_purpose")).allSatisfy(row -> assertThat(row.keySet())
+                .noneMatch(k -> k.toLowerCase().contains("academic")));
+        assertThat(columns("catalog_journey")).contains("academic_year_start_month");
+        assertThat(journeys.byCode("POST_MATRIC_SCHOLARSHIP").academicYearStartMonth())
+                .as("scholarship scheme: academic year starts in June")
+                .isEqualTo(6);
+        assertThatThrownBy(() -> jdbc.update(
+                        "UPDATE catalog_journey SET academic_year_start_month = 13 WHERE code = 'POST_MATRIC_SCHOLARSHIP'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private List<String> columns(String table) {
+        return jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = ?", String.class, table);
     }
 
     @Test

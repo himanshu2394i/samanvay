@@ -5,6 +5,7 @@ import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.audit.api.Outcome;
 import com.samanvay.catalog.api.JourneyCatalog;
+import com.samanvay.catalog.api.JourneyDefinition;
 import com.samanvay.catalog.api.PurposeCatalog;
 import com.samanvay.consent.api.RequesterNotEntitledException;
 import com.samanvay.consent.api.UnknownPurposeException;
@@ -48,7 +49,6 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Arrays;
 import java.util.List;
@@ -71,6 +71,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
     private final JourneyCatalog journeys;
     private final PurposeCatalog purposes;
     private final ApprovedAwards awards;
+    private final RefusalAuditor refusalAudit;
     private final GrantSigner signer;
     private final AuditService audit;
     private final ApplicationEventPublisher events;
@@ -79,9 +80,6 @@ class ConsentServices implements ConsentService, AccessAuthority {
 
     /** Consent lifetime when the catalog purpose sets no max (the pre-V186 behaviour). */
     static final Duration DEFAULT_MAX_DURATION = Duration.ofDays(365);
-
-    /** "Prior year" for award-gated purposes is the previous calendar year in this zone. */
-    static final ZoneId AWARD_YEAR_ZONE = ZoneId.of("Asia/Kolkata");
 
     ConsentServices(
             ConsentRequestRepository requests,
@@ -93,6 +91,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
             JourneyCatalog journeys,
             PurposeCatalog purposes,
             ApprovedAwards awards,
+            RefusalAuditor refusalAudit,
             GrantSigner signer,
             AuditService audit,
             ApplicationEventPublisher events,
@@ -106,6 +105,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         this.journeys = journeys;
         this.purposes = purposes;
         this.awards = awards;
+        this.refusalAudit = refusalAudit;
         this.signer = signer;
         this.audit = audit;
         this.events = events;
@@ -113,13 +113,12 @@ class ConsentServices implements ConsentService, AccessAuthority {
     }
 
     /**
-     * Refusals of a known purpose are audited in this transaction and the audit entry is kept
-     * (no rollback for them); nothing else is written.
+     * A refusal of a known purpose is audited once, in its own transaction (so it survives this
+     * one rolling back), and the exception is marked audited so no generic refused-call entry
+     * is added for it.
      */
     @Override
-    @Transactional(noRollbackFor = {
-        RequesterNotEntitledException.class, NoPriorAwardException.class, NotAwardingDepartmentException.class
-    })
+    @Transactional
     public ConsentRequest request(ConsentRequestDraft draft) {
         // Text and categories come from the catalog purpose, never from the caller;
         // only the purpose's own department may request under it.
@@ -153,33 +152,42 @@ class ConsentServices implements ConsentService, AccessAuthority {
     }
 
     /**
-     * The citizen's prior-year award must exist and have been decided by the requester
-     * (the department in the award's journey policy).
+     * The citizen needs an approved award in the academic year immediately before the current
+     * one, decided by the requester. Both the academic year (its start month) and the deciding
+     * department come from the award's own journey (scheme) configuration; a scheme without an
+     * academic year never yields a prior award.
      */
     private void requirePriorAwardBy(ConsentRequestDraft draft, Purpose purpose) {
-        int priorYear = clock.instant().atZone(AWARD_YEAR_ZONE).getYear() - 1;
-        List<ApprovedAwards.Award> prior = awards.forCitizen(draft.citizenId()).stream()
-                .filter(a -> a.decidedAt() != null && a.decidedAt().atZone(AWARD_YEAR_ZONE).getYear() == priorYear)
+        Instant now = clock.instant();
+        List<JourneyDefinition> priorAwardSchemes = awards.forCitizen(draft.citizenId()).stream()
+                .filter(a -> a.decidedAt() != null)
+                .flatMap(a -> scheme(a.journeyCode())
+                        .filter(j -> j.academicYearStartMonth() != null
+                                && AcademicYears.isPriorYear(a.decidedAt(), now, j.academicYearStartMonth()))
+                        .stream())
                 .toList();
-        if (prior.isEmpty()) {
+        if (priorAwardSchemes.isEmpty()) {
             throw refused(draft, purpose, new NoPriorAwardException(purpose.code()));
         }
         boolean decidedByRequester = draft.requesterId() != null
-                && prior.stream().anyMatch(a -> draft.requesterId().equals(decidingDepartment(a.journeyCode())));
+                && priorAwardSchemes.stream().anyMatch(j -> draft.requesterId().equals(j.policy().requester()));
         if (!decidedByRequester) {
             throw refused(draft, purpose, new NotAwardingDepartmentException(draft.requesterId(), purpose.code()));
         }
     }
 
-    private String decidingDepartment(String journeyCode) {
+    private Optional<JourneyDefinition> scheme(String journeyCode) {
         try {
-            return journeys.policy(journeyCode).requester();
+            return Optional.ofNullable(journeys.byCode(journeyCode));
         } catch (RuntimeException unknownJourney) {
-            return null;
+            return Optional.empty();
         }
     }
 
-    /** Audits a refused consent request (same transaction) and returns the exception to throw. */
+    /**
+     * Audits a refused consent request in its own transaction and returns the exception to
+     * throw, marked as audited (one audit row per refusal).
+     */
     private SamanvayException refused(ConsentRequestDraft draft, Purpose purpose, SamanvayException refusal) {
         PrincipalRef by = draft.principal();
         Map<String, Object> meta = new HashMap<>();
@@ -189,7 +197,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
             meta.put("principalType", by.kind().name());
             meta.put("principalId", by.id());
         }
-        audit.record(new AuditEntry(
+        refusalAudit.record(new AuditEntry(
                 by == null ? ActorType.SYSTEM : actorType(by),
                 by == null ? String.valueOf(draft.requesterId()) : by.id(),
                 "CONSENT_REQUEST_REFUSED",
@@ -201,6 +209,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 Outcome.DENIED,
                 refusal.reason(),
                 meta));
+        refusal.markAudited();
         return refusal;
     }
 
@@ -324,10 +333,12 @@ class ConsentServices implements ConsentService, AccessAuthority {
         }
         var c = consent.get();
         if ("REVOKED".equals(c.status())) {
-            return deny(req, DenialReason.CONSENT_REVOKED, null, c.id());
+            return deny(req, DenialReason.CONSENT_REVOKED, null, c.id(), null);
         }
         if ("EXPIRED".equals(c.status()) || !c.validUntil().isAfter(clock.instant())) {
-            return deny(req, DenialReason.CONSENT_EXPIRED, null, c.id());
+            Instant now = clock.instant();
+            Instant endedAt = c.validUntil().isAfter(now) ? now : c.validUntil();
+            return deny(req, DenialReason.CONSENT_EXPIRED, null, c.id(), endedAt);
         }
         if (c.frequencyLimit() != null
                 && grants.countByConsentIdAndIssuedAtAfter(c.id(), clock.instant().minus(Duration.ofHours(24)))
@@ -386,12 +397,20 @@ class ConsentServices implements ConsentService, AccessAuthority {
     }
 
     private AccessDecision.Denied deny(AccessRequest req, DenialReason reason, ConsentRequest remedy) {
-        return deny(req, reason, remedy, null);
+        return deny(req, reason, remedy, null, null);
     }
 
-    private AccessDecision.Denied deny(AccessRequest req, DenialReason reason, ConsentRequest remedy, UUID consentId) {
-        AccessDecision.Denied denied = new AccessDecision.Denied(reason, Optional.ofNullable(remedy));
-        audit.record(entry(req, Outcome.DENIED, "GRANT_DENIED", consentId, null, reason.name(), reason.plainMessage()));
+    /**
+     * One {@code GRANT_DENIED} row per refused fetch, in the caller's transaction: a denial is a
+     * return value, not an exception, so nothing rolls it back here, and a fetch may run inside a
+     * transaction that already holds the audit chain lock (a REQUIRES_NEW append would block).
+     */
+    private AccessDecision.Denied deny(
+            AccessRequest req, DenialReason reason, ConsentRequest remedy, UUID consentId, Instant endedAt) {
+        String copy = ConsentCopy.denied(reason, endedAt);
+        AccessDecision.Denied denied = new AccessDecision.Denied(reason, Optional.ofNullable(remedy), copy);
+        audit.record(entry(req, Outcome.DENIED, "GRANT_DENIED", consentId, null, reason.name(),
+                copy.equals(reason.name()) ? null : copy));
         return denied;
     }
 
@@ -487,7 +506,14 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 e.getStatus());
     }
 
+    /**
+     * Status is worked out at read time: an ACTIVE row past {@code valid_until} is reported as
+     * EXPIRED ("Ended"), even though nothing has marked the row yet.
+     */
     private ConsentArtifact toArtifact(ConsentArtifactEntity e) {
+        String status = "ACTIVE".equals(e.getStatus()) && !e.getValidUntil().isAfter(clock.instant())
+                ? "EXPIRED"
+                : e.getStatus();
         return new ConsentArtifact(
                 e.getId(),
                 e.getSubjectCitizenId(),
@@ -498,12 +524,13 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 e.getValidFrom(),
                 e.getValidUntil(),
                 e.getFrequencyLimit(),
-                e.getStatus(),
+                status,
                 e.getVersion(),
                 e.getCitizenAuthRef(),
                 e.getDataTypes() == null ? List.of() : Arrays.asList(e.getDataTypes()),
                 e.getCreatedAt(),
                 e.getRevokedAt(),
-                e.getRevokedBy());
+                e.getRevokedBy(),
+                ConsentCopy.statusLabel(status));
     }
 }

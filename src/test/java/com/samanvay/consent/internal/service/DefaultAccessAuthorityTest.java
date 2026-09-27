@@ -60,6 +60,7 @@ class DefaultAccessAuthorityTest {
                 mock(JourneyCatalog.class),
                 TestPurposes.catalog(),
                 anyCitizen -> java.util.List.of(),
+                new RefusalAuditor(audit, mock(org.springframework.transaction.PlatformTransactionManager.class)),
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},

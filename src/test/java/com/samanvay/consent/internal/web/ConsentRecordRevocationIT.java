@@ -22,7 +22,11 @@ import java.sql.Array;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -83,16 +87,16 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
         assertThat(revokedAudit.get("actor_id")).isEqualTo(c.subject());
         assertThat(revokedAudit.get("meta").toString()).contains("SCH_ELIGIBILITY_CHECK").contains(c.subject());
 
+        long before = headSeq();
         AccessDecision after = access.authorize(fetch);
         assertThat(after).isInstanceOf(AccessDecision.Denied.class);
         AccessDecision.Denied denied = (AccessDecision.Denied) after;
         assertThat(denied.reason()).isEqualTo(DenialReason.CONSENT_REVOKED);
         assertThat(denied.message()).isEqualTo(WITHDRAWN);
 
-        Map<String, Object> refusal = jdbc.queryForMap(
-                "SELECT outcome, reason, meta::text AS meta FROM audit.audit_entry "
-                        + "WHERE action = 'GRANT_DENIED' AND consent_id = ? ORDER BY seq DESC LIMIT 1",
-                consentId);
+        Map<String, Object> refusal = exactlyOneRowSince(before, c.id());
+        assertThat(refusal.get("action")).isEqualTo("GRANT_DENIED");
+        assertThat(refusal.get("consent_id")).isEqualTo(consentId);
         assertThat(refusal.get("outcome")).isEqualTo("DENIED");
         assertThat(refusal.get("reason")).isEqualTo("CONSENT_REVOKED");
         assertThat(refusal.get("meta").toString())
@@ -100,12 +104,18 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
                 .contains("officer-p2-fetch")
                 .contains(WITHDRAWN);
 
-        // Revoking again changes nothing (original revoked_at/by kept, no second audit entry).
+        // Revoking again changes nothing (original revoked_at/by kept, no additional audit row).
+        long beforeSecondRevoke = headSeq();
         citizenHttp(c).post().uri(url("/api/consent/me/" + consentId + "/revoke")).retrieve().toBodilessEntity();
         assertThat(consentRow(consentId).get("revoked_at")).isEqualTo(row.get("revoked_at"));
         assertThat(count("SELECT count(*) FROM audit.audit_entry WHERE action = 'CONSENT_REVOKED' AND consent_id = ?",
                         consentId))
                 .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM audit.audit_entry WHERE seq > ? AND subject_id = ?",
+                        beforeSecondRevoke, c.id().toString()))
+                .as("second revoke writes no audit row at all")
+                .isZero();
+        assertThat(access.authorize(fetch)).as("and fetches stay refused").isInstanceOf(AccessDecision.Denied.class);
     }
 
     @Test
@@ -137,14 +147,21 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
         assertThat(awaitGranted(fetch)).isInstanceOf(AccessDecision.Granted.class);
 
         jdbc.update("UPDATE consent_artifact SET valid_until = now() - interval '1 minute' WHERE id = ?", consentId);
+        Instant endedAt = ((Timestamp) consentRow(consentId).get("valid_until")).toInstant();
+        String endedOn = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH)
+                .format(endedAt.atZone(ZoneId.of("Asia/Kolkata")));
 
+        long before = headSeq();
         AccessDecision after = access.authorize(fetch);
         assertThat(after).isInstanceOf(AccessDecision.Denied.class);
         assertThat(((AccessDecision.Denied) after).reason()).isEqualTo(DenialReason.CONSENT_EXPIRED);
-        assertThat(((AccessDecision.Denied) after).message()).doesNotContain("withdrew");
-        assertThat(count("SELECT count(*) FROM audit.audit_entry "
-                        + "WHERE action = 'GRANT_DENIED' AND reason = 'CONSENT_EXPIRED' AND consent_id = ?", consentId))
-                .isEqualTo(1);
+        assertThat(((AccessDecision.Denied) after).message())
+                .isEqualTo("This permission ended on " + endedOn + ", so this department can no longer check this "
+                        + "document. If your application still needs it, you can give permission again.");
+        Map<String, Object> refusal = exactlyOneRowSince(before, c.id());
+        assertThat(refusal.get("action")).isEqualTo("GRANT_DENIED");
+        assertThat(refusal.get("reason")).isEqualTo("CONSENT_EXPIRED");
+        assertThat(refusal.get("consent_id")).isEqualTo(consentId);
     }
 
     // ---- purpose codes --------------------------------------------------------------------
@@ -226,10 +243,12 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
         assertThat(requestStatus(c, "SCH_RENEWAL_CHECK")).as("citizen asking gets the same answer").isEqualTo(409);
         assertThat(count("SELECT count(*) FROM consent_request WHERE subject_citizen_id = ?", c.id())).isZero();
 
-        Map<String, Object> audit = jdbc.queryForMap(
-                "SELECT actor_type, outcome, reason, meta::text AS meta FROM audit.audit_entry "
-                        + "WHERE action = 'CONSENT_REQUEST_REFUSED' AND actor_id = ?",
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT action, actor_type, outcome, reason, meta::text AS meta FROM audit.audit_entry WHERE actor_id = ?",
                 officer);
+        assertThat(rows).as("exactly one audit row for the refusal").hasSize(1);
+        Map<String, Object> audit = rows.get(0);
+        assertThat(audit.get("action")).isEqualTo("CONSENT_REQUEST_REFUSED");
         assertThat(audit.get("actor_type")).isEqualTo("OFFICER");
         assertThat(audit.get("outcome")).isEqualTo("DENIED");
         assertThat(audit.get("reason")).isEqualTo("NO_PRIOR_AWARD");
@@ -251,18 +270,56 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
         assertThat(problem.get("reason")).isEqualTo("NOT_AWARDING_DEPARTMENT");
         assertThat(count("SELECT count(*) FROM consent_request WHERE subject_citizen_id = ?", c.id())).isZero();
 
-        Map<String, Object> refused = jdbc.queryForMap(
-                "SELECT actor_type, department_id, reason, meta::text AS meta FROM audit.audit_entry "
-                        + "WHERE action = 'CONSENT_REQUEST_REFUSED' AND actor_id = ?",
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT action, actor_type, department_id, reason, meta::text AS meta FROM audit.audit_entry "
+                        + "WHERE actor_id = ?",
                 officer);
+        assertThat(rows).as("exactly one audit row for the refusal (no generic API_FORBIDDEN too)").hasSize(1);
+        Map<String, Object> refused = rows.get(0);
+        assertThat(refused.get("action")).isEqualTo("CONSENT_REQUEST_REFUSED");
         assertThat(refused.get("actor_type")).isEqualTo("OFFICER");
         assertThat(refused.get("department_id")).isEqualTo("REVENUE");
         assertThat(refused.get("reason")).isEqualTo("NOT_AWARDING_DEPARTMENT");
         assertThat(refused.get("meta").toString()).contains("SCH_RENEWAL_CHECK");
-        assertThat(count("SELECT count(*) FROM audit.audit_entry WHERE action = 'API_FORBIDDEN' AND actor_id = ?",
-                        officer))
-                .as("the 403 is also on the refused-call trail")
-                .isEqualTo(1);
+    }
+
+    @Test
+    void plainRoleDenialStillGivesExactlyOneGenericRow() {
+        Citizen c = linkedCitizen();
+        UUID consentId = requestAndGrant(c, "SCH_ELIGIBILITY_CHECK");
+        String officer = "off-role-deny-" + UUID.randomUUID();
+        int status = TestHttp.as(TestTokens.officer(officer)).post()
+                .uri(url("/api/consent/me/" + consentId + "/revoke"))
+                .exchange((rq, rs) -> rs.getStatusCode().value());
+        assertThat(status).isEqualTo(403);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT action, resource FROM audit.audit_entry WHERE actor_id = ?", officer);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("action")).isEqualTo("API_FORBIDDEN");
+        assertThat(rows.get(0).get("resource")).isEqualTo("POST /api/consent/me/{id}/revoke");
+    }
+
+    // ---- citizen permissions list: status worked out at read time ----------------------------
+
+    @Test
+    void expiredButUnmarkedConsentIsReportedAsEnded() {
+        Citizen c = linkedCitizen();
+        UUID active = requestAndGrant(c, "SCH_BANK_VERIFY");
+        UUID expired = requestAndGrant(c, "SCH_ELIGIBILITY_CHECK");
+        UUID withdrawn = requestAndGrant(c, "SCH_IDENTITY_REVIEW");
+        jdbc.update("UPDATE consent_artifact SET valid_until = now() - interval '1 minute' WHERE id = ?", expired);
+        citizenHttp(c).post().uri(url("/api/consent/me/" + withdrawn + "/revoke")).retrieve().toBodilessEntity();
+        assertThat(consentRow(expired).get("status")).as("row not marked").isEqualTo("ACTIVE");
+
+        List<Map<String, Object>> list = citizenHttp(c).get().uri(url("/api/consent/citizens/" + c.id()))
+                .retrieve().body(new org.springframework.core.ParameterizedTypeReference<>() {});
+        Map<String, Map<String, Object>> byId = new java.util.HashMap<>();
+        list.forEach(m -> byId.put(m.get("id").toString(), m));
+        assertThat(byId.get(expired.toString())).containsEntry("status", "EXPIRED").containsEntry("statusLabel", "Ended");
+        assertThat(byId.get(withdrawn.toString()))
+                .containsEntry("status", "REVOKED")
+                .containsEntry("statusLabel", "Withdrawn by you");
+        assertThat(byId.get(active.toString())).containsEntry("status", "ACTIVE").containsEntry("statusLabel", "Active");
     }
 
     @Test
@@ -293,7 +350,7 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
                 .as("token-bound route: someone else's consent is not found")
                 .isEqualTo(404);
         assertThat(revokeViaBody(other, consentId, other.id())).as("own citizenId, foreign consent").isEqualTo(404);
-        assertThat(revokeViaBody(other, consentId, owner.id())).as("foreign citizenId").isEqualTo(403);
+        assertThat(revokeViaBody(other, consentId, owner.id())).as("foreign citizenId: still 404, not 403").isEqualTo(404);
         int staff = TestHttp.as(TestTokens.officer("off-p2-revoke")).post()
                 .uri(url("/api/consent/me/" + consentId + "/revoke"))
                 .exchange((rq, rs) -> rs.getStatusCode().value());
@@ -400,6 +457,20 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
     private List<String> catalogDataTypes(String code) {
         return jdbc.queryForObject("SELECT data_types FROM catalog_purpose WHERE code = ?",
                 (rs, i) -> strings(rs.getArray(1)), code);
+    }
+
+    private long headSeq() {
+        return jdbc.queryForObject("SELECT COALESCE(max(seq), 0) FROM audit.audit_entry", Long.class);
+    }
+
+    /** Exactly one audit row about this citizen was appended after {@code seq}. */
+    private Map<String, Object> exactlyOneRowSince(long seq, UUID citizen) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT action, outcome, reason, consent_id, meta::text AS meta FROM audit.audit_entry "
+                        + "WHERE seq > ? AND subject_id = ?",
+                seq, citizen.toString());
+        assertThat(rows).as("exactly one audit row for the refusal").hasSize(1);
+        return rows.get(0);
     }
 
     private int count(String sql, Object... args) {

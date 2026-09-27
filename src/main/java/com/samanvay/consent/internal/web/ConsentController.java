@@ -84,10 +84,18 @@ class ConsentController {
         return consents.grant(id, body.citizenId(), new AuthProof(sessionProof), caller.principal());
     }
 
+    /**
+     * Older revoke route (citizen named in the body). A consent that is not the signed-in
+     * citizen's own is a 404, whichever citizenId the body names, so a consent id reveals nothing.
+     */
     @PostMapping("/{id}/revoke")
     void revoke(@PathVariable UUID id, @RequestBody RevokeBody body) {
-        citizenAccess.requireMayActOn(body.citizenId());
-        consents.revoke(id, body.citizenId(), body.reason(), Callers.require().principal());
+        Caller caller = Callers.require();
+        UUID owner = ownedByCaller(id, caller);
+        if (!owner.equals(body.citizenId())) {
+            throw new ConsentNotFoundException();
+        }
+        consents.revoke(id, owner, body.reason(), caller.principal());
     }
 
     /**
@@ -98,10 +106,15 @@ class ConsentController {
     @PostMapping("/me/{id}/revoke")
     void revokeMine(@PathVariable UUID id, @RequestBody(required = false) MyRevokeBody body) {
         Caller caller = Callers.require();
-        UUID owner = consents.ownerOf(id)
+        UUID owner = ownedByCaller(id, caller);
+        consents.revoke(id, owner, body == null ? null : body.reason(), caller.principal());
+    }
+
+    /** The consent's citizen if that record is bound to the caller's token; otherwise 404. */
+    private UUID ownedByCaller(UUID consentId, Caller caller) {
+        return consents.ownerOf(consentId)
                 .filter(citizen -> ownership.isBoundTo(citizen, caller.subject()))
                 .orElseThrow(ConsentNotFoundException::new);
-        consents.revoke(id, owner, body == null ? null : body.reason(), caller.principal());
     }
 
     @GetMapping("/citizens/{citizenId}")
