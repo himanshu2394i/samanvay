@@ -1,13 +1,21 @@
 package com.samanvay.connector.internal.source.ifscbank;
 
-import com.samanvay.connector.internal.source.ifscbank.IfscBankSourceException.Failure;
+import com.samanvay.connector.api.BankCheckAdapter;
+import com.samanvay.connector.api.SourceOutcome;
+import com.samanvay.connector.api.SourceOutcome.Answered;
+import com.samanvay.connector.api.SourceOutcome.ReasonCode;
+import com.samanvay.connector.api.SourceOutcome.RequestRejected;
+import com.samanvay.connector.api.SourceOutcome.SourceFault;
+import com.samanvay.connector.api.SourceOutcome.SourceTimeout;
+import com.samanvay.connector.internal.source.SourceCredentials;
+import com.samanvay.connector.internal.source.SourceCredentials.Credential;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.net.http.HttpConnectTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -17,135 +25,144 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.UnexpectedEndOfInputException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * HTTP client for Samanvay's bank-check contract v1 ({@code docs/contracts/bank-check-v1.yaml}).
- * The same code talks to the department simulator and to the live source (a
- * future adapter maps PFMS or the department's own validation onto the contract);
- * only {@link IfscBankSourceProperties} differ. There is no simulator-specific branch.
+ * {@link BankCheckAdapter} for source {@value #SOURCE_CODE}, speaking bank-check
+ * contract v1 over HTTP. The same code talks to the department simulator and to
+ * the live source (a future adapter maps PFMS or the department's own validation
+ * onto the contract); only {@link IfscBankSourceProperties} and the SecretStore
+ * credential differ. There is no simulator-specific branch. Stays in
+ * connector.internal: callers use {@code BankCheckAdapters} (ArchUnit-enforced).
  *
- * <p>The simulator marker is only REPORTED ({@code simulatorMarker} on every
- * result/exception), never acted on. Its one planned use, in the mode-switch PR,
- * is a cross-check: in {@code live} mode a marked response is refused, audited
- * and alarmed. Badges come from the configured mode, not from this flag.
+ * <p>Returns a {@link SourceOutcome}, never throws for source behaviour. It knows
+ * nothing of our REST layer. Failures carry fixed codes only: no body, no parser
+ * message, no cause. Logs carry the operation and the outcome codes.
  *
- * <p>Privacy: the contract never returns the holder's name, and this client never
- * logs, stores or rethrows response bodies. Logs carry only the operation, the
- * status and the verdict enums.
+ * <p>The simulator marker is only REPORTED, never acted on. Its planned use, in
+ * the mode-switch PR, is that a marked response in {@code live} mode is refused,
+ * audited and alarmed.
  */
-public class IfscBankClient {
+public class IfscBankClient implements BankCheckAdapter {
 
+    public static final String SOURCE_CODE = "ifsc-bank";
     public static final String MARKER_HEADER = "X-Samanvay-Simulator";
     public static final String MARKER_FIELD = "samanvay_simulator";
-
-    public enum AccountStatus { VALID, CLOSED, INVALID }
-
-    public enum NameMatch { MATCH, PARTIAL, NO_MATCH, NOT_CHECKED }
 
     private static final Logger log = LoggerFactory.getLogger(IfscBankClient.class);
 
     private final IfscBankSourceProperties props;
+    private final SourceCredentials credentials;
     private final HttpClient http;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public IfscBankClient(IfscBankSourceProperties props) {
+    public IfscBankClient(IfscBankSourceProperties props, SourceCredentials credentials) {
         this.props = props;
+        this.credentials = credentials;
         this.http = HttpClient.newBuilder().connectTimeout(props.connectTimeout()).build();
     }
 
-    /** {@code GET {ifscBaseUrl}/{ifsc}}: public; 200 means a branch, 404 means no such IFSC (malformed codes too). */
-    public IfscLookup lookupIfsc(String ifsc) {
+    @Override
+    public String sourceCode() {
+        return SOURCE_CODE;
+    }
+
+    /** {@code GET {ifscBaseUrl}/{ifsc}}: public; 200 = branch, 404 = no such IFSC (malformed codes too). */
+    @Override
+    public SourceOutcome<IfscAnswer> lookupIfsc(String ifsc) {
         URI uri = resolve(props.ifscBaseUrl(), "/" + ifsc.trim().toUpperCase(Locale.ROOT));
-        HttpResponse<String> response = send("ifsc-lookup", HttpRequest.newBuilder(uri).GET());
-        boolean marker = headerMarker(response);
-        return switch (response.statusCode()) {
-            case 200 -> {
-                JsonNode body = parseObject("ifsc-lookup", response, marker);
-                yield new IfscLookup(Optional.of(IfscBranch.from(body)), marker || bodyMarker(body));
-            }
-            case 404 -> new IfscLookup(Optional.empty(), marker);
-            default -> throw fail("ifsc-lookup", response, marker);
-        };
+        return logged("ifsc-lookup", exchange(HttpRequest.newBuilder(uri).GET(), (status, body, marker) -> switch (status) {
+            case 200 -> parse(body, marker, b -> new IfscAnswer(Optional.of(branch(b))));
+            case 404 -> new Answered<>(new IfscAnswer(Optional.empty()), marker);
+            default -> statusFault(status, marker);
+        }));
     }
 
     /** {@code POST {baseUrl}/v1/bank-checks}: one call, verdict only. */
-    public BankCheck check(String ifsc, String accountNumber, String applicantName) {
-        String request = json.createObjectNode()
-                .put("ifsc", ifsc)
-                .put("accountNumber", accountNumber)
-                .put("applicantName", applicantName)
+    @Override
+    public SourceOutcome<BankCheckAnswer> check(BankCheckRequest request) {
+        Optional<Credential> credential = credentials.find(SOURCE_CODE);
+        if (credential.isEmpty()) {
+            return logged("bank-check", new SourceFault<>(ReasonCode.CREDENTIAL_MISSING, false));
+        }
+        String payload = json.createObjectNode()
+                .put("ifsc", request.ifsc())
+                .put("accountNumber", request.accountNumber())
+                .put("applicantName", request.applicantName())
                 .toString();
         HttpRequest.Builder builder = HttpRequest.newBuilder(resolve(props.baseUrl(), "/v1/bank-checks"))
                 .header("Content-Type", "application/json")
-                .header("Authorization", basicAuth())
-                .POST(HttpRequest.BodyPublishers.ofString(request));
-        HttpResponse<String> response = send("bank-check", builder);
-        boolean marker = headerMarker(response);
-        switch (response.statusCode()) {
-            case 200 -> {
-                JsonNode body = parseObject("bank-check", response, marker);
-                AccountStatus status = enumField(body, "accountStatus", AccountStatus.class, marker);
-                NameMatch nameMatch = enumField(body, "nameMatch", NameMatch.class, marker);
-                if (status != AccountStatus.VALID && nameMatch != NameMatch.NOT_CHECKED) {
-                    throw logged("bank-check", new IfscBankSourceException(
-                            Failure.MALFORMED_RESPONSE, marker, "contract invariant broken: " + status + " with " + nameMatch, null));
-                }
-                BankCheck result = new BankCheck(status, nameMatch, marker || bodyMarker(body));
-                log.debug("ifsc-bank bank-check: accountStatus={} nameMatch={}", status, nameMatch);
-                return result;
-            }
-            case 400 -> {
-                List<String> fields = new ArrayList<>();
-                try {
-                    JsonNode params = json.readTree(response.body()).get("invalidParams");
-                    if (params != null) {
-                        params.forEach(p -> fields.add(p.path("name").asString()));
-                    }
-                } catch (JacksonException e) {
-                    // fall through with no field names
-                }
-                throw logged("bank-check", new IfscBankSourceException(
-                        Failure.REQUEST_REJECTED, marker, "request rejected: " + fields, null, fields));
-            }
-            default -> throw fail("bank-check", response, marker);
+                .header("Authorization", basicAuth(credential.get()))
+                .POST(HttpRequest.BodyPublishers.ofString(payload));
+        return logged("bank-check", exchange(builder, (status, body, marker) -> switch (status) {
+            case 200 -> parse(body, marker, this::answer);
+            case 400 -> new RequestRejected<>(rejectedFields(body), marker);
+            default -> statusFault(status, marker);
+        }));
+    }
+
+    @FunctionalInterface
+    private interface Handler<T> {
+        SourceOutcome<T> handle(int status, String body, boolean marker);
+    }
+
+    /** Thrown only inside parse(), for valid JSON that breaks contract v1. */
+    private static final class ContractViolation extends RuntimeException {
+        ContractViolation() {
+            super(null, null, false, false);
         }
     }
 
-    private HttpResponse<String> send(String operation, HttpRequest.Builder builder) {
+    private <T> SourceOutcome<T> exchange(HttpRequest.Builder builder, Handler<T> handler) {
+        HttpResponse<String> response;
         try {
-            return http.send(builder.timeout(props.readTimeout()).build(), HttpResponse.BodyHandlers.ofString());
+            response = http.send(builder.timeout(props.readTimeout()).build(), HttpResponse.BodyHandlers.ofString());
         } catch (HttpConnectTimeoutException e) {
-            throw logged(operation, new IfscBankSourceException(Failure.REMOTE_FAULT, false, "connect timeout", e));
+            return new SourceFault<>(ReasonCode.CONNECTION_FAILED, false);
         } catch (HttpTimeoutException e) {
-            throw logged(operation, new IfscBankSourceException(
-                    Failure.TIMEOUT, false, "no response within " + props.readTimeout(), e));
+            return new SourceTimeout<>();
         } catch (IOException e) {
-            throw logged(operation, new IfscBankSourceException(Failure.REMOTE_FAULT, false, "I/O failure", e));
+            return new SourceFault<>(ReasonCode.CONNECTION_FAILED, false);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw logged(operation, new IfscBankSourceException(Failure.REMOTE_FAULT, false, "interrupted", e));
+            return new SourceFault<>(ReasonCode.CONNECTION_FAILED, false);
         }
+        boolean marker = response.headers().firstValue(MARKER_HEADER).map("true"::equalsIgnoreCase).orElse(false);
+        return handler.handle(response.statusCode(), response.body(), marker);
     }
 
-    private JsonNode parseObject(String operation, HttpResponse<String> response, boolean marker) {
-        JsonNode body;
+    private <T> SourceOutcome<T> parse(String body, boolean headerMarker, java.util.function.Function<JsonNode, T> read) {
+        JsonNode node;
         try {
-            body = json.readTree(response.body());
+            node = json.readTree(body);
+        } catch (UnexpectedEndOfInputException e) {
+            return new SourceFault<>(ReasonCode.TRUNCATED_BODY, headerMarker); // parser exception dropped on purpose
         } catch (JacksonException e) {
-            // No cause and no excerpt: parser messages can quote body text.
-            throw logged(operation, new IfscBankSourceException(
-                    Failure.MALFORMED_RESPONSE, marker, "unparseable body (" + e.getClass().getSimpleName() + ")", null));
+            return new SourceFault<>(ReasonCode.BAD_JSON, headerMarker);
         }
-        if (body == null || !body.isObject()) {
-            throw logged(operation, new IfscBankSourceException(
-                    Failure.MALFORMED_RESPONSE, marker, "body is not a JSON object", null));
+        if (node == null || !node.isObject()) {
+            return new SourceFault<>(ReasonCode.BAD_JSON, headerMarker);
         }
-        return body;
+        boolean marker = headerMarker || node.path(MARKER_FIELD).asBoolean(false);
+        try {
+            return new Answered<>(read.apply(node), marker);
+        } catch (ContractViolation e) {
+            return new SourceFault<>(ReasonCode.CONTRACT_VIOLATION, marker);
+        }
     }
 
-    private <E extends Enum<E>> E enumField(JsonNode body, String field, Class<E> type, boolean marker) {
+    private BankCheckAnswer answer(JsonNode body) {
+        AccountStatus status = enumField(body, "accountStatus", AccountStatus.class);
+        NameMatch nameMatch = enumField(body, "nameMatch", NameMatch.class);
+        if (status != AccountStatus.VALID && nameMatch != NameMatch.NOT_CHECKED) {
+            throw new ContractViolation();
+        }
+        return new BankCheckAnswer(status, nameMatch);
+    }
+
+    private static <E extends Enum<E>> E enumField(JsonNode body, String field, Class<E> type) {
         JsonNode node = body.get(field);
         if (node != null && node.isString()) {
             for (E value : type.getEnumConstants()) {
@@ -154,26 +171,61 @@ public class IfscBankClient {
                 }
             }
         }
-        throw logged("bank-check", new IfscBankSourceException(
-                Failure.MALFORMED_RESPONSE, marker, "missing or unknown " + field, null));
+        throw new ContractViolation();
     }
 
-    private IfscBankSourceException fail(String operation, HttpResponse<String> response, boolean marker) {
-        int status = response.statusCode();
-        Failure failure = status >= 500 ? Failure.REMOTE_FAULT
-                : status == 401 || status == 403 ? Failure.AUTH_REJECTED
-                : Failure.UNEXPECTED_STATUS;
-        return logged(operation, new IfscBankSourceException(failure, marker, "HTTP " + status, null));
+    private static IfscBranch branch(JsonNode b) {
+        if (!b.path("IFSC").isString()) {
+            throw new ContractViolation();
+        }
+        return new IfscBranch(
+                text(b.get("IFSC")), text(b.get("BANK")), text(b.get("BANKCODE")), text(b.get("BRANCH")),
+                text(b.get("CITY")), text(b.get("DISTRICT")), text(b.get("STATE")), text(b.get("MICR")),
+                b.path("NEFT").asBoolean(false), b.path("RTGS").asBoolean(false),
+                b.path("IMPS").asBoolean(false), b.path("UPI").asBoolean(false));
     }
 
-    private static IfscBankSourceException logged(String operation, IfscBankSourceException e) {
-        log.warn("ifsc-bank {} failed: {} ({})", operation, e.failure(), e.getMessage());
-        return e;
+    /** Field NAMES from a 400 problem's {@code invalidParams}; nothing else from the body is kept. */
+    private List<String> rejectedFields(String body) {
+        List<String> fields = new ArrayList<>();
+        try {
+            JsonNode params = json.readTree(body).get("invalidParams");
+            if (params != null) {
+                params.forEach(p -> {
+                    String name = p.path("name").asString("");
+                    if (name.matches("^[A-Za-z][A-Za-z0-9_]{0,63}$")) {
+                        fields.add(name);
+                    }
+                });
+            }
+        } catch (JacksonException e) {
+            // no field names
+        }
+        return fields;
     }
 
-    private String basicAuth() {
-        String pair = nullToEmpty(props.keyId()) + ":" + nullToEmpty(props.keySecret());
-        return "Basic " + Base64.getEncoder().encodeToString(pair.getBytes(StandardCharsets.UTF_8));
+    private static <T> SourceOutcome<T> statusFault(int status, boolean marker) {
+        ReasonCode code = status >= 500 ? ReasonCode.SERVER_ERROR
+                : status == 401 || status == 403 ? ReasonCode.AUTH_REJECTED
+                : ReasonCode.UNEXPECTED_STATUS;
+        return new SourceFault<>(code, marker);
+    }
+
+    private static <T> SourceOutcome<T> logged(String operation, SourceOutcome<T> outcome) {
+        switch (outcome) {
+            case Answered<T> a when a.answer() instanceof BankCheckAnswer b ->
+                    log.debug("ifsc-bank {}: accountStatus={} nameMatch={}", operation, b.accountStatus(), b.nameMatch());
+            case Answered<T> a -> log.debug("ifsc-bank {}: answered", operation);
+            case SourceTimeout<T> t -> log.warn("ifsc-bank {} failed: SourceTimeout", operation);
+            case SourceFault<T> f -> log.warn("ifsc-bank {} failed: SourceFault {}", operation, f.reasonCode());
+            case RequestRejected<T> r -> log.warn("ifsc-bank {} failed: RequestRejected {}", operation, r.rejectedFields());
+        }
+        return outcome;
+    }
+
+    private static String basicAuth(Credential c) {
+        return "Basic " + Base64.getEncoder()
+                .encodeToString((c.keyId() + ":" + c.keySecret()).getBytes(StandardCharsets.UTF_8));
     }
 
     private static URI resolve(URI base, String path) {
@@ -181,44 +233,7 @@ public class IfscBankClient {
         return URI.create(root + path);
     }
 
-    private static boolean headerMarker(HttpResponse<?> response) {
-        return response.headers().firstValue(MARKER_HEADER).map("true"::equalsIgnoreCase).orElse(false);
-    }
-
-    private static boolean bodyMarker(JsonNode body) {
-        JsonNode marker = body.get(MARKER_FIELD);
-        return marker != null && marker.asBoolean(false);
-    }
-
     private static String text(JsonNode node) {
         return node == null || node.isMissingNode() || node.isNull() ? null : node.asString();
     }
-
-    private static String nullToEmpty(String s) {
-        return s == null ? "" : s;
-    }
-
-    /** Result of an IFSC lookup; {@code branch} is empty when the source says the IFSC does not exist. */
-    public record IfscLookup(Optional<IfscBranch> branch, boolean simulatorMarker) {}
-
-    /** The subset of the open RBI IFSC record the platform uses. */
-    public record IfscBranch(
-            String ifsc, String bank, String bankCode, String branch, String city, String district, String state,
-            String micr, boolean neft, boolean rtgs, boolean imps, boolean upi) {
-
-        static IfscBranch from(JsonNode b) {
-            return new IfscBranch(
-                    text(b.get("IFSC")), text(b.get("BANK")), text(b.get("BANKCODE")), text(b.get("BRANCH")),
-                    text(b.get("CITY")), text(b.get("DISTRICT")), text(b.get("STATE")), text(b.get("MICR")),
-                    flag(b, "NEFT"), flag(b, "RTGS"), flag(b, "IMPS"), flag(b, "UPI"));
-        }
-
-        private static boolean flag(JsonNode b, String name) {
-            JsonNode n = b.get(name);
-            return n != null && n.asBoolean(false);
-        }
-    }
-
-    /** Bank-check verdict. By contract it carries no holder name, and neither does this record. */
-    public record BankCheck(AccountStatus accountStatus, NameMatch nameMatch, boolean simulatorMarker) {}
 }

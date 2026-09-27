@@ -7,9 +7,13 @@ info:
     decision. It is written by Samanvay, not copied from a vendor. The live
     source is not decided yet (likely PFMS or the department's own validation
     service); a live adapter will map that system onto this contract. The
-    department simulator (simulators/) implements it for dev/CI, and
-    IfscBankClient (connector) is its only caller. IfscBankSourceContract, in the
-    main app's tests, is the executable form of this file.
+    department simulator (simulators/) implements it for dev/CI. Inside Samanvay
+    it is consumed through connector.api.BankCheckAdapter (looked up by source code
+    after the grant check; IfscBankClient is the HTTP implementation), whose typed
+    outcomes are Answered / SourceTimeout / SourceFault(reasonCode) /
+    RequestRejected. IfscBankSourceContract, in the main app's tests, is the
+    executable form of this file. Credentials are read from SecretStore
+    (source-<code>-credential) in every mode.
 
     Privacy rule: a response NEVER carries the account holder's name, or any
     other personal data held by the bank. The caller sends the applicant's name

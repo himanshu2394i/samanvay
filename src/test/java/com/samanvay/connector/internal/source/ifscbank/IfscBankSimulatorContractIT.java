@@ -1,6 +1,7 @@
 package com.samanvay.connector.internal.source.ifscbank;
 
-import com.samanvay.connector.internal.source.ifscbank.IfscBankClient.NameMatch;
+import com.samanvay.connector.api.BankCheckAdapter;
+import com.samanvay.connector.api.BankCheckAdapter.NameMatch;
 import java.util.Map;
 import java.util.Optional;
 
@@ -32,12 +33,12 @@ class IfscBankSimulatorContractIT extends IfscBankSourceContract {
     static final IfscBankClient WRONG = DepartmentSimulator.client("not-the-secret");
 
     @Override
-    protected IfscBankClient client() {
+    protected BankCheckAdapter adapter() {
         return CLIENT;
     }
 
     @Override
-    protected IfscBankClient clientWithWrongCredentials() {
+    protected BankCheckAdapter adapterWithWrongCredentials() {
         return WRONG;
     }
 

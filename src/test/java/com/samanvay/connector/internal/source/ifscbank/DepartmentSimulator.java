@@ -2,7 +2,11 @@ package com.samanvay.connector.internal.source.ifscbank;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import com.samanvay.connector.internal.source.SourceCredentials;
+import com.samanvay.connector.internal.source.SourceMode;
+import com.samanvay.shared.SecretStore;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -46,9 +50,32 @@ final class DepartmentSimulator {
         return URI.create("http://" + CONTAINER.getHost() + ":" + CONTAINER.getMappedPort(8090));
     }
 
+    /** A client whose credential comes through SecretStore, as in every mode. */
     static IfscBankClient client(String secret) {
         return new IfscBankClient(
-                new IfscBankSourceProperties(baseUrl(), null, KEY_ID, secret, Duration.ofSeconds(2), Duration.ofSeconds(1)));
+                new IfscBankSourceProperties(baseUrl(), null, SourceMode.SIMULATOR, Duration.ofSeconds(2), Duration.ofSeconds(1)),
+                new SourceCredentials(secretStore(KEY_ID + ":" + secret)));
+    }
+
+    /** A SecretStore holding only the ifsc-bank credential. */
+    static SecretStore secretStore(String credential) {
+        return key -> SourceCredentials.secretKey(IfscBankClient.SOURCE_CODE).equals(key)
+                ? new SecretStore.Secret(credential.getBytes(StandardCharsets.UTF_8))
+                : null;
+    }
+
+    /** The fixture account flagged canary_account_number: its full number must never surface. */
+    static String canaryAccountNumber() {
+        try {
+            for (var a : JsonMapper.builder().build().readTree(Files.readString(FIXTURES)).get("accounts")) {
+                if (a.path("canary_account_number").asBoolean(false)) {
+                    return a.get("account_number").asString();
+                }
+            }
+            throw new IllegalStateException("no canary account number in " + FIXTURES);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** Canary holder names, read from the simulator's fixture FILE (not its classes: the boundary holds). */

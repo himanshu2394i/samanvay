@@ -4,6 +4,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.samanvay.connector.internal.source.ifscbank.IfscBankClient;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -46,6 +47,16 @@ class ArchitectureTest {
             .dependOnClassesThat()
             .resideInAPackage(SIMULATOR_PACKAGE)
             .because("simulators are external stand-ins reached over HTTP; no simulator-only code paths in the main app");
+
+    /** Callers reach bank-check sources through connector.api (BankCheckAdapters), never the concrete client. */
+    @ArchTest
+    static final ArchRule only_connector_internal_refers_to_ifsc_bank_client = noClasses()
+            .that()
+            .resideOutsideOfPackage("com.samanvay.connector.internal..")
+            .should()
+            .dependOnClassesThat()
+            .belongToAnyOf(IfscBankClient.class)
+            .because("sources are looked up by code through connector.api.BankCheckAdapters, after the grant check");
 
     @ArchTest
     static void simulator_classes_are_not_on_the_main_classpath(JavaClasses ignored) {
