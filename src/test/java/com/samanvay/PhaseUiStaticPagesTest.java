@@ -173,6 +173,9 @@ class PhaseUiStaticPagesTest {
         assertThat(auth).doesNotContain("samanvay-staff-ui").doesNotContain("samanvay-citizen-ui");
         assertThat(auth).doesNotContain("Paste token").doesNotContain("prompt(");
         assertThat(page("console.js")).contains("SamanvayAuth.fetch");
+        // on the redirect back from Keycloak, page scripts call the API before the token
+        // exchange finishes: the authed fetch must wait for sign-in to settle
+        assertThat(auth).containsPattern("async function authFetch\\([^)]*\\) \\{(\\s*(/\\*[^*]*\\*/|//[^\\n]*))*\\s*await ready;");
         for (String name : new String[] {"command.html", "journey.html", "ops.html", "audit.html", "onboard.html", "schemes.html"}) {
             assertThat(page(name)).as(name).contains("<script src=\"/shared/auth.js\" data-realm=\"staff\"></script>");
         }
