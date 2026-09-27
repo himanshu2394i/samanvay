@@ -3,7 +3,11 @@ package com.samanvay.consent.internal.web;
 import com.samanvay.consent.api.AuthProof;
 import com.samanvay.consent.api.ConsentArtifact;
 import com.samanvay.consent.api.ConsentRequest;
+import com.samanvay.catalog.api.Purpose;
+import com.samanvay.catalog.api.PurposeCatalog;
 import com.samanvay.consent.api.ConsentRequestDraft;
+import com.samanvay.consent.api.UnknownPurposeException;
+import com.samanvay.shared.security.Caller;
 import com.samanvay.consent.api.ConsentService;
 import com.samanvay.shared.security.Callers;
 import com.samanvay.shared.security.CitizenAccess;
@@ -29,16 +33,39 @@ class ConsentController {
 
     private final ConsentService consents;
     private final CitizenAccess citizenAccess;
+    private final PurposeCatalog purposes;
 
-    ConsentController(ConsentService consents, CitizenAccess citizenAccess) {
+    ConsentController(ConsentService consents, CitizenAccess citizenAccess, PurposeCatalog purposes) {
         this.consents = consents;
         this.citizenAccess = citizenAccess;
+        this.purposes = purposes;
     }
 
+    /**
+     * The body names only the citizen and the catalog purpose; requester, purpose
+     * text and data categories are never read from it (extra fields are ignored).
+     * The requester comes from the token: an officer or department client
+     * requests as the department in its token's {@code department} claim, and
+     * only under that department's purposes (else 403, audited). A citizen asks
+     * on their own record for the purpose's own department.
+     */
     @PostMapping("/requests")
-    ConsentRequest request(@RequestBody ConsentRequestDraft draft) {
-        citizenAccess.requireMayActOn(draft.citizenId());
-        return consents.request(draft);
+    ConsentRequest request(@RequestBody RequestConsentBody body) {
+        citizenAccess.requireMayActOn(body.citizenId());
+        Purpose purpose = purposes.byCode(body.purposeCode())
+                .filter(Purpose::active)
+                .orElseThrow(() -> new UnknownPurposeException(body.purposeCode()));
+        Caller caller = Callers.require();
+        String requester;
+        if (caller.isCitizen()) {
+            requester = purpose.requesterDepartment();
+        } else {
+            requester = caller.department();
+            if (requester == null || requester.isBlank()) {
+                throw new AccessDeniedException("token carries no department; cannot request consent");
+            }
+        }
+        return consents.request(new ConsentRequestDraft(body.citizenId(), requester, purpose.code()));
     }
 
     @PostMapping("/requests/{id}/grant")
@@ -62,6 +89,8 @@ class ConsentController {
         citizenAccess.requireMayActOn(citizenId);
         return consents.forCitizen(citizenId);
     }
+
+    record RequestConsentBody(UUID citizenId, String purposeCode) {}
 
     record GrantBody(UUID citizenId) {}
 

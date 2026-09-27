@@ -38,6 +38,9 @@ final class KeycloakJwtConverter implements Converter<Jwt, AbstractAuthenticatio
 
     private static final Set<String> STAFF_ROLES = Set.of("officer", "reviewer", "admin");
 
+    /** Staff realm: catalog department code of the officer (user attribute) or department client (hardcoded). */
+    static final String DEPARTMENT_CLAIM = "department";
+
     private final RealmKind realm;
 
     KeycloakJwtConverter(RealmKind realm) {
@@ -81,8 +84,13 @@ final class KeycloakJwtConverter implements Converter<Jwt, AbstractAuthenticatio
         List<GrantedAuthority> authorities = new java.util.ArrayList<>();
         roles.forEach(r -> authorities.add(new SimpleGrantedAuthority("ROLE_" + r)));
         sources.forEach(s -> authorities.add(new SimpleGrantedAuthority("SCOPE_" + SamanvayRoles.DATA_SOURCE_SCOPE_PREFIX + s)));
-        Caller caller = new Caller(subject, jwt.getId(), Set.copyOf(roles), Set.copyOf(sources));
+        String department = realm == RealmKind.STAFF ? blankToNull(jwt.getClaimAsString(DEPARTMENT_CLAIM)) : null;
+        Caller caller = new Caller(subject, jwt.getId(), Set.copyOf(roles), Set.copyOf(sources), department);
         return new SamanvayAuthentication(jwt, authorities, caller);
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 
     private static Set<String> realmRoles(Jwt jwt) {

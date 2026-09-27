@@ -17,6 +17,10 @@ class ApiExceptionHandler {
         detail.setType(java.net.URI.create("https://samanvay.dev/problems/" + ex.problemType()));
         detail.setInstance(java.net.URI.create(request.getRequestURI()));
         detail.setProperty("reason", ex.reason());
+        if (ex.status() == 401 || ex.status() == 403) {
+            // so the refused-call audit entry names the specific reason
+            request.setAttribute(com.samanvay.shared.security.ApiAccessRefused.REASON_ATTRIBUTE, ex.reason());
+        }
         ex.properties().forEach(detail::setProperty);
         return detail;
     }

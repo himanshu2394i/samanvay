@@ -56,8 +56,24 @@ public final class TestTokens {
         return person(CITIZEN_ISSUER, CITIZEN_KEY, CITIZEN_UI_CLIENT, subject, List.of("citizen"));
     }
 
+    /** Department every test officer / department client belongs to unless a test says otherwise. */
+    public static final String DEFAULT_DEPARTMENT = "SCHOLARSHIP";
+
     public static String officer(String subject) {
-        return person(STAFF_ISSUER, STAFF_KEY, STAFF_UI_CLIENT, subject, List.of("officer"));
+        return officerOf(subject, DEFAULT_DEPARTMENT);
+    }
+
+    /** An officer whose token carries {@code department=<department>} (null: no department claim). */
+    public static String officerOf(String subject, String department) {
+        JWTClaimsSet.Builder b = base(STAFF_ISSUER, subject)
+                .claim("azp", STAFF_UI_CLIENT)
+                .claim("preferred_username", subject)
+                .claim("realm_access", Map.of("roles", List.of("officer")))
+                .claim("scope", "openid profile email");
+        if (department != null) {
+            b.claim("department", department);
+        }
+        return sign(STAFF_KEY, b.build());
     }
 
     public static String reviewer(String subject) {
@@ -70,6 +86,11 @@ public final class TestTokens {
 
     /** Client-credentials token of a department integration, one {@code source:<code>} scope per data source. */
     public static String department(String clientId, String... dataSources) {
+        return departmentOf(clientId, DEFAULT_DEPARTMENT, dataSources);
+    }
+
+    /** Department client token with {@code department=<department>} (the realm's hardcoded client claim). */
+    public static String departmentOf(String clientId, String department, String... dataSources) {
         StringBuilder scope = new StringBuilder("profile email");
         for (String ds : dataSources) {
             scope.append(" source:").append(ds);
@@ -80,6 +101,7 @@ public final class TestTokens {
                 .claim("preferred_username", "service-account-" + clientId)
                 .claim("realm_access", Map.of("roles", List.of("department", "default-roles-samanvay-staff")))
                 .claim("scope", scope.toString())
+                .claim("department", department)
                 .build());
     }
 

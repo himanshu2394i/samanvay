@@ -15,4 +15,7 @@ package com.samanvay.shared.security;
 public record ApiAccessRefused(int status, String method, String path, String actorKind, String actorId, String reason) {
 
     public static final String ANONYMOUS = "ANONYMOUS";
+
+    /** Request attribute naming the machine reason of a 401/403, recorded on its audit entry. */
+    public static final String REASON_ATTRIBUTE = ApiAccessRefused.class.getName() + ".reason";
 }

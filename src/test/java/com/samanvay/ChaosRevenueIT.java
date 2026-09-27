@@ -90,9 +90,7 @@ class ChaosRevenueIT extends PostgresIntegrationTest {
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "SCHOLARSHIP",
-                "SCHOLARSHIP_ELIGIBILITY",
-                "Post-matric scholarship",
-                List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT")));
+                "SCHOLARSHIP_ELIGIBILITY"));
         consents.grant(request.id(), citizen, new AuthProof("session-jti"));
         return citizen;
     }

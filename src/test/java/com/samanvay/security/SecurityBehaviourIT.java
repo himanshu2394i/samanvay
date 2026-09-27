@@ -112,12 +112,7 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
         UUID citizen = http.post().uri(url("/api/identity/citizens")).contentType(MediaType.APPLICATION_JSON)
                 .body(draftJson()).retrieve().body(UUID.class);
         Map<?, ?> request = http.post().uri(url("/api/consent/requests")).contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of(
-                        "citizenId", citizen,
-                        "requesterId", "SCHOLARSHIP",
-                        "purposeCode", "SCHOLARSHIP_ELIGIBILITY",
-                        "purposeText", "t",
-                        "categories", List.of("INCOME_CERTIFICATE")))
+                .body(Map.of("citizenId", citizen, "purposeCode", "SCHOLARSHIP_ELIGIBILITY"))
                 .retrieve().body(Map.class);
 
         // No token: the old "stub-session" default is gone.

@@ -72,9 +72,7 @@ class FarmerSubsidyJourneyIT extends PostgresIntegrationTest {
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "AGRICULTURE",
-                "FARMER_SUBSIDY",
-                "Farmer subsidy",
-                List.of("LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT")));
+                "FARMER_SUBSIDY"));
         consents.grant(request.id(), citizen, new AuthProof("session-jti"));
 
         JourneyInstance instance = journeys.start("FARMER_SUBSIDY", citizen, JsonMapper.builder().build().createObjectNode(),

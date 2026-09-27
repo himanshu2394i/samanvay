@@ -28,6 +28,57 @@ def api_audience_mapper():
                   access_token_claim="true", id_token_claim="false", introspection_token_claim="true")
 
 
+# The catalog department an officer belongs to (e.g. SCHOLARSHIP) is an
+# admin-managed user attribute, released as the `department` access-token
+# claim; users cannot edit it (user profile below). Department clients get the
+# same claim hardcoded on the client. The API binds consent requests to it.
+DEPT_CLIENT_DEPARTMENT = "SCHOLARSHIP"
+
+
+def department_attribute_mapper():
+    return mapper("department", "oidc-usermodel-attribute-mapper", user_attribute="department",
+                  claim_name="department", jsonType_label="String", access_token_claim="true",
+                  id_token_claim="false", introspection_token_claim="true", userinfo_token_claim="false")
+
+
+def department_hardcoded_mapper(code):
+    return mapper("department", "oidc-hardcoded-claim-mapper", claim_name="department", claim_value=code,
+                  jsonType_label="String", access_token_claim="true", id_token_claim="false",
+                  introspection_token_claim="true", userinfo_token_claim="false")
+
+
+def _up_attr(name, display, validations, required=False, admin_only=False):
+    a = {"name": name, "displayName": display, "validations": validations, "multivalued": False,
+         "permissions": {"view": ["admin"] if admin_only else ["admin", "user"],
+                         "edit": ["admin"] if admin_only else ["admin", "user"]}}
+    if required:
+        a["required"] = {"roles": ["user"]}
+    return a
+
+
+def user_profile(extra_attributes=()):
+    """Declarative user profile (Keycloak 24+). Unmanaged attributes stay admin-only."""
+    config = {
+        "attributes": [
+            _up_attr("username", "${username}", {"length": {"min": 3, "max": 255},
+                                                 "username-prohibited-characters": {},
+                                                 "up-username-not-idn-homograph": {}}),
+            _up_attr("email", "${email}", {"email": {}, "length": {"max": 255}}, required=True),
+            _up_attr("firstName", "${firstName}", {"length": {"max": 255}, "person-name-prohibited-characters": {}},
+                     required=True),
+            _up_attr("lastName", "${lastName}", {"length": {"max": 255}, "person-name-prohibited-characters": {}},
+                     required=True),
+            *extra_attributes,
+        ],
+        "groups": [{"name": "user-metadata", "displayHeader": "User metadata",
+                    "displayDescription": "Attributes, which refer to user metadata"}],
+        "unmanagedAttributePolicy": "ADMIN_EDIT",
+    }
+    return {"org.keycloak.userprofile.UserProfileProvider": [{
+        "providerId": "declarative-user-profile", "subComponents": {},
+        "config": {"kc.user.profile.config": [json.dumps(config, separators=(",", ":"))]}}]}
+
+
 def scope(name, description, mappers=(), in_token_scope=True):
     return {"name": name, "description": description, "protocol": "openid-connect",
             "attributes": {"include.in.token.scope": str(in_token_scope).lower(),
@@ -112,21 +163,24 @@ def required_actions(default_totp):
     ]
 
 
-def ui_client(client_id, name):
+def ui_client(client_id, name, extra_scopes=()):
     return {"clientId": client_id, "name": name, "enabled": True, "publicClient": True,
             "protocol": "openid-connect", "standardFlowEnabled": True, "implicitFlowEnabled": False,
             "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
             "redirectUris": [UI_ORIGIN + "/*"], "webOrigins": [UI_ORIGIN],
             "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": UI_ORIGIN + "/*"},
-            "defaultClientScopes": ["basic", "roles", "profile", "web-origins", "acr"],
+            "defaultClientScopes": ["basic", "roles", "profile", "web-origins", "acr", *extra_scopes],
             "optionalClientScopes": [],
             "protocolMappers": [api_audience_mapper()]}
 
 
-def dev_user(username, roles, actions):
+def dev_user(username, roles, actions, department=None):
+    attributes = {"note": ["DEV-ONLY test user - never import into a real environment"]}
+    if department:
+        attributes["department"] = [department]
     return {"username": username, "enabled": True, "emailVerified": True,
             "email": username + "@dev.samanvay.invalid", "firstName": "DEV", "lastName": username,
-            "attributes": {"note": ["DEV-ONLY test user - never import into a real environment"]},
+            "attributes": attributes,
             "credentials": [{"type": "password", "value": username + "-change-me", "temporary": True}],
             "requiredActions": actions, "realmRoles": roles}
 
@@ -139,6 +193,8 @@ def staff_realm():
                claim_name="client_id", jsonType_label="String", id_token_claim="false",
                access_token_claim="true", introspection_token_claim="true"),
     ], in_token_scope=False)
+    department_scope = scope("department", "catalog department of the staff member (admin-managed attribute)",
+                             [department_attribute_mapper()], in_token_scope=False)
     rep = {
         "realm": realm, "displayName": "Samanvay staff (DEV)", "enabled": True,
         "sslRequired": "external", "registrationAllowed": False, "resetPasswordAllowed": False,
@@ -153,11 +209,12 @@ def staff_realm():
             {"name": "default-roles-" + realm, "composite": True, "composites": {"realm": []}},
         ]},
         "defaultRole": {"name": "default-roles-" + realm, "composite": True},
-        "clientScopes": BASE_SCOPES + [service_account_scope] + source_scopes,
+        "components": user_profile([_up_attr("department", "Department", {"length": {"max": 60}}, admin_only=True)]),
+        "clientScopes": BASE_SCOPES + [service_account_scope, department_scope] + source_scopes,
         "defaultDefaultClientScopes": ["basic", "roles", "profile", "web-origins", "acr"],
         "defaultOptionalClientScopes": [],
         "clients": [
-            ui_client("samanvay-staff-ui", "Samanvay staff consoles (dev)"),
+            ui_client("samanvay-staff-ui", "Samanvay staff consoles (dev)", extra_scopes=["department"]),
             {"clientId": "dept-scholarship-dev", "name": "DEV department client (scholarship sources)",
              "enabled": True, "publicClient": False, "clientAuthenticatorType": "client-secret",
              "protocol": "openid-connect", "standardFlowEnabled": False, "implicitFlowEnabled": False,
@@ -166,10 +223,10 @@ def staff_realm():
              # secret intentionally absent: Keycloak generates one at import.
              "defaultClientScopes": ["basic", "roles", "service_account"] + ["source:" + s for s in DEPT_SOURCES],
              "optionalClientScopes": [],
-             "protocolMappers": [api_audience_mapper()]},
+             "protocolMappers": [api_audience_mapper(), department_hardcoded_mapper(DEPT_CLIENT_DEPARTMENT)]},
         ],
         "users": [
-            dev_user("dev-officer", ["officer"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"]),
+            dev_user("dev-officer", ["officer"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"], department="SCHOLARSHIP"),
             dev_user("dev-reviewer", ["reviewer"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"]),
             dev_user("dev-admin", ["admin"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"]),
             {"username": "service-account-dept-scholarship-dev", "enabled": True,

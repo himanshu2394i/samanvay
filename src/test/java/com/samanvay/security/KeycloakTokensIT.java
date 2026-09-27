@@ -14,7 +14,13 @@ import com.samanvay.shared.test.KeycloakTestSupport;
 import com.samanvay.shared.test.KeycloakTestSupport.BrowserLogin;
 import com.samanvay.shared.test.PostgresContainerSupport;
 import com.samanvay.shared.test.TestHttp;
+import com.samanvay.identity.api.CitizenProfiles;
+import com.samanvay.identity.api.ProfileDraft;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,6 +42,9 @@ class KeycloakTokensIT extends PostgresContainerSupport {
     @LocalServerPort
     int port;
 
+    @Autowired
+    CitizenProfiles profiles;
+
     @DynamicPropertySource
     static void keycloakRealms(DynamicPropertyRegistry registry) {
         for (String[] r : new String[][] {{"staff", STAFF}, {"citizen", CITIZEN}}) {
@@ -56,6 +65,7 @@ class KeycloakTokensIT extends PostgresContainerSupport {
                         "client_secret", secret))
                 .get("access_token").asString();
         assertThat(claims(accessToken).get("aud").toString()).contains("samanvay-api");
+        assertThat(claims(accessToken).get("department").asString()).isEqualTo("SCHOLARSHIP");
 
         assertThat(get(accessToken, "/api/catalog/departments")).isEqualTo(200);
         assertThat(get(accessToken, "/api/journeys/exceptions")).as("department is not an officer").isEqualTo(403);
@@ -64,7 +74,7 @@ class KeycloakTokensIT extends PostgresContainerSupport {
     @Test
     void staffUiTokenFromARealBrowserLoginIsAccepted() throws Exception {
         String secret = "kc-officer-totp-secret-01";
-        importUser(STAFF, "kc-officer", "Kc-officer-pw-1", secret, "\"officer\"", Map.of());
+        importUser(STAFF, "kc-officer", "Kc-officer-pw-1", secret, "\"officer\"", Map.of("department", "SCHOLARSHIP"));
 
         BrowserLogin login = new BrowserLogin(STAFF, "samanvay-staff-ui")
                 .submit(Map.of("username", "kc-officer", "password", "Kc-officer-pw-1"));
@@ -76,7 +86,12 @@ class KeycloakTokensIT extends PostgresContainerSupport {
         assertThat(claims.get("azp").asString()).isEqualTo("samanvay-staff-ui");
         assertThat(claims.get("typ").asString()).isEqualTo("Bearer");
         assertThat(claims.get("aud").toString()).contains("samanvay-api");
+        assertThat(claims.get("department").asString()).isEqualTo("SCHOLARSHIP");
         assertThat(get(accessToken, "/api/journeys/exceptions")).isEqualTo(200);
+        // the department claim binds the officer's consent requests
+        UUID citizen = profiles.register(draft());
+        assertThat(requestConsent(accessToken, citizen, "SCHOLARSHIP_ELIGIBILITY")).isEqualTo(200);
+        assertThat(requestConsent(accessToken, citizen, "FARMER_SUBSIDY")).isEqualTo(403);
     }
 
     @Test
@@ -97,6 +112,17 @@ class KeycloakTokensIT extends PostgresContainerSupport {
         for (String route : List.of("/api/journeys/exceptions", "/api/catalog/departments", "/api/audit/head")) {
             assertThat(get(accessToken, route)).as(route).isEqualTo(401);
         }
+    }
+
+    private int requestConsent(String accessToken, UUID citizen, String purpose) {
+        return TestHttp.as(accessToken).post().uri("http://localhost:" + port + "/api/consent/requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("citizenId", citizen, "purposeCode", purpose))
+                .exchange((rq, rs) -> rs.getStatusCode().value());
+    }
+
+    private static ProfileDraft draft() {
+        return new ProfileDraft("Kc Citizen", "केसी", "Kc", "Citizen", "Father", LocalDate.of(1999, 9, 9), "DAY", "M", "90****09");
     }
 
     private int get(String accessToken, String path) {

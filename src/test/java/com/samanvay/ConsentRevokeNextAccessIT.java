@@ -61,9 +61,7 @@ class ConsentRevokeNextAccessIT extends PostgresIntegrationTest {
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "SCHOLARSHIP",
-                "SCHOLARSHIP_ELIGIBILITY",
-                "t",
-                List.of("INCOME_CERTIFICATE")));
+                "SCHOLARSHIP_ELIGIBILITY"));
         var artifact = consents.grant(request.id(), citizen, new AuthProof("session-jti"));
         AccessRequest accessRequest = new AccessRequest(
                 new SubjectRef(citizen),

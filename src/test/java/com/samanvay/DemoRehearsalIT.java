@@ -191,7 +191,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
         for (String[] link : links) {
             linking.assertLink(citizen, link[0], link[1], link[2], com.samanvay.identity.api.AuthProof.digiLockerSandbox());
         }
-        var request = consents.request(new ConsentRequestDraft(citizen, requester, purpose, purpose, cats));
+        var request = consents.request(new ConsentRequestDraft(citizen, requester, purpose));
         consents.grant(request.id(), citizen, new AuthProof("session-jti"));
         return citizen;
     }

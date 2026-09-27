@@ -130,6 +130,25 @@ class KeycloakRealmExportIT {
         }
     }
 
+    @Test
+    void staffDepartmentIsAnAdminManagedAttributeReleasedAsAClaim() throws Exception {
+        JsonNode profile = admin("/admin/realms/" + STAFF + "/users/profile");
+        JsonNode department = null;
+        for (JsonNode a : profile.get("attributes")) {
+            if ("department".equals(a.get("name").asString())) {
+                department = a;
+            }
+        }
+        assertThat(department).as("department attribute declared").isNotNull();
+        assertThat(department.get("permissions").get("edit").toString()).isEqualTo("[\"admin\"]");
+        JsonNode ui = admin("/admin/realms/" + STAFF + "/clients?clientId=samanvay-staff-ui").get(0);
+        assertThat(ui.get("defaultClientScopes").toString()).contains("\"department\"");
+        JsonNode dept = admin("/admin/realms/" + STAFF + "/clients?clientId=dept-scholarship-dev").get(0);
+        assertThat(dept.get("protocolMappers").toString())
+                .contains("oidc-hardcoded-claim-mapper")
+                .contains("\"claim.value\":\"SCHOLARSHIP\"");
+    }
+
     private static String requirementOf(String realm, String flowAlias, String providerId) throws Exception {
         JsonNode executions = admin("/admin/realms/" + realm + "/authentication/flows/"
                 + URLEncoder.encode(flowAlias, StandardCharsets.UTF_8).replace("+", "%20") + "/executions");
