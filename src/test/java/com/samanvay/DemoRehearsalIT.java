@@ -144,12 +144,19 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
         consents.revoke(artifact.id(), revokeCitizen, "demo");
         assertThat(access.authorize(req)).isInstanceOf(AccessDecision.Denied.class);
 
-        audit.record(new AuditEntry(
-                ActorType.SYSTEM, "rehearsal", "PING", "demo", null, null, null, null, Outcome.ALLOWED, null, Map.of()));
-        long head = audit.headSeq();
+        long head = audit.record(new AuditEntry(
+                        ActorType.SYSTEM, "rehearsal", "PING", "demo", null, null, null, null, Outcome.ALLOWED, null, Map.of()))
+                .seq();
         assertThat(audit.verify(head, head).valid()).isTrue();
         tamper.rewriteReason(head, "tampered-demo");
-        assertThat(audit.verify(head, head).valid()).isFalse();
+        try {
+            assertThat(audit.verify(head, head).valid()).isFalse();
+        } finally {
+            // The Postgres container is shared by every IT class; put the row
+            // back so later full-chain verifications are not order-dependent.
+            tamper.rewriteReason(head, null);
+        }
+        assertThat(audit.verify(head, head).valid()).isTrue();
 
         ImportPreview preview = importer.preview(
                 """

@@ -208,7 +208,16 @@ class AuditAttributionIT extends PostgresIntegrationTest {
 
     private void assertChainVerifies() {
         long head = audit.headSeq();
-        assertThat(audit.verify(1, head).valid()).as("hash chain 1..%d", head).isTrue();
+        var result = audit.verify(1, head);
+        String broken = result.valid()
+                ? ""
+                : jdbc.queryForObject(
+                        "SELECT actor_id || ' ' || action || ' reason=' || coalesce(reason, '') FROM audit.audit_entry WHERE seq = ?",
+                        String.class,
+                        result.failedAtSeq());
+        assertThat(result.valid())
+                .as("hash chain 1..%d broken at %s (%s): %s", head, result.failedAtSeq(), result.reason(), broken)
+                .isTrue();
     }
 
     private UUID seededScholarshipCitizen() {

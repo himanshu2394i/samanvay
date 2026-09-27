@@ -8,11 +8,17 @@ import com.samanvay.shared.security.ApiAccessRefused;
 import java.util.Map;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Writes one chained audit entry per refused API call (401/403). Synchronous,
- * in its own transaction via {@link AuditService#record}; the publisher in
- * shared.security keeps the HTTP response intact if this throws.
+ * in its own (REQUIRES_NEW) transaction through {@link AuditService#record},
+ * so the chain lock covers read-previous-hash + insert even though the
+ * request was refused in the security filter chain, outside any business
+ * transaction. The publisher in shared.security keeps the HTTP response
+ * intact if this throws.
  */
 @Component
 class ApiAccessRefusedAuditor {
@@ -21,14 +27,21 @@ class ApiAccessRefusedAuditor {
     static final String FORBIDDEN = "API_FORBIDDEN";
 
     private final AuditService audit;
+    private final TransactionTemplate ownTransaction;
 
-    ApiAccessRefusedAuditor(AuditService audit) {
+    ApiAccessRefusedAuditor(AuditService audit, PlatformTransactionManager transactions) {
         this.audit = audit;
+        this.ownTransaction = new TransactionTemplate(transactions);
+        this.ownTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @EventListener
     void on(ApiAccessRefused event) {
-        audit.record(new AuditEntry(
+        ownTransaction.executeWithoutResult(tx -> audit.record(entryFor(event)));
+    }
+
+    static AuditEntry entryFor(ApiAccessRefused event) {
+        return new AuditEntry(
                 actorType(event.actorKind()),
                 clip(event.actorId(), 100),
                 event.status() == 401 ? UNAUTHENTICATED : FORBIDDEN,
@@ -39,7 +52,7 @@ class ApiAccessRefusedAuditor {
                 null,
                 Outcome.DENIED,
                 clip(event.reason(), 200),
-                Map.of("status", event.status())));
+                Map.of("status", event.status()));
     }
 
     static ActorType actorType(String kind) {
