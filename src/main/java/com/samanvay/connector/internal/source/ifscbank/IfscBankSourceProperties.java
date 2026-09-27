@@ -10,8 +10,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * {@code samanvay.sources.ifsc-bank.mode=sandbox|simulator|live} switch (separate
  * PR) will just pick these values.
  *
- * @param baseUrl account-validation API root (live reference: https://api.razorpay.com)
- * @param ifscBaseUrl IFSC lookup root (live reference: https://ifsc.razorpay.com); defaults to baseUrl
+ * @param baseUrl bank-check API root (contract v1, docs/contracts/bank-check-v1.yaml)
+ * @param ifscBaseUrl public IFSC lookup root (open RBI data); defaults to baseUrl
  * @param keyId HTTP Basic key id
  * @param keySecret HTTP Basic key secret
  */

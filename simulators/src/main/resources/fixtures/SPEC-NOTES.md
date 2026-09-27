@@ -1,51 +1,56 @@
-# IFSC / bank-account simulator: where each field comes from
+# IFSC / bank-check simulator: where each field comes from
 
-The simulator copies the shape of public reference APIs. It does not invent a new API.
-If this file and a published spec ever disagree, the spec wins; fix the simulator.
+The simulator implements **Samanvay's own bank-check contract v1**,
+[`docs/contracts/bank-check-v1.yaml`](../../../../../docs/contracts/bank-check-v1.yaml). It is not a vendor API.
+The live source is not decided yet (likely PFMS or the department's own validation); a live adapter will
+map that system onto the contract. If the simulator and the contract ever disagree, the contract wins.
 
 ## IFSC format: RBI
 An IFSC has 11 characters: 4 letters for the bank code, then `0` (a reserved position), then 6 alphanumerics
-for the branch code (RBI, NEFT/RTGS procedural guidelines). The simulator's `RBI_IFSC` regex is
-`^[A-Z]{4}0[A-Z0-9]{6}$`. Lookup is case-insensitive, as ifsc.razorpay.com is.
+for the branch code (RBI, NEFT/RTGS procedural guidelines). Regex: `^[A-Z]{4}0[A-Z0-9]{6}$`.
 
-## `GET /{ifsc}`: Razorpay IFSC API (https://ifsc.razorpay.com/{ifsc})
+## `GET /{ifsc}`: public IFSC lookup
 | Field | Source |
 |---|---|
-| `BANK`, `IFSC`, `BRANCH`, `CENTRE`, `DISTRICT`, `STATE`, `ADDRESS`, `CONTACT`, `CITY`, `MICR`, `SWIFT`, `ISO3166`, `BANKCODE` | Razorpay IFSC API response keys (upper case), values copied verbatim for the real branches in `ifsc-bank.json` |
-| `IMPS`, `NEFT`, `RTGS`, `UPI` | Razorpay IFSC API booleans |
-| 404 with body `"Not Found"` (a JSON string) | What the live API returns for unknown **and** malformed codes (checked 2026-09-28) |
-| `samanvay_simulator: true` | **Simulator-only** marker (see below) |
+| `BANK`, `IFSC`, `BRANCH`, `CENTRE`, `DISTRICT`, `STATE`, `ADDRESS`, `CONTACT`, `CITY`, `MICR`, `SWIFT`, `ISO3166`, `BANKCODE`, `IMPS`, `NEFT`, `RTGS`, `UPI` | Keys of the open razorpay/ifsc dataset, which republishes the RBI IFSC list. The values for the 6 real branches in `ifsc-bank.json` are copied verbatim from https://ifsc.razorpay.com/{ifsc} (2026-09-28) |
+| 404 with body `"Not Found"` | What the public dataset API returns for unknown and malformed codes |
 
-## `POST /v1/fund_accounts/validations`: Razorpay X account validation / penny drop
-Reference: https://razorpay.com/docs/api/x/account-validation/ (entity + bank-account validation pages).
+Public, with no credentials: the branch list is open RBI data.
+
+## `POST /v1/bank-checks`: bank check (HTTP Basic key id + secret)
 | Field | Source |
 |---|---|
-| auth: HTTP Basic `key_id:key_secret` | Razorpay X API authentication |
-| `id` (`fav_...`), `entity` = `fund_account.validation`, `status` (`created`/`completed`/`failed`), `amount`, `currency`, `notes`, `created_at`, `utr` | Account Validation entity |
-| `fund_account.{id, entity, account_type, bank_account.{name, bank_name, ifsc, account_number}, batch_id, active}` | Account Validation entity |
-| `results.account_status` (`active`/`invalid`), `results.registered_name` | Account Validation entity |
-| `status_details.{description, source, reference_id, reason}` | Documented fields. The **values** of `reason` (`success`, `invalid_account_number`, `account_closed`) are simulator choices: the docs don't list them |
-| 400 `{"error":{"code":"BAD_REQUEST_ERROR","description","source","step","reason","metadata","field"}}` | Razorpay error envelope. The description texts are illustrative |
-| 401 `The api key provided is invalid` | Razorpay auth-failure envelope |
-| 503 `{"error":{"code":"SERVER_ERROR",...}}` | Razorpay 5xx error envelope |
+| request `ifsc`, `accountNumber`, `applicantName` | contract v1 |
+| response `accountStatus` = `VALID` / `CLOSED` / `INVALID` | contract v1, taken as-is from the fixture account |
+| response `nameMatch` = `MATCH` / `PARTIAL` / `NO_MATCH` / `NOT_CHECKED` | contract v1, taken as-is from the fixture account. **The simulator does no matching** and ignores the value of `applicantName` |
+| 400 / 401 / 503 `application/problem+json` (RFC 9457), `invalidParams[].name` on 400 | contract v1 |
 
-**Known deviation (open question):** live Razorpay X takes `fund_account: {"id": "fa_..."}`, which means a
-fund account (and a contact) has to be created first. To stay one call, the simulator takes the inline
-`fund_account: {"account_type": "bank_account", "bank_account": {name, ifsc, account_number}}`, i.e. the
-same object the response echoes back. The department's real account-verification API may not be
-Razorpay at all; the shape is a stand-in for a typical penny-drop response.
+The response never contains the holder name. Fixture `holder_name` values are canary strings
+(`SIMULATED Canary <tag>`). The simulator doesn't even load them into memory, and `BankCheckCanaryLeakIT`
+in the main app fails if one shows up anywhere on the Samanvay side.
 
-## Deterministic outcomes
-| Input | Outcome |
-|---|---|
-| Fixture account, supplied name == holder name | `completed`, `active`, `registered_name` = holder (**valid**) |
-| Fixture account, a different supplied name | `completed`, `active`, `registered_name` = the real holder. The caller detects the **account mismatch** |
-| Account number not held at that IFSC | `completed`, `invalid`, `registered_name` null, reason `invalid_account_number` |
-| Account with `status: closed` | `completed`, `invalid`, `registered_name` null, reason `account_closed` (**closed account**) |
-| IFSC that is malformed or not in the fixtures | 400 `BAD_REQUEST_ERROR`, `field: ifsc` (**invalid IFSC**) |
-| Fault triggers (bank code `SAMS`, account numbers `00009000000xxx`) | timeout / 503 / truncated JSON |
+## Fixture outcomes (fixed)
+| IFSC / account | accountStatus | nameMatch |
+|---|---|---|
+| SBIN0000300 / 00001000000001 | VALID | MATCH |
+| MAHB0000001 / 00001000000002 | VALID | PARTIAL |
+| HDFC0000001 / 00001000000003 | VALID | NO_MATCH |
+| SBIN0001593 / 00001000000006 | VALID | NOT_CHECKED (stands for a holder name in another script) |
+| BKID0000150 / 00001000000004 | CLOSED | NOT_CHECKED |
+| UTIB0000004 / 00001000000005 | INVALID | NOT_CHECKED |
+| any other account, or a well-formed IFSC not in the list | INVALID | NOT_CHECKED |
+| malformed IFSC / account number, blank name | 400, `invalidParams` | |
+
+## Faults
+Triggered by bank code `SAMS` (IFSC `SAMS0000408`/`500`/`422`, not RBI-allotted) or account numbers
+`00009000000408`/`500`/`422`, or by the header `X-Samanvay-Simulator-Fault: timeout|server_error|malformed`:
+- timeout: the answer is held for `simulator.faults.timeout-delay`.
+- server_error: 503 problem.
+- malformed: 200 with a truncated JSON body.
+
+Fault bodies are fixed text. They never echo request or fixture data.
 
 ## Simulator marker
 Every response has the header `X-Samanvay-Simulator: true`. Every JSON-object body also has
-`"samanvay_simulator": true`. The IFSC 404 body (a bare JSON string, as live) and the deliberately
-malformed body only carry the header.
+`"samanvay_simulator": true`. The IFSC 404 body (a bare JSON string) and the deliberately malformed body
+only carry the header.

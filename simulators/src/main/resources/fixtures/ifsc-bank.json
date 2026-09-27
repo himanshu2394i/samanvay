@@ -1,7 +1,7 @@
 {
   "_provenance": {
     "branches": "REAL public data: RBI IFSC master list as republished by the open-source razorpay/ifsc dataset, captured verbatim from https://ifsc.razorpay.com/<IFSC> on 2026-09-28. Branch records only; no personal data.",
-    "accounts": "SYNTHETIC: invented holders and account numbers (14 digits, all starting 0000). They do not correspond to any real account; names carry the word SIMULATED.",
+    "accounts": "SYNTHETIC: invented account numbers (14 digits starting 0000). holder_name values are CANARY strings ('SIMULATED Canary <tag>'): they exist only here and must never appear in any Samanvay response, log, audit row, exception, metric or problem detail (BankCheckCanaryLeakIT). account_status/name_match are FIXED per account: the simulator does no name matching and ignores applicantName.",
     "fault_triggers": "SYNTHETIC: bank code SAMS is not an RBI-allotted code (ifsc.razorpay.com returns 404 for these). Well-formed, so they pass the RBI format check and reach the fault path."
   },
   "branches": [
@@ -124,32 +124,46 @@
     {
       "ifsc": "SBIN0000300",
       "account_number": "00001000000001",
-      "holder_name": "ASHA SIMULATED PATIL",
-      "status": "active"
+      "holder_name": "SIMULATED Canary Zq7",
+      "account_status": "VALID",
+      "name_match": "MATCH"
     },
     {
       "ifsc": "MAHB0000001",
       "account_number": "00001000000002",
-      "holder_name": "RAHUL SIMULATED DESHMUKH",
-      "status": "active"
+      "holder_name": "SIMULATED Canary Kp4",
+      "account_status": "VALID",
+      "name_match": "PARTIAL"
     },
     {
       "ifsc": "HDFC0000001",
       "account_number": "00001000000003",
-      "holder_name": "MEERA SIMULATED KULKARNI",
-      "status": "active"
+      "holder_name": "SIMULATED Canary Wx9",
+      "account_status": "VALID",
+      "name_match": "NO_MATCH"
+    },
+    {
+      "ifsc": "SBIN0001593",
+      "account_number": "00001000000006",
+      "holder_name": "SIMULATED Canary Jm2",
+      "account_status": "VALID",
+      "name_match": "NOT_CHECKED",
+      "_note": "stands for a holder name the bank holds in another script"
     },
     {
       "ifsc": "BKID0000150",
       "account_number": "00001000000004",
-      "holder_name": "VIKAS SIMULATED JADHAV",
-      "status": "closed"
+      "holder_name": "SIMULATED Canary Rt5",
+      "account_status": "CLOSED",
+      "name_match": "NOT_CHECKED"
     },
     {
       "ifsc": "UTIB0000004",
       "account_number": "00001000000005",
-      "holder_name": "SUNITA SIMULATED PAWAR",
-      "status": "closed"
+      "holder_name": "SIMULATED Canary Hv8",
+      "account_status": "INVALID",
+      "name_match": "NOT_CHECKED",
+      "_note": "the bank reports this account number invalid"
     }
   ],
   "fault_triggers": {

@@ -1,0 +1,165 @@
+openapi: 3.1.0
+info:
+  title: Samanvay bank-check contract
+  version: "1"
+  description: |
+    OUR contract for checking a beneficiary bank account before a disbursement
+    decision. It is written by Samanvay, not copied from a vendor. The live
+    source is not decided yet (likely PFMS or the department's own validation
+    service); a live adapter will map that system onto this contract. The
+    department simulator (simulators/) implements it for dev/CI, and
+    IfscBankClient (connector) is its only caller. IfscBankSourceContract, in the
+    main app's tests, is the executable form of this file.
+
+    Privacy rule: a response NEVER carries the account holder's name, or any
+    other personal data held by the bank. The caller sends the applicant's name
+    and gets back only an enumerated verdict.
+
+    Simulator marker (not part of the contract, simulator only): every simulator
+    response has the header `X-Samanvay-Simulator: true`, and every JSON-object
+    body also has `"samanvay_simulator": true`. Callers must ignore unknown
+    fields. Samanvay reports the marker but never acts on it; the planned use is
+    that a marked response in `live` mode is refused, audited and alarmed.
+servers:
+  - url: http://localhost:8090
+    description: department simulator (dev/CI only)
+paths:
+  /{ifsc}:
+    get:
+      summary: IFSC lookup (public)
+      description: |
+        Open RBI data, so no credentials. Lookup is case-insensitive. The response
+        keys are those of the open razorpay/ifsc dataset, which republishes the RBI
+        IFSC list (https://ifsc.razorpay.com/{ifsc} serves the same shape). An
+        unknown or malformed code gets 404 with the JSON string "Not Found".
+      security: []
+      parameters:
+        - name: ifsc
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Branch found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IfscBranch" }
+        "404":
+          description: No such IFSC.
+          content:
+            application/json:
+              schema: { type: string, const: "Not Found" }
+  /v1/bank-checks:
+    post:
+      summary: Check an account and the applicant's name, in one call
+      security:
+        - basicKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BankCheckRequest" }
+      responses:
+        "200":
+          description: |
+            The check completed. A well-formed IFSC that is not in the RBI list, or
+            an account number the bank doesn't hold at that branch, is
+            `accountStatus: INVALID` (a verdict, not an error).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BankCheckResponse" }
+        "400":
+          description: The request is malformed. `invalidParams[].name` names each bad field (`ifsc` fails the RBI format).
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "401":
+          description: Missing or invalid credentials.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "503":
+          description: The source is temporarily unavailable. The caller may retry.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+components:
+  securitySchemes:
+    basicKey:
+      type: http
+      scheme: basic
+      description: API key id and secret, issued per consuming system.
+  schemas:
+    BankCheckRequest:
+      type: object
+      additionalProperties: false
+      required: [ifsc, accountNumber, applicantName]
+      properties:
+        ifsc:
+          type: string
+          pattern: "^[A-Z]{4}0[A-Z0-9]{6}$"
+          description: RBI IFSC, 4 letters + '0' + 6 alphanumerics. The provider upper-cases it.
+        accountNumber:
+          type: string
+          pattern: "^[0-9]{6,18}$"
+        applicantName:
+          type: string
+          minLength: 1
+          description: The name as the applicant gave it. The provider compares it with the holder name it holds.
+    BankCheckResponse:
+      type: object
+      required: [accountStatus, nameMatch]
+      description: |
+        Nothing else is returned: no holder name, balance or branch detail.
+        Invariant: accountStatus != VALID implies nameMatch == NOT_CHECKED.
+      properties:
+        accountStatus:
+          type: string
+          enum: [VALID, CLOSED, INVALID]
+          description: |
+            VALID: the account exists and can be credited. CLOSED: the account
+            existed and is closed. INVALID: no such account at this branch, or the
+            IFSC is unknown.
+        nameMatch:
+          type: string
+          enum: [MATCH, PARTIAL, NO_MATCH, NOT_CHECKED]
+          description: |
+            How applicantName compares with the holder name at the bank. MATCH,
+            PARTIAL and NO_MATCH are the provider's verdict. NOT_CHECKED means no
+            comparison was made (the account is not VALID, or the names can't be
+            compared, e.g. different scripts).
+    IfscBranch:
+      type: object
+      required: [IFSC, BANK, BANKCODE, BRANCH]
+      properties:
+        IFSC: { type: string }
+        BANK: { type: string }
+        BANKCODE: { type: string }
+        BRANCH: { type: string }
+        ADDRESS: { type: string }
+        CONTACT: { type: string }
+        CITY: { type: string }
+        CENTRE: { type: string }
+        DISTRICT: { type: string }
+        STATE: { type: string }
+        MICR: { type: [string, "null"] }
+        SWIFT: { type: [string, "null"] }
+        ISO3166: { type: string }
+        NEFT: { type: boolean }
+        RTGS: { type: boolean }
+        IMPS: { type: boolean }
+        UPI: { type: boolean }
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        invalidParams:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }

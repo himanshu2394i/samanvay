@@ -4,48 +4,56 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import com.samanvay.connector.internal.source.ifscbank.IfscBankClient.AccountValidation;
+import com.samanvay.connector.internal.source.ifscbank.IfscBankClient.AccountStatus;
+import com.samanvay.connector.internal.source.ifscbank.IfscBankClient.BankCheck;
 import com.samanvay.connector.internal.source.ifscbank.IfscBankClient.IfscLookup;
+import com.samanvay.connector.internal.source.ifscbank.IfscBankClient.NameMatch;
 import com.samanvay.connector.internal.source.ifscbank.IfscBankSourceException.Failure;
+import java.util.Map;
 import java.util.Optional;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * THE contract for the IFSC / bank-account source, owned by the caller
- * ({@link IfscBankClient}), with one copy only. Every test drives the real
- * client over HTTP; nothing here knows what is on the other end.
+ * THE executable form of bank-check contract v1 ({@code docs/contracts/bank-check-v1.yaml}),
+ * owned by the caller ({@link IfscBankClient}), with one copy only. Every test
+ * drives the real client over HTTP; nothing here knows what is on the other end.
  *
- * <p>A concrete subclass supplies three things: a client configured for its
- * target ({@link #client()}), the target's test data ({@link #fixtures()}), and
- * whether the target should carry the simulator marker
- * ({@link #expectSimulatorMarker()}).
+ * <p>A concrete subclass supplies a client for its target, the target's test data
+ * and whether the simulator marker is expected:
  * <ul>
  *   <li>{@link IfscBankSimulatorContractIT}: the simulator container (runs in CI).
- *   <li>A future {@code IfscBankLiveContractIT}: same class, base URL + credentials
- *       + test accounts from the live/sandbox environment, marker expected false.
+ *   <li>A future {@code IfscBankLiveContractIT}: the same class, pointed at the live
+ *       adapter's base URL + credentials (the adapter maps PFMS or the department's
+ *       own validation onto contract v1), with that environment's test accounts.
+ *       The marker is expected false.
  * </ul>
- * Fault tests use fixture-driven triggers (special IFSC/account values), so the
- * client never sends anything simulator-specific. A target that can't be told to
- * fault leaves those fixtures empty and the tests are skipped, not failed.
+ * Fault tests use fixture-driven triggers, so the client never sends anything
+ * simulator-specific. A target that can't be told to fault leaves those fixtures
+ * empty, and the tests are skipped rather than failed.
  */
 public abstract class IfscBankSourceContract {
 
-    /** Known-good test data at the target. */
-    public record Account(String ifsc, String accountNumber, String holderName) {}
+    /** Test data at the target. {@code applicantName} is what the caller sends. */
+    public record Account(String ifsc, String accountNumber, String applicantName) {}
 
     public record Fixtures(
             String knownIfsc,
             String knownIfscBank,
             String unknownIfsc,
             String malformedIfsc,
-            Account activeAccount,
+            Map<NameMatch, Account> validAccountsByNameMatch,
             Account closedAccount,
+            Account invalidAccount,
             Account unknownAccount,
             Optional<String> timeoutIfsc,
             Optional<String> serverErrorIfsc,
             Optional<String> malformedResponseIfsc,
             Optional<Account> timeoutAccount,
-            Optional<Account> serverErrorAccount) {}
+            Optional<Account> serverErrorAccount,
+            Optional<Account> malformedResponseAccount) {}
 
     protected abstract IfscBankClient client();
 
@@ -56,17 +64,15 @@ public abstract class IfscBankSourceContract {
 
     protected abstract boolean expectSimulatorMarker();
 
-    // --- IFSC lookup ---------------------------------------------------------
+    // --- IFSC lookup (public) --------------------------------------------------
 
     @Test
     void known_ifsc_resolves_to_its_branch() {
         IfscLookup lookup = client().lookupIfsc(fixtures().knownIfsc());
-        assertThat(lookup.branch()).isPresent();
         var branch = lookup.branch().orElseThrow();
-        assertThat(branch.ifsc()).isEqualTo(fixtures().knownIfsc());
+        assertThat(branch.ifsc()).isEqualTo(fixtures().knownIfsc()).matches("^[A-Z]{4}0[A-Z0-9]{6}$");
         assertThat(branch.bank()).isEqualTo(fixtures().knownIfscBank());
         assertThat(branch.bankCode()).isEqualTo(fixtures().knownIfsc().substring(0, 4));
-        assertThat(branch.ifsc()).matches("^[A-Z]{4}0[A-Z0-9]{6}$");
         assertThat(lookup.simulatorMarker()).isEqualTo(expectSimulatorMarker());
     }
 
@@ -87,94 +93,107 @@ public abstract class IfscBankSourceContract {
         assertThat(client().lookupIfsc(fixtures().malformedIfsc()).branch()).isEmpty();
     }
 
-    // --- Account validation (penny drop) --------------------------------------
+    // --- Bank check: verdicts --------------------------------------------------
 
-    @Test
-    void valid_account_is_active_with_matching_registered_name() {
-        Account a = fixtures().activeAccount();
-        AccountValidation v = client().validateAccount(a.ifsc(), a.accountNumber(), a.holderName());
-        assertThat(v.rejected()).isFalse();
-        assertThat(v.status()).isEqualTo("completed");
-        assertThat(v.accountActive()).isTrue();
-        assertThat(v.registeredNameMatches(a.holderName())).isTrue();
-        assertThat(v.validationId()).isNotBlank();
-        assertThat(v.simulatorMarker()).isEqualTo(expectSimulatorMarker());
+    @ParameterizedTest
+    @EnumSource(NameMatch.class)
+    void valid_account_reports_each_name_match_verdict(NameMatch expected) {
+        Account a = fixtures().validAccountsByNameMatch().get(expected);
+        assertThat(a).as("fixture for %s", expected).isNotNull();
+        BankCheck check = client().check(a.ifsc(), a.accountNumber(), a.applicantName());
+        assertThat(check.accountStatus()).isEqualTo(AccountStatus.VALID);
+        assertThat(check.nameMatch()).isEqualTo(expected);
+        assertThat(check.simulatorMarker()).isEqualTo(expectSimulatorMarker());
     }
 
     @Test
-    void account_mismatch_is_detectable_from_the_registered_name() {
-        Account a = fixtures().activeAccount();
-        AccountValidation v = client().validateAccount(a.ifsc(), a.accountNumber(), "SOMEBODY ELSE ENTIRELY");
-        assertThat(v.accountActive()).isTrue();
-        assertThat(v.registeredNameMatches("SOMEBODY ELSE ENTIRELY")).isFalse();
-        assertThat(v.registeredNameMatches(a.holderName())).isTrue();
+    void closed_account_is_closed_and_not_name_checked() {
+        assertVerdict(fixtures().closedAccount(), AccountStatus.CLOSED);
     }
 
     @Test
-    void closed_account_is_invalid_without_a_registered_name() {
-        Account a = fixtures().closedAccount();
-        AccountValidation v = client().validateAccount(a.ifsc(), a.accountNumber(), a.holderName());
-        assertThat(v.status()).isEqualTo("completed");
-        assertThat(v.accountStatus()).isEqualTo("invalid");
-        assertThat(v.registeredName()).isNull();
+    void invalid_account_is_invalid_and_not_name_checked() {
+        assertVerdict(fixtures().invalidAccount(), AccountStatus.INVALID);
     }
 
     @Test
-    void unknown_account_is_invalid() {
+    void account_not_held_at_the_branch_is_invalid() {
+        assertVerdict(fixtures().unknownAccount(), AccountStatus.INVALID);
+    }
+
+    @Test
+    void well_formed_but_unknown_ifsc_is_invalid_not_an_error() {
         Account a = fixtures().unknownAccount();
-        AccountValidation v = client().validateAccount(a.ifsc(), a.accountNumber(), a.holderName());
-        assertThat(v.accountStatus()).isEqualTo("invalid");
-        assertThat(v.registeredName()).isNull();
+        assertVerdict(new Account(fixtures().unknownIfsc(), a.accountNumber(), a.applicantName()), AccountStatus.INVALID);
     }
 
     @Test
-    void invalid_ifsc_is_rejected_on_the_ifsc_field() {
-        Account a = fixtures().activeAccount();
-        AccountValidation v = client().validateAccount(fixtures().malformedIfsc(), a.accountNumber(), a.holderName());
-        assertThat(v.rejected()).isTrue();
-        assertThat(v.rejectedField()).isEqualTo("ifsc");
-        assertThat(v.simulatorMarker()).isEqualTo(expectSimulatorMarker());
+    void malformed_ifsc_is_rejected_naming_the_field() {
+        Account a = fixtures().validAccountsByNameMatch().get(NameMatch.MATCH);
+        assertThatThrownBy(() -> client().check(fixtures().malformedIfsc(), a.accountNumber(), a.applicantName()))
+                .isInstanceOfSatisfying(IfscBankSourceException.class, e -> {
+                    assertThat(e.failure()).isEqualTo(Failure.REQUEST_REJECTED);
+                    assertThat(e.rejectedFields()).contains("ifsc");
+                    assertThat(e.simulatorMarker()).isEqualTo(expectSimulatorMarker());
+                });
     }
 
     @Test
     void wrong_credentials_are_refused() {
-        Account a = fixtures().activeAccount();
-        assertThatThrownBy(() -> clientWithWrongCredentials().validateAccount(a.ifsc(), a.accountNumber(), a.holderName()))
-                .isInstanceOfSatisfying(IfscBankSourceException.class, e -> assertThat(e.failure()).isEqualTo(Failure.AUTH_REJECTED));
+        Account a = fixtures().validAccountsByNameMatch().get(NameMatch.MATCH);
+        assertFailure(() -> clientWithWrongCredentials().check(a.ifsc(), a.accountNumber(), a.applicantName()),
+                Failure.AUTH_REJECTED);
     }
 
     // --- Failure modes (skipped where the target can't be told to fault) ------
 
     @Test
-    void timeout_surfaces_as_timeout() {
+    void ifsc_lookup_timeout() {
         assumeThat(fixtures().timeoutIfsc()).isPresent();
         assertFailure(() -> client().lookupIfsc(fixtures().timeoutIfsc().orElseThrow()), Failure.TIMEOUT);
     }
 
     @Test
-    void server_error_surfaces_as_remote_fault() {
+    void ifsc_lookup_server_error() {
         assumeThat(fixtures().serverErrorIfsc()).isPresent();
         assertFailure(() -> client().lookupIfsc(fixtures().serverErrorIfsc().orElseThrow()), Failure.REMOTE_FAULT);
     }
 
     @Test
-    void malformed_body_surfaces_as_malformed_response() {
+    void ifsc_lookup_truncated_body() {
         assumeThat(fixtures().malformedResponseIfsc()).isPresent();
         assertFailure(() -> client().lookupIfsc(fixtures().malformedResponseIfsc().orElseThrow()), Failure.MALFORMED_RESPONSE);
     }
 
     @Test
-    void account_validation_timeout_and_server_error() {
+    void bank_check_timeout() {
         assumeThat(fixtures().timeoutAccount()).isPresent();
-        assumeThat(fixtures().serverErrorAccount()).isPresent();
-        Account slow = fixtures().timeoutAccount().orElseThrow();
-        assertFailure(() -> client().validateAccount(slow.ifsc(), slow.accountNumber(), slow.holderName()), Failure.TIMEOUT);
-        Account broken = fixtures().serverErrorAccount().orElseThrow();
-        assertFailure(
-                () -> client().validateAccount(broken.ifsc(), broken.accountNumber(), broken.holderName()), Failure.REMOTE_FAULT);
+        Account a = fixtures().timeoutAccount().orElseThrow();
+        assertFailure(() -> client().check(a.ifsc(), a.accountNumber(), a.applicantName()), Failure.TIMEOUT);
     }
 
-    private void assertFailure(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, Failure expected) {
+    @Test
+    void bank_check_server_error() {
+        assumeThat(fixtures().serverErrorAccount()).isPresent();
+        Account a = fixtures().serverErrorAccount().orElseThrow();
+        assertFailure(() -> client().check(a.ifsc(), a.accountNumber(), a.applicantName()), Failure.REMOTE_FAULT);
+    }
+
+    @Test
+    void bank_check_truncated_body() {
+        assumeThat(fixtures().malformedResponseAccount()).isPresent();
+        Account a = fixtures().malformedResponseAccount().orElseThrow();
+        assertFailure(() -> client().check(a.ifsc(), a.accountNumber(), a.applicantName()), Failure.MALFORMED_RESPONSE);
+    }
+
+    private void assertVerdict(Account a, AccountStatus expected) {
+        BankCheck check = client().check(a.ifsc(), a.accountNumber(), a.applicantName());
+        assertThat(check.accountStatus()).isEqualTo(expected);
+        assertThat(check.nameMatch()).isEqualTo(NameMatch.NOT_CHECKED);
+        assertThat(check.simulatorMarker()).isEqualTo(expectSimulatorMarker());
+    }
+
+    private void assertFailure(ThrowingCallable call, Failure expected) {
         assertThatThrownBy(call).isInstanceOfSatisfying(IfscBankSourceException.class, e -> {
             assertThat(e.failure()).isEqualTo(expected);
             if (expected != Failure.TIMEOUT) {

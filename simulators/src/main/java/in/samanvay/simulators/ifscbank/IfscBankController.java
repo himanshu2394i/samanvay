@@ -2,7 +2,7 @@ package in.samanvay.simulators.ifscbank;
 
 import in.samanvay.simulators.ifscbank.IfscBankService.Fault;
 import java.time.Duration;
-import java.util.Map;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,19 +16,17 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Two endpoints, each on the path of its public reference API so that a caller
- * only swaps the base URL between simulator and live:
+ * Samanvay bank-check contract v1 ({@code docs/contracts/bank-check-v1.yaml}):
  *
  * <ul>
- *   <li>{@code GET /{ifsc}} - Razorpay IFSC API (https://ifsc.razorpay.com/{ifsc}).
- *   <li>{@code POST /v1/fund_accounts/validations} - Razorpay X account validation
- *       (penny drop), https://api.razorpay.com/v1/fund_accounts/validations.
+ *   <li>{@code GET /{ifsc}}: public IFSC lookup (open RBI data, keys as in the razorpay/ifsc dataset).
+ *   <li>{@code POST /v1/bank-checks}: one-call account check, HTTP Basic.
  * </ul>
  *
- * <p>Fault injection (so callers can exercise retry/timeout handling): either
- * the fixture-driven triggers in {@code fixtures/ifsc-bank.json} (a caller
- * needs no simulator-specific code for these), or the request header
- * {@value #FAULT_HEADER}: {@code timeout | server_error | malformed}.
+ * <p>Fault injection: the fixture triggers in {@code fixtures/ifsc-bank.json} (the
+ * caller needs no simulator-specific code), or the header {@value #FAULT_HEADER}:
+ * {@code timeout | server_error | malformed}. Fault bodies are fixed text and never
+ * echo request or fixture data.
  */
 @RestController
 class IfscBankController {
@@ -47,26 +45,17 @@ class IfscBankController {
     ResponseEntity<?> lookupIfsc(
             @PathVariable String ifsc, @RequestHeader(name = FAULT_HEADER, required = false) String faultHeader) {
         Fault fault = Fault.fromHeader(faultHeader).orElseGet(() -> service.ifscFault(ifsc).orElse(null));
-        if (fault != null) {
-            return faulted(fault, () -> service.lookupIfsc(ifsc));
-        }
-        return service.lookupIfsc(ifsc);
+        return fault == null ? service.lookupIfsc(ifsc) : faulted(fault, () -> service.lookupIfsc(ifsc));
     }
 
-    @PostMapping(
-            path = "/v1/fund_accounts/validations",
-            consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE)
-    ResponseEntity<?> validateAccount(
+    @PostMapping(path = "/v1/bank-checks", consumes = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<?> bankCheck(
             @RequestBody JsonNode request, @RequestHeader(name = FAULT_HEADER, required = false) String faultHeader) {
         Fault fault = Fault.fromHeader(faultHeader).orElseGet(() -> service.accountFault(request).orElse(null));
-        if (fault != null) {
-            return faulted(fault, () -> service.validateAccount(request));
-        }
-        return service.validateAccount(request);
+        return fault == null ? service.bankCheck(request) : faulted(fault, () -> service.bankCheck(request));
     }
 
-    private ResponseEntity<?> faulted(Fault fault, java.util.function.Supplier<ResponseEntity<?>> normal) {
+    private ResponseEntity<?> faulted(Fault fault, Supplier<ResponseEntity<?>> normal) {
         return switch (fault) {
             case TIMEOUT -> {
                 // Holds the request past any sane client read timeout, then answers normally.
@@ -77,19 +66,12 @@ class IfscBankController {
                 }
                 yield normal.get();
             }
-            // Razorpay's documented 5xx error envelope.
-            case SERVER_ERROR -> ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(Map.of(
-                            "error",
-                            Map.of(
-                                    "code", "SERVER_ERROR",
-                                    "description", "The server encountered an error. The incident has been reported to admins."),
-                            IfscBankService.MARKER_FIELD,
-                            true));
+            case SERVER_ERROR -> IfscBankService.problemResponse(IfscBankService.problem(
+                    HttpStatus.SERVICE_UNAVAILABLE, "Service unavailable", "The bank check service is temporarily unavailable."));
             // 200 + JSON content type + a truncated body: the classic partial-write failure.
             case MALFORMED -> ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body("{\"" + IfscBankService.MARKER_FIELD + "\":true,\"IFSC\":\"SAMS00");
+                    .body("{\"" + IfscBankService.MARKER_FIELD + "\":true,\"accountStatus\":\"VAL");
         };
     }
 }

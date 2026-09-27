@@ -8,8 +8,8 @@ server:
 
 simulator:
   ifsc-bank:
-    # Dev/CI-only credentials (HTTP Basic, like Razorpay X key id/secret).
-    key-id: ${SIMULATOR_IFSC_BANK_KEY_ID:rzp_test_samanvaysim}
+    # Dev/CI-only credentials (HTTP Basic key id/secret, bank-check contract v1).
+    key-id: ${SIMULATOR_IFSC_BANK_KEY_ID:samanvay-sim-key}
     key-secret: ${SIMULATOR_IFSC_BANK_KEY_SECRET:sim-secret-change-me}
   faults:
     # How long a "timeout" fault holds the request before answering.
