@@ -1,0 +1,16 @@
+# Department simulators - a separate app, never a live source (see README).
+spring:
+  application:
+    name: samanvay-simulators
+server:
+  # 8080 = samanvay-core, 8180 = dev Keycloak.
+  port: ${SIMULATOR_PORT:8090}
+
+simulator:
+  ifsc-bank:
+    # Dev/CI-only credentials (HTTP Basic, like Razorpay X key id/secret).
+    key-id: ${SIMULATOR_IFSC_BANK_KEY_ID:rzp_test_samanvaysim}
+    key-secret: ${SIMULATOR_IFSC_BANK_KEY_SECRET:sim-secret-change-me}
+  faults:
+    # How long a "timeout" fault holds the request before answering.
+    timeout-delay: ${SIMULATOR_FAULTS_TIMEOUT_DELAY:30s}
