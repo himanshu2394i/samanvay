@@ -31,6 +31,7 @@ import com.samanvay.orchestration.internal.repository.InstanceRepository;
 import com.samanvay.orchestration.internal.repository.StepStateRepository;
 import com.samanvay.orchestration.internal.workflow.FetchDataDelegate;
 import com.samanvay.shared.DataCategory;
+import com.samanvay.shared.PrincipalRef;
 import com.samanvay.shared.PurposeCode;
 import com.samanvay.shared.RequesterRef;
 import com.samanvay.shared.SubjectRef;
@@ -97,13 +98,15 @@ class DefaultJourneyService implements JourneyService {
     }
 
     @Override
-    public JourneyInstance start(String journeyCode, UUID citizenId, JsonNode submission) {
+    public JourneyInstance start(String journeyCode, UUID citizenId, JsonNode submission, PrincipalRef initiatedBy) {
+        java.util.Objects.requireNonNull(initiatedBy, "initiatedBy");
         JourneyDefinition journey = journeys.byCode(journeyCode);
         requireDepartmentLinks(journey, citizenId);
         JourneyInstance started = tx.execute(status -> persistStart(journey, citizenId));
         List<CategoryFetch> fetches = journey.requiredCategories().stream()
                 .map(category -> CompletableFuture.supplyAsync(
-                        () -> fetchCategory(journey, started.processInstanceId(), citizenId, category), FANOUT))
+                        () -> fetchCategory(journey, started.processInstanceId(), citizenId, category, initiatedBy),
+                        FANOUT))
                 .map(CompletableFuture::join)
                 .toList();
         tx.executeWithoutResult(status -> applyFetches(started.id(), fetches));
@@ -154,7 +157,8 @@ class DefaultJourneyService implements JourneyService {
         return new JourneyInstance(id, processId, journey.code(), citizenId);
     }
 
-    private CategoryFetch fetchCategory(JourneyDefinition journey, String processId, UUID citizenId, String category) {
+    private CategoryFetch fetchCategory(
+            JourneyDefinition journey, String processId, UUID citizenId, String category, PrincipalRef initiatedBy) {
         JourneyPolicy policy = journey.policy();
         String dept = policy.sourceDepartment(category);
         var connector = connectors.resolve(dept, DataCategory.of(category), Capability.FETCH).orElseThrow();
@@ -166,7 +170,8 @@ class DefaultJourneyService implements JourneyService {
                 dept,
                 connector.ref(),
                 PurposeCode.of(policy.purpose()),
-                journey.code());
+                journey.code(),
+                initiatedBy);
         var inputs = new ExecutionInputs(
                 DataCategory.of(category),
                 processId,
@@ -236,14 +241,26 @@ class DefaultJourneyService implements JourneyService {
     }
 
     @Override
-    public void retryPending(UUID instanceId) {
+    public void retryPending(UUID instanceId, PrincipalRef initiatedBy) {
+        java.util.Objects.requireNonNull(initiatedBy, "initiatedBy");
         InstanceEntity e = instances.findById(instanceId).orElseThrow(InstanceNotFoundException::new);
         JourneyDefinition journey = journeys.byCode(e.getJourneyCode());
         List<CategoryFetch> fetches = steps.findByInstanceId(instanceId).stream()
                 .filter(s -> !"COMPLETED".equals(s.getStatus()))
-                .map(s -> fetchCategory(journey, e.getProcessInstanceId(), e.getCitizenId(), s.getStepCode()))
+                .map(s -> fetchCategory(journey, e.getProcessInstanceId(), e.getCitizenId(), s.getStepCode(), initiatedBy))
                 .toList();
         tx.executeWithoutResult(status -> applyFetches(instanceId, fetches));
+    }
+
+    @Override
+    public java.util.Set<String> dataSources(String journeyCode) {
+        JourneyDefinition journey = journeys.byCode(journeyCode);
+        java.util.Set<String> codes = new java.util.TreeSet<>();
+        for (String cat : journey.requiredCategories()) {
+            connectors.resolve(journey.policy().sourceDepartment(cat), DataCategory.of(cat), Capability.FETCH)
+                    .ifPresent(c -> codes.add(connectors.dataSourceFor(c).code()));
+        }
+        return codes;
     }
 
     @Override

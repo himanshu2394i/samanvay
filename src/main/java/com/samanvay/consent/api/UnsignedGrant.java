@@ -1,6 +1,7 @@
 package com.samanvay.consent.api;
 
 import com.samanvay.shared.DataCategory;
+import com.samanvay.shared.PrincipalRef;
 import com.samanvay.shared.PurposeCode;
 import com.samanvay.shared.RequesterRef;
 import com.samanvay.shared.SubjectRef;
@@ -18,5 +19,6 @@ public record UnsignedGrant(
         String departmentCode,
         String connectorRef,
         PurposeCode purpose,
+        PrincipalRef principal,
         Instant issuedAt,
         Instant expiresAt) {}

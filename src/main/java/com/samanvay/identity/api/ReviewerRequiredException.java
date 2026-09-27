@@ -4,7 +4,7 @@ import com.samanvay.shared.SamanvayException;
 
 public class ReviewerRequiredException extends SamanvayException {
     public ReviewerRequiredException() {
-        super("IDENTITY_REVIEWER role required");
+        super("REVIEWER role required");
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.samanvay.consent.api;
 
 import com.samanvay.shared.DataCategory;
+import com.samanvay.shared.PrincipalRef;
 import com.samanvay.shared.PurposeCode;
 import com.samanvay.shared.RequesterRef;
 import com.samanvay.shared.SubjectRef;
@@ -18,6 +19,7 @@ public record AccessGrant(
         String departmentCode,
         String connectorRef,
         PurposeCode purpose,
+        PrincipalRef principal,
         Instant issuedAt,
         Instant expiresAt,
         byte[] signature) {
@@ -34,6 +36,7 @@ public record AccessGrant(
                 departmentCode,
                 connectorRef,
                 purpose,
+                principal,
                 issuedAt,
                 expiresAt);
     }
@@ -50,6 +53,7 @@ public record AccessGrant(
                 departmentCode,
                 connectorRef,
                 purpose,
+                principal,
                 issuedAt,
                 expiresAt,
                 signature);

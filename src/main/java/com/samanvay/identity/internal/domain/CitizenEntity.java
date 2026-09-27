@@ -15,6 +15,16 @@ public class CitizenEntity {
     private String status;
     @Column(name = "created_at")
     private Instant createdAt;
+    @Column(name = "auth_subject")
+    private String authSubject;
+
+    public String getAuthSubject() {
+        return authSubject;
+    }
+
+    public void setAuthSubject(String authSubject) {
+        this.authSubject = authSubject;
+    }
 
     public UUID getId() {
         return id;

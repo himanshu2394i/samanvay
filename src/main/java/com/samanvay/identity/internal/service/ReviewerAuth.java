@@ -1,18 +1,34 @@
 package com.samanvay.identity.internal.service;
 
+import java.util.Optional;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
+/**
+ * No-auto-link layer 2 of 3 (service): confirm/reject require an authenticated
+ * reviewer, and the reviewer identity recorded in audit is the token subject.
+ *
+ * <p>Reads only the Spring Security context, which is populated solely from a
+ * validated JWT. Client-sent headers (the old {@code X-Roles}) and request
+ * bodies (the old {@code reviewerId}) are not identity sources and are ignored.
+ * Layer 1 is the route rule in shared.security.SecurityConfig; layer 3 is the
+ * {@code chk_no_auto_probabilistic_link} CHECK in V40.
+ */
 @Component
 class ReviewerAuth {
 
-    boolean isReviewer() {
-        var attrs = RequestContextHolder.getRequestAttributes();
-        if (attrs instanceof ServletRequestAttributes sra) {
-            String roles = sra.getRequest().getHeader("X-Roles");
-            return roles != null && roles.contains("IDENTITY_REVIEWER");
+    static final String REVIEWER_AUTHORITY = "ROLE_REVIEWER";
+
+    /** The authenticated reviewer's subject, or empty if the caller is not a reviewer. */
+    Optional<String> currentReviewer() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null) {
+            return Optional.empty();
         }
-        return false;
+        boolean reviewer = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(REVIEWER_AUTHORITY::equals);
+        return reviewer ? Optional.of(auth.getName()) : Optional.empty();
     }
 }

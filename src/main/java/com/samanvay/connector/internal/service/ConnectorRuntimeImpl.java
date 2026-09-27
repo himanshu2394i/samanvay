@@ -68,8 +68,8 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             grantVerifier.verifyOrThrow(grant, inputs.expectedCategory(), grant.connectorRef());
         } catch (InvalidGrantException e) {
             audit.record(new AuditEntry(
-                    ActorType.SYSTEM,
-                    "connector",
+                    actorType(grant),
+                    actorId(grant),
                     "GRANT_REJECTED",
                     grant.subject().citizenId().toString(),
                     grant.connectorRef(),
@@ -78,7 +78,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                     grant.id(),
                     Outcome.DENIED,
                     e.getMessage(),
-                    Map.of()));
+                    attribution(grant)));
             throw e;
         }
         ConnectorDefinition connector = connectors.byRef(grant.connectorRef());
@@ -118,8 +118,8 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             var provenance = new Provenance(
                     dataSource.departmentCode(), Instant.now(), connector.ref(), grant.id(), "REALTIME");
             audit.record(new AuditEntry(
-                    ActorType.SYSTEM,
-                    "connector",
+                    actorType(grant),
+                    actorId(grant),
                     "DATA_ACCESSED",
                     grant.subject().citizenId().toString(),
                     connector.ref(),
@@ -128,13 +128,47 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                     grant.id(),
                     Outcome.ALLOWED,
                     null,
-                    Map.of()));
+                    attribution(grant)));
             return new ConnectorResult.Success(mapped, provenance);
         } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException e) {
             return new ConnectorResult.Unavailable(FailureKind.BREAKER_OPEN, true);
         } catch (io.github.resilience4j.bulkhead.BulkheadFullException e) {
             return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
         }
+    }
+
+    /**
+     * Audit attribution comes from the grant, not from this component: the
+     * principal (from the caller's token) and the catalog purpose code are
+     * both inside the signed grant body. A grant that fails verification may
+     * have been tampered with, so for GRANT_REJECTED these values are "as
+     * claimed by the rejected grant" - still better than "connector", and the
+     * row says DENIED.
+     */
+    static ActorType actorType(AccessGrant grant) {
+        if (grant.principal() == null) {
+            return ActorType.SYSTEM;
+        }
+        return switch (grant.principal().kind()) {
+            case CITIZEN -> ActorType.CITIZEN;
+            case OFFICER, REVIEWER -> ActorType.OFFICER;
+            case ADMIN -> ActorType.ADMIN;
+            case DEPARTMENT -> ActorType.DEPARTMENT;
+        };
+    }
+
+    static String actorId(AccessGrant grant) {
+        return grant.principal() == null ? "unattributed-grant" : grant.principal().id();
+    }
+
+    static Map<String, Object> attribution(AccessGrant grant) {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("purpose", grant.purpose() == null ? "" : grant.purpose().code());
+        meta.put("requester", grant.requester() == null ? "" : grant.requester().id());
+        if (grant.principal() != null) {
+            meta.put("principalType", grant.principal().kind().name());
+        }
+        return meta;
     }
 
     private Map<String, String> bindInputs(String inputsJson, ExecutionInputs inputs) {

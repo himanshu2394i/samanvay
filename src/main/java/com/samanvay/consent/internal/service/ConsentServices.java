@@ -5,6 +5,8 @@ import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.audit.api.Outcome;
 import com.samanvay.catalog.api.JourneyCatalog;
+import com.samanvay.catalog.api.PurposeCatalog;
+import com.samanvay.consent.api.UnknownPurposeException;
 import com.samanvay.consent.api.AccessAuthority;
 import com.samanvay.consent.api.AccessDecision;
 import com.samanvay.consent.api.AccessGrant;
@@ -58,6 +60,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
     private final IdentityLinking identityLinking;
     private final DiscoveryRegistry registry;
     private final JourneyCatalog journeys;
+    private final PurposeCatalog purposes;
     private final GrantSigner signer;
     private final AuditService audit;
     private final ApplicationEventPublisher events;
@@ -72,6 +75,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
             IdentityLinking identityLinking,
             DiscoveryRegistry registry,
             JourneyCatalog journeys,
+            PurposeCatalog purposes,
             GrantSigner signer,
             AuditService audit,
             ApplicationEventPublisher events,
@@ -83,6 +87,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         this.identityLinking = identityLinking;
         this.registry = registry;
         this.journeys = journeys;
+        this.purposes = purposes;
         this.signer = signer;
         this.audit = audit;
         this.events = events;
@@ -92,6 +97,9 @@ class ConsentServices implements ConsentService, AccessAuthority {
     @Override
     @Transactional
     public ConsentRequest request(ConsentRequestDraft draft) {
+        if (!purposes.isActive(draft.purposeCode())) {
+            throw new UnknownPurposeException(draft.purposeCode());
+        }
         ConsentRequestEntity e = new ConsentRequestEntity();
         e.setId(UUID.randomUUID());
         e.setSubjectCitizenId(draft.citizenId());
@@ -177,6 +185,9 @@ class ConsentServices implements ConsentService, AccessAuthority {
     @Override
     @Transactional
     public AccessDecision authorize(AccessRequest req) {
+        if (req.purpose() == null || !purposes.isActive(req.purpose().code())) {
+            return deny(req, DenialReason.UNKNOWN_PURPOSE, null);
+        }
         if (identityLinking.activeLink(req.subject().citizenId(), req.departmentCode()).isEmpty()) {
             return deny(req, DenialReason.NO_ACTIVE_LINK, null);
         }
@@ -230,6 +241,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 req.departmentCode(),
                 req.connectorRef(),
                 req.purpose(),
+                req.principal(),
                 issued,
                 issued.plusSeconds(60));
         AccessGrant grant = new AccessGrant(
@@ -243,6 +255,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 unsigned.departmentCode(),
                 unsigned.connectorRef(),
                 unsigned.purpose(),
+                unsigned.principal(),
                 unsigned.issuedAt(),
                 unsigned.expiresAt(),
                 signer.sign(unsigned));
@@ -268,6 +281,8 @@ class ConsentServices implements ConsentService, AccessAuthority {
         e.setDepartmentId(grant.departmentCode());
         e.setConnectorRef(grant.connectorRef());
         e.setPurposeCode(grant.purpose().code());
+        e.setPrincipalType(grant.principal().kind().name());
+        e.setPrincipalId(grant.principal().id());
         e.setIssuedAt(grant.issuedAt());
         e.setExpiresAt(grant.expiresAt());
         e.setSignature(grant.signature());
@@ -296,7 +311,10 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 grantId,
                 outcome,
                 reason,
-                Map.of());
+                Map.of(
+                        "purpose", req.purpose() == null ? "" : req.purpose().code(),
+                        "principalType", req.principal().kind().name(),
+                        "principalId", req.principal().id()));
     }
 
     private ConsentRequest toRequest(ConsentRequestEntity e) {
