@@ -14,7 +14,7 @@ import java.util.List;
  * @param requesterRule how the requester is fixed; see {@link RequesterRule}
  * @param maxDurationDays cap on a consent's lifetime, or {@code null} for the platform default
  * @param durationRule when the consent is meant to end within the cap (informational)
- * @param frequency how often data may be checked under it (recorded, not yet enforced)
+ * @param frequency how often data may be checked under it; ONCE and ONCE_PER_DOCUMENT_PER_APPLICATION are enforced as one check per document per application (V189), other values are recorded only
  * @param labelEn English label, {@code null} while {@code labelEnStatus} is MISSING
  * @param labelMr Marathi label, {@code null} while {@code labelMrStatus} is MISSING
  * @param separateOptIn must be asked for on its own, never bundled with another purpose

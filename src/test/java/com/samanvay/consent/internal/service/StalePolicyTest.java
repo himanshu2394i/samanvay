@@ -106,6 +106,7 @@ class StalePolicyTest {
                 TestPurposes.catalog(),
                 anyCitizen -> java.util.List.of(),
                 new RefusalAuditor(audit, mock(org.springframework.transaction.PlatformTransactionManager.class)),
+                mock(ConsentUsageService.class),
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},

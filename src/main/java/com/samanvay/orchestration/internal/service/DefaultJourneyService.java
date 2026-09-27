@@ -105,7 +105,8 @@ class DefaultJourneyService implements JourneyService {
         JourneyInstance started = tx.execute(status -> persistStart(journey, citizenId));
         List<CategoryFetch> fetches = journey.requiredCategories().stream()
                 .map(category -> CompletableFuture.supplyAsync(
-                        () -> fetchCategory(journey, started.processInstanceId(), citizenId, category, initiatedBy),
+                        () -> fetchCategory(
+                                journey, started.id(), started.processInstanceId(), citizenId, category, initiatedBy),
                         FANOUT))
                 .map(CompletableFuture::join)
                 .toList();
@@ -158,7 +159,12 @@ class DefaultJourneyService implements JourneyService {
     }
 
     private CategoryFetch fetchCategory(
-            JourneyDefinition journey, String processId, UUID citizenId, String category, PrincipalRef initiatedBy) {
+            JourneyDefinition journey,
+            UUID applicationId,
+            String processId,
+            UUID citizenId,
+            String category,
+            PrincipalRef initiatedBy) {
         JourneyPolicy policy = journey.policy();
         String dept = policy.sourceDepartment(category);
         var connector = connectors.resolve(dept, DataCategory.of(category), Capability.FETCH).orElseThrow();
@@ -171,7 +177,8 @@ class DefaultJourneyService implements JourneyService {
                 connector.ref(),
                 PurposeCode.of(policy.purpose()),
                 journey.code(),
-                initiatedBy);
+                initiatedBy,
+                applicationId.toString());
         var inputs = new ExecutionInputs(
                 DataCategory.of(category),
                 processId,
@@ -247,7 +254,7 @@ class DefaultJourneyService implements JourneyService {
         JourneyDefinition journey = journeys.byCode(e.getJourneyCode());
         List<CategoryFetch> fetches = steps.findByInstanceId(instanceId).stream()
                 .filter(s -> !"COMPLETED".equals(s.getStatus()))
-                .map(s -> fetchCategory(journey, e.getProcessInstanceId(), e.getCitizenId(), s.getStepCode(), initiatedBy))
+                .map(s -> fetchCategory(journey, e.getId(), e.getProcessInstanceId(), e.getCitizenId(), s.getStepCode(), initiatedBy))
                 .toList();
         tx.executeWithoutResult(status -> applyFetches(instanceId, fetches));
     }

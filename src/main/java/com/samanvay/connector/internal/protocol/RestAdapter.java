@@ -5,8 +5,11 @@ import com.samanvay.connector.api.AdapterResponse;
 import com.samanvay.connector.api.ProtocolAdapter;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -16,11 +19,20 @@ import tools.jackson.databind.json.JsonMapper;
 class RestAdapter implements ProtocolAdapter {
 
     private final MockDepartmentBackend mocks;
-    private final RestClient http = RestClient.create();
+    private final RestClient http;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    RestAdapter(MockDepartmentBackend mocks) {
+    /**
+     * {@code samanvay.connector.timeout} bounds connect and read of every real department call,
+     * so a hung department surfaces as a timeout (and a released one-check claim) instead of
+     * holding the claim forever.
+     */
+    RestAdapter(MockDepartmentBackend mocks, @Value("${samanvay.connector.timeout:PT10S}") Duration timeout) {
         this.mocks = mocks;
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(timeout);
+        factory.setReadTimeout(timeout);
+        this.http = RestClient.builder().requestFactory(factory).build();
     }
 
     @Override

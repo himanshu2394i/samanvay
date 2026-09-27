@@ -116,6 +116,7 @@ class RenewalAcademicYearTest {
                 purposes,
                 citizen -> awards,
                 new RefusalAuditor(audit, mock(PlatformTransactionManager.class)),
+                mock(ConsentUsageService.class),
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},

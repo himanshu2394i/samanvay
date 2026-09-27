@@ -8,17 +8,30 @@ import java.util.List;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
-/** The consent copy table is complete and holds the final, agreed citizen copy. */
+/** The consent copy tables (citizen and officer) are complete and hold the final, agreed copy. */
 class ConsentCopyTableTest {
 
     static final List<String> REQUIRED = List.of(
             "denied.CONSENT_REVOKED", "denied.CONSENT_EXPIRED", "status.ACTIVE", "status.EXPIRED", "status.REVOKED");
+    static final List<String> OFFICER_REQUIRED = List.of("denied.CHECK_ALREADY_USED");
 
     @Test
     void everyRequiredEntryIsPresentAndNonBlank() {
         Properties table = ConsentCopy.table();
         assertThat(REQUIRED).allSatisfy(key -> assertThat(table.getProperty(key)).as(key).isNotBlank());
         assertThat(table.stringPropertyNames()).as("no stray keys").containsExactlyInAnyOrderElementsOf(REQUIRED);
+        Properties officer = ConsentCopy.officerTable();
+        assertThat(OFFICER_REQUIRED).allSatisfy(key -> assertThat(officer.getProperty(key)).as(key).isNotBlank());
+        assertThat(officer.stringPropertyNames()).as("no stray officer keys")
+                .containsExactlyInAnyOrderElementsOf(OFFICER_REQUIRED);
+    }
+
+    @Test
+    void finalOfficerCopy() {
+        assertThat(ConsentCopy.officerDenied(DenialReason.CHECK_ALREADY_USED))
+                .isEqualTo("This document has already been checked for this application. "
+                        + "The citizen's permission allows one check.");
+        assertThat(ConsentCopy.officerDenied(DenialReason.NO_POINTER)).isEqualTo("NO_POINTER");
     }
 
     @Test
