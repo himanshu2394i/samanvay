@@ -98,6 +98,26 @@ Officer desk (all portals): the in-page `officer` / `demo-2026` form only opens 
 
 Samanvay remains the interoperability middle layer. The portals are callers, not the product.
 
+## Department simulators (dev/CI only)
+
+`simulators/` is a **separate** Spring Boot app (own `pom.xml`, package `in.samanvay.simulators`,
+port 8090). It stands in for external department APIs, shaped like their published specs. The first
+one is IFSC lookup + bank-account validation (penny drop). Its spec notes are in
+[`simulators/src/main/resources/fixtures/SPEC-NOTES.md`](simulators/src/main/resources/fixtures/SPEC-NOTES.md).
+
+```bash
+./mvnw -f simulators/pom.xml spring-boot:run        # http://localhost:8090
+curl localhost:8090/SBIN0000300                     # IFSC lookup (public, like ifsc.razorpay.com)
+curl -u rzp_test_samanvaysim:sim-secret-change-me -H 'Content-Type: application/json' \
+  -d '{"fund_account":{"account_type":"bank_account","bank_account":{"name":"ASHA SIMULATED PATIL","ifsc":"SBIN0000300","account_number":"00001000000001"}}}' \
+  localhost:8090/v1/fund_accounts/validations
+```
+
+The simulator is **never a live source in production**. samanvay-core has no build dependency on it and
+reaches it only over HTTP, through the same client it will use for the live API. Every simulator
+response carries `X-Samanvay-Simulator: true`. Which endpoint a source uses will be selected by
+`samanvay.sources.<code>.mode=sandbox|simulator|live`, which comes in a separate PR.
+
 ## Contributing
 
 1. Branch off `main`, work in your module's package (`com.samanvay.<module>.*`).

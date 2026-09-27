@@ -5,7 +5,9 @@
     Deliberately not a <module> of the root pom: the root project is the
     samanvay-core jar (packaging=jar), and nothing in it may depend on this
     artifact. Keeping the builds apart means the main app cannot even compile
-    against simulator classes; CI builds this pom as its own step.
+    against simulator classes. CI builds and tests it through the main build:
+    the contract IT builds simulators/Dockerfile, whose build stage runs
+    `mvn verify` on this pom.
 
     Build: ./mvnw -f simulators/pom.xml verify   (from the repo root)
     Run:   ./mvnw -f simulators/pom.xml spring-boot:run   (port 8090)
