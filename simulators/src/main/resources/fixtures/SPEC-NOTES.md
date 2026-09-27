@@ -38,12 +38,13 @@ in the main app fails if one shows up anywhere on the Samanvay side.
 | SBIN0001593 / 00001000000006 | VALID | NOT_CHECKED (stands for a holder name in another script) |
 | BKID0000150 / 00001000000004 | CLOSED | NOT_CHECKED |
 | UTIB0000004 / 00001000000005 | INVALID | NOT_CHECKED |
+| SBIN0000300 / 73019586420417 | VALID | MATCH (the **canary account number**: the full number must never appear on the Samanvay side) |
 | any other account, or a well-formed IFSC not in the list | INVALID | NOT_CHECKED |
 | malformed IFSC / account number, blank name | 400, `invalidParams` | |
 
 ## Faults
-Triggered by bank code `SAMS` (IFSC `SAMS0000408`/`500`/`422`, not RBI-allotted) or account numbers
-`00009000000408`/`500`/`422`, or by the header `X-Samanvay-Simulator-Fault: timeout|server_error|malformed`:
+Triggered by bank code `SAMS` (IFSC `SAMS0000408`/`500`/`422`, not RBI-allotted; on a bank check this works
+with any account number), by account numbers `00009000000408`/`500`/`422`, or by the header `X-Samanvay-Simulator-Fault: timeout|server_error|malformed`:
 - timeout: the answer is held for `simulator.faults.timeout-delay`.
 - server_error: 503 problem.
 - malformed: 200 with a truncated JSON body.

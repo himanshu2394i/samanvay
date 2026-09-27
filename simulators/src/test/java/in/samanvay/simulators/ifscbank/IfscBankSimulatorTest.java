@@ -102,6 +102,7 @@ class IfscBankSimulatorTest {
         assertThatThrownBy(() -> HTTP.send(slow, HttpResponse.BodyHandlers.ofString()))
                 .isInstanceOf(HttpTimeoutException.class);
         assertThat(post(check("SBIN0000300", "00009000000500", "X"), BASIC, null).statusCode()).isEqualTo(503);
+        assertThat(post(check("SAMS0000500", "00001000000001", "X"), BASIC, null).statusCode()).isEqualTo(503);
     }
 
     @Test
@@ -110,12 +111,12 @@ class IfscBankSimulatorTest {
         try (InputStream in = new ClassPathResource("fixtures/ifsc-bank.json").getInputStream()) {
             JSON.readTree(in).get("accounts").forEach(a -> canaries.add(a.get("holder_name").asString()));
         }
-        assertThat(canaries).hasSize(6).allSatisfy(c -> assertThat(c).startsWith("SIMULATED Canary "));
+        assertThat(canaries).hasSize(7).allSatisfy(c -> assertThat(c).startsWith("SIMULATED Canary "));
 
         List<HttpResponse<String>> responses = new ArrayList<>();
         for (String account : new String[] {
             "00001000000001", "00001000000002", "00001000000003", "00001000000006", "00001000000004",
-            "00001000000005", "00009000000500", "00009000000422", "00009000000408"
+            "00001000000005", "73019586420417", "00009000000500", "00009000000422", "00009000000408"
         }) {
             for (String ifsc : new String[] {"SBIN0000300", "MAHB0000001", "HDFC0000001", "SBIN0001593", "BKID0000150", "UTIB0000004"}) {
                 responses.add(post(check(ifsc, account, "Asha Patil"), BASIC, null));
@@ -124,9 +125,13 @@ class IfscBankSimulatorTest {
         for (String fault : new String[] {"timeout", "server_error", "malformed"}) {
             responses.add(post(check("SBIN0000300", "00001000000001", "Asha Patil"), BASIC, fault));
         }
+        for (String faultIfsc : new String[] {"SAMS0000408", "SAMS0000500", "SAMS0000422"}) {
+            responses.add(post(check(faultIfsc, "73019586420417", "Asha Patil"), BASIC, null));
+        }
         responses.add(post(check("SBIN0000300", "00001000000001", "Asha Patil"), null, null));
         responses.add(post(check("bad", "1", ""), BASIC, null));
         for (HttpResponse<String> r : responses) {
+            assertThat(r.body()).as("account number echoed").doesNotContain("73019586420417");
             for (String canary : canaries) {
                 assertThat(r.body()).as("%s %s", r.request().method(), r.statusCode()).doesNotContainIgnoringCase(canary);
                 assertThat(r.headers().map().toString()).doesNotContainIgnoringCase(canary);

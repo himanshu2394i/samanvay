@@ -77,8 +77,10 @@ class IfscBankService {
         return Optional.ofNullable(ifscFaults.get(ifsc.toUpperCase(Locale.ROOT)));
     }
 
+    /** A bank check faults on a trigger account number OR a trigger IFSC (so any account number can ride a fault). */
     Optional<Fault> accountFault(JsonNode request) {
-        return Optional.ofNullable(accountFaults.get(text(request, "accountNumber")));
+        return Optional.ofNullable(accountFaults.get(text(request, "accountNumber")))
+                .or(() -> ifscFault(text(request, "ifsc")));
     }
 
     /** 200 + branch object (open RBI data), else 404 with the JSON string "Not Found" (also for malformed codes). */

@@ -1,8 +1,9 @@
 {
   "_provenance": {
     "branches": "REAL public data: RBI IFSC master list as republished by the open-source razorpay/ifsc dataset, captured verbatim from https://ifsc.razorpay.com/<IFSC> on 2026-09-28. Branch records only; no personal data.",
-    "accounts": "SYNTHETIC: invented account numbers (14 digits starting 0000). holder_name values are CANARY strings ('SIMULATED Canary <tag>'): they exist only here and must never appear in any Samanvay response, log, audit row, exception, metric or problem detail (BankCheckCanaryLeakIT). account_status/name_match are FIXED per account: the simulator does no name matching and ignores applicantName.",
-    "fault_triggers": "SYNTHETIC: bank code SAMS is not an RBI-allotted code (ifsc.razorpay.com returns 404 for these). Well-formed, so they pass the RBI format check and reach the fault path."
+    "accounts": "SYNTHETIC: invented account numbers (14 digits starting 0000, except the canary account number 73019586420417). holder_name values are CANARY strings ('SIMULATED Canary <tag>'): they exist only here and must never appear in any Samanvay response, log, audit row, exception, metric or problem detail (BankCheckCanaryLeakIT). account_status/name_match are FIXED per account: the simulator does no name matching and ignores applicantName.",
+    "fault_triggers": "SYNTHETIC: bank code SAMS is not an RBI-allotted code (ifsc.razorpay.com returns 404 for these). Well-formed, so they pass the RBI format check and reach the fault path.",
+    "canary_account_number": "The account flagged canary_account_number: true has a distinctive number. The full number must never appear in any Samanvay response, log, audit row or problem detail (BankCheckCanaryLeakIT). Only a future 'account ending' copy may show its last four digits."
   },
   "branches": [
     {
@@ -164,6 +165,14 @@
       "account_status": "INVALID",
       "name_match": "NOT_CHECKED",
       "_note": "the bank reports this account number invalid"
+    },
+    {
+      "ifsc": "SBIN0000300",
+      "account_number": "73019586420417",
+      "holder_name": "SIMULATED Canary Qn6",
+      "account_status": "VALID",
+      "name_match": "MATCH",
+      "canary_account_number": true
     }
   ],
   "fault_triggers": {
