@@ -10,6 +10,8 @@ import com.samanvay.identity.api.LinkProofKind;
 import com.samanvay.identity.api.LinkProofProviderInfo;
 import com.samanvay.identity.api.ProfileDraft;
 import com.samanvay.shared.test.PostgresIntegrationTest;
+import com.samanvay.shared.test.TestHttp;
+import com.samanvay.shared.test.TestTokens;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Map;
@@ -36,7 +38,7 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
 
     @Test
     void listExposesLabeledSandboxProvidersNotKeycloak() {
-        LinkProofProviderInfo[] listed = http().get()
+        LinkProofProviderInfo[] listed = TestHttp.as(TestTokens.citizen("cit-" + UUID.randomUUID())).get()
                 .uri(url("/api/identity/proof-providers"))
                 .retrieve()
                 .body(LinkProofProviderInfo[].class);
@@ -51,8 +53,9 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
 
     @Test
     void digiLockerMockAssertSucceedsAndInvalidProofFails() {
-        UUID citizen = register();
-        Link link = http().post()
+        Session session = citizen();
+        UUID citizen = session.citizenId();
+        Link link = session.http().post()
                 .uri(url("/api/identity/links"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(
@@ -73,12 +76,13 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
         assertThat(link.status()).isEqualTo("ACTIVE");
         assertThat(link.provenance()).isEqualTo("CITIZEN_ASSERTED");
 
-        HttpStatusCode invalid = http().post()
+        Session other = citizen();
+        HttpStatusCode invalid = other.http().post()
                 .uri(url("/api/identity/links"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(
                         "citizenId",
-                        register(),
+                        other.citizenId(),
                         "departmentCode",
                         "EDUCATION",
                         "localIdType",
@@ -92,12 +96,13 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
                 .exchange((req, res) -> res.getStatusCode());
         assertThat(invalid.value()).isEqualTo(401);
 
-        HttpStatusCode missingProvider = http().post()
+        Session third = citizen();
+        HttpStatusCode missingProvider = third.http().post()
                 .uri(url("/api/identity/links"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(
                         "citizenId",
-                        register(),
+                        third.citizenId(),
                         "departmentCode",
                         "EDUCATION",
                         "localIdType",
@@ -118,13 +123,13 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
         Link skipped = linking.assertLink(first, "REVENUE", "RATION", "RC-other", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
         assertThat(skipped.id()).isEqualTo(firstLink.id());
 
-        UUID second = register();
-        HttpStatusCode conflict = http().post()
+        Session second = citizen();
+        HttpStatusCode conflict = second.http().post()
                 .uri(url("/api/identity/links"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(
                         "citizenId",
-                        second,
+                        second.citizenId(),
                         "departmentCode",
                         "REVENUE",
                         "localIdType",
@@ -139,8 +144,21 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
         assertThat(conflict.value()).isEqualTo(409);
     }
 
+    private record Session(UUID citizenId, RestClient http) {}
+
+    /** A signed-in citizen who self-registered (record bound to the token subject). */
+    private Session citizen() {
+        String subject = "cit-" + UUID.randomUUID();
+        UUID id = profiles.registerSelf(draft(), subject);
+        return new Session(id, TestHttp.as(TestTokens.citizen(subject)));
+    }
+
     private UUID register() {
-        return profiles.register(new ProfileDraft(
+        return profiles.register(draft());
+    }
+
+    private static ProfileDraft draft() {
+        return (new ProfileDraft(
                 "Ramesh Kumar",
                 "रमेश",
                 "Ramesh",
@@ -150,10 +168,6 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
                 "DAY",
                 "M",
                 "99****21"));
-    }
-
-    private RestClient http() {
-        return RestClient.create();
     }
 
     private String url(String path) {

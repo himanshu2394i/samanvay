@@ -1,6 +1,7 @@
 package com.samanvay;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPrincipals;
 
 import com.samanvay.consent.api.AccessAuthority;
 import com.samanvay.consent.api.AccessDecision;
@@ -71,7 +72,8 @@ class ConsentRevokeNextAccessIT extends PostgresIntegrationTest {
                 "REVENUE",
                 "rev-income@1",
                 PurposeCode.SCHOLARSHIP_ELIGIBILITY,
-                "POST_MATRIC_SCHOLARSHIP");
+                "POST_MATRIC_SCHOLARSHIP",
+                TestPrincipals.OFFICER);
         AccessDecision first = awaitGranted(accessRequest);
         assertThat(first).isInstanceOf(AccessDecision.Granted.class);
         consents.revoke(artifact.id(), citizen, "changed mind");

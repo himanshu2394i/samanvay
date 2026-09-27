@@ -26,5 +26,11 @@ public abstract class PostgresIntegrationTest {
         registry.add("spring.flyway.user", POSTGRES::getUsername);
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("spring.flyway.placeholders.appRolePassword", () -> "samanvay_app_dev_password");
+        // Real JWT validation against per-JVM test keys (see TestTokens); no Keycloak needed.
+        registry.add("samanvay.security.staff.issuer-uri", () -> TestTokens.STAFF_ISSUER);
+        registry.add("samanvay.security.staff.public-key-location", () -> TestTokens.STAFF_PUBLIC_KEY_PEM.toUri().toString());
+        registry.add("samanvay.security.citizen.issuer-uri", () -> TestTokens.CITIZEN_ISSUER);
+        registry.add(
+                "samanvay.security.citizen.public-key-location", () -> TestTokens.CITIZEN_PUBLIC_KEY_PEM.toUri().toString());
     }
 }

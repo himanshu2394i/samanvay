@@ -3,9 +3,13 @@ package com.samanvay;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samanvay.shared.test.PostgresIntegrationTest;
+import com.samanvay.shared.test.TestHttp;
+import com.samanvay.shared.test.TestTokens;
 import com.samanvay.tracking.api.ApplicationSummary;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -35,8 +39,9 @@ class LicencePortalIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void portalHttpFlowStartsBusinessNocJourney() throws InterruptedException {
-        RestClient http = RestClient.create();
+    void portalHttpFlowStartsBusinessNocJourney() {
+        // Signed-in citizen: self-registration binds the record to this token subject.
+        RestClient http = TestHttp.as(TestTokens.citizen("cit-" + UUID.randomUUID()));
         UUID citizenId = http.post()
                 .uri(url("/api/identity/citizens"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -101,7 +106,6 @@ class LicencePortalIT extends PostgresIntegrationTest {
         http.post()
                 .uri(url("/api/consent/requests/" + request.get("id") + "/grant"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("X-Auth-Jti", "ui-session")
                 .body(Map.of("citizenId", citizenId))
                 .retrieve()
                 .toBodilessEntity();
@@ -119,18 +123,15 @@ class LicencePortalIT extends PostgresIntegrationTest {
         assertThat(app.status()).isIn("SUBMITTED", "VERIFIED", "PARTIALLY_VERIFIED");
     }
 
-    private ApplicationSummary awaitApplication(RestClient http, UUID citizenId) throws InterruptedException {
-        for (int i = 0; i < 80; i++) {
-            ApplicationSummary[] apps = http.get()
-                    .uri(url("/api/applications?citizenId=" + citizenId + "&size=5"))
-                    .retrieve()
-                    .body(ApplicationSummary[].class);
-            if (apps != null && apps.length > 0) {
-                return apps[0];
-            }
-            Thread.sleep(50);
-        }
-        throw new AssertionError("tracking did not project a licence application");
+    private ApplicationSummary awaitApplication(RestClient http, UUID citizenId) {
+        return Awaitility.await()
+                .atMost(Duration.ofSeconds(10))
+                .until(
+                        () -> http.get()
+                                .uri(url("/api/applications?citizenId=" + citizenId + "&size=5"))
+                                .retrieve()
+                                .body(ApplicationSummary[].class),
+                        apps -> apps != null && apps.length > 0)[0];
     }
 
     private String url(String path) {

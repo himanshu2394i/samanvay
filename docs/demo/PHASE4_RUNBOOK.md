@@ -38,7 +38,7 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 | Beat | Where | How it is proven |
 |---|---|---|
 | 1 | Three portals / same form | **Start at `/`** — three independent government services. They would otherwise duplicate citizen data. |
-| 2 | Connect department accounts | Scholarship **Connect accounts**. Consent uses stub `X-Auth-Jti`. **Not live Keycloak SSO.** |
+| 2 | Connect department accounts | Scholarship **Connect accounts**. Consent grant is bound to the signed-in citizen token (dev Keycloak, not production SSO). |
 | 3 | Scholarship fan-out | Portal submit starts `POST_MATRIC_SCHOLARSHIP`. |
 | 3b | Second caller | `/licence/` starts `BUSINESS_NOC` on the same core. |
 | 3c | Third caller | `/farmer/` starts `FARMER_SUBSIDY` (catalog configuration + caller skin). |
@@ -69,7 +69,7 @@ Default boot does **not** activate `demo`. Without it, `POST /api/audit/demo/tam
 ## Known gaps
 
 - No React SPA (HLD §11). Thin static HTML Phase-UI against existing APIs.
-- Keycloak identity brokering is stubbed (`X-Auth-Jti` for consent). Department linking uses labeled demo/sandbox proof providers, not a fake live SSO hop.
+- API auth uses the local dev Keycloak (staff + citizen realms); department identity brokering is still not live. Department linking uses labeled demo/sandbox proof providers, not a fake live SSO hop.
 - Flowable Boot 4 remains optional behind `WorkflowEngine`.
 - Semantic/model mapping pass is omitted; suggestions are lexical only (HLD §8.2).
 - Connector-health p50/p95 Micrometer charts are not built; SLA is due-at vs now on the ops table.

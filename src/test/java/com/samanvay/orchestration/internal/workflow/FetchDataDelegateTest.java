@@ -1,6 +1,7 @@
 package com.samanvay.orchestration.internal.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPrincipals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -42,7 +43,8 @@ class FetchDataDelegateTest {
                 "REVENUE",
                 "rev-income@1",
                 PurposeCode.SCHOLARSHIP_ELIGIBILITY,
-                "POST_MATRIC_SCHOLARSHIP");
+                "POST_MATRIC_SCHOLARSHIP",
+                TestPrincipals.OFFICER);
         ExecutionInputs inputs = new ExecutionInputs(DataCategory.INCOME_CERTIFICATE, "wf", Map.of(), Map.of(), Map.of());
 
         when(authority.authorize(req))
@@ -61,6 +63,7 @@ class FetchDataDelegateTest {
                 req.departmentCode(),
                 req.connectorRef(),
                 req.purpose(),
+                req.principal(),
                 Instant.now(),
                 Instant.now().plusSeconds(60),
                 new byte[] {2});

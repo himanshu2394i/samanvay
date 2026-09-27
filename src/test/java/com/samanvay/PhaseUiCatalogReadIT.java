@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.JourneyDefinition;
 import com.samanvay.shared.test.PostgresIntegrationTest;
+import com.samanvay.shared.test.TestHttp;
+import com.samanvay.shared.test.TestTokens;
 import com.samanvay.tracking.api.ApplicationSummary;
 import java.util.Arrays;
 import java.util.List;
@@ -21,7 +23,7 @@ class PhaseUiCatalogReadIT extends PostgresIntegrationTest {
 
     @Test
     void catalogListsSeededJourneysAndPublishedConnectors() {
-        RestClient http = RestClient.create();
+        RestClient http = TestHttp.as(TestTokens.officer("officer-ui"));
         JourneyDefinition[] journeys = http.get()
                 .uri(url("/api/catalog/journeys"))
                 .retrieve()

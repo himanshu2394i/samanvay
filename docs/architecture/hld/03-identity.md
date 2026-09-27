@@ -38,7 +38,7 @@ That asymmetry drives every decision in this module.
 
 - **Authenticating the citizen.** Keycloak brokering is aspirational. Linking consumes a
   verified `LinkProofProvider` assertion (DigiLocker sandbox mock and Local ID + OTP demo
-  today). Do not treat stub headers as live SSO. The caller **Connect accounts** checklist
+  today). API callers authenticate with Keycloak bearer tokens (staff/citizen realms); a citizen token binds to one `identity_citizen` via `auth_subject`. The caller **Connect accounts** checklist
   lists missing departments for a journey; it is not live Keycloak department SSO.
 - **Fetching department records.** It does not depend on `connector` — see §6.
 - **Deciding whether an access is allowed.** It answers *"is there an active link?"*;

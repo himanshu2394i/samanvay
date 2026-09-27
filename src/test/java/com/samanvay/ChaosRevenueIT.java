@@ -1,6 +1,7 @@
 package com.samanvay;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPrincipals;
 
 import com.samanvay.consent.api.AuthProof;
 import com.samanvay.consent.api.ConsentRequestDraft;
@@ -58,13 +59,14 @@ class ChaosRevenueIT extends PostgresIntegrationTest {
         UUID citizen = seedScholarshipCitizen();
         chaos.kill("revenue-rest-mock");
         JourneyInstance instance = journeys.start(
-                "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode());
+                "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode(),
+                        TestPrincipals.OFFICER);
         ApplicationView down = awaitStatus(citizen, "PARTIALLY_VERIFIED");
         assertThat(down.status()).isEqualTo("PARTIALLY_VERIFIED");
         assertThat(journeys.openExceptions()).extracting(JourneyExceptionView::instanceId).contains(instance.id());
 
         chaos.revive("revenue-rest-mock");
-        journeys.retryPending(instance.id());
+        journeys.retryPending(instance.id(), TestPrincipals.OFFICER);
         ApplicationView recovered = awaitStatus(citizen, "VERIFIED");
         assertThat(recovered.status()).isEqualTo("VERIFIED");
         assertThat(journeys.openExceptions().stream().noneMatch(e -> e.instanceId().equals(instance.id()))).isTrue();

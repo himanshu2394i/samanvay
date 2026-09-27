@@ -1,6 +1,7 @@
 package com.samanvay;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPrincipals;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samanvay.consent.api.ConsentRequestDraft;
@@ -75,7 +76,8 @@ class ConnectAccountsIT extends PostgresIntegrationTest {
                 .doesNotContain("Keycloak");
 
         assertThatThrownBy(() -> journeys.start(
-                        "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode()))
+                        "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode(),
+                                TestPrincipals.OFFICER))
                 .isInstanceOf(MissingDepartmentLinksException.class)
                 .hasMessageContaining("REVENUE")
                 .hasMessageContaining("EDUCATION")
@@ -109,7 +111,8 @@ class ConnectAccountsIT extends PostgresIntegrationTest {
                 List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT")));
         consents.grant(request.id(), citizen, new com.samanvay.consent.api.AuthProof("session-jti"));
         assertThat(journeys.start(
-                        "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode())
+                        "POST_MATRIC_SCHOLARSHIP", citizen, JsonMapper.builder().build().createObjectNode(),
+                                TestPrincipals.OFFICER)
                 .id())
                 .isNotNull();
 

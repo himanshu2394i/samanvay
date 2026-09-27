@@ -1,6 +1,8 @@
 package com.samanvay.consent.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPurposes;
+import com.samanvay.shared.test.TestPrincipals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,6 +58,7 @@ class DefaultAccessAuthorityTest {
                 linking,
                 registry,
                 mock(JourneyCatalog.class),
+                TestPurposes.catalog(),
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},
@@ -70,6 +73,7 @@ class DefaultAccessAuthorityTest {
                 "REVENUE",
                 "rev-income@1",
                 PurposeCode.SCHOLARSHIP_ELIGIBILITY,
-                "POST_MATRIC_SCHOLARSHIP");
+                "POST_MATRIC_SCHOLARSHIP",
+                TestPrincipals.OFFICER);
     }
 }

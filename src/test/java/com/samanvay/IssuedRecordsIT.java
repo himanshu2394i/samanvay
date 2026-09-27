@@ -3,10 +3,14 @@ package com.samanvay;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samanvay.shared.test.PostgresIntegrationTest;
+import com.samanvay.shared.test.TestHttp;
+import com.samanvay.shared.test.TestTokens;
 import com.samanvay.tracking.api.ApplicationSummary;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,7 +30,7 @@ class IssuedRecordsIT extends PostgresIntegrationTest {
 
     @Test
     void lockerListsIssuedDocumentsForARealDepartmentSystem() {
-        RestClient http = RestClient.create();
+        RestClient http = TestHttp.as(TestTokens.citizen("cit-locker"));
         List<?> revenue = http.get()
                 .uri(url("/api/connector/issued-documents?departmentCode=REVENUE"))
                 .retrieve()
@@ -40,8 +44,9 @@ class IssuedRecordsIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void applicationIssuedRecordsAreFetchedLiveAndNotWrittenToTracking() throws InterruptedException {
-        RestClient http = RestClient.create();
+    void applicationIssuedRecordsAreFetchedLiveAndNotWrittenToTracking() {
+        // Signed-in citizen: self-registration binds the record to this token subject.
+        RestClient http = TestHttp.as(TestTokens.citizen("cit-" + UUID.randomUUID()));
         UUID citizenId = http.post()
                 .uri(url("/api/identity/citizens"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -104,7 +109,6 @@ class IssuedRecordsIT extends PostgresIntegrationTest {
         http.post()
                 .uri(url("/api/consent/requests/" + request.get("id") + "/grant"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("X-Auth-Jti", "ui-session")
                 .body(Map.of("citizenId", citizenId))
                 .retrieve()
                 .toBodilessEntity();
@@ -136,18 +140,15 @@ class IssuedRecordsIT extends PostgresIntegrationTest {
                 .doesNotContain("1,85,000");
     }
 
-    private ApplicationSummary awaitApplication(RestClient http, UUID citizenId) throws InterruptedException {
-        for (int i = 0; i < 80; i++) {
-            ApplicationSummary[] apps = http.get()
-                    .uri(url("/api/applications?citizenId=" + citizenId + "&size=5"))
-                    .retrieve()
-                    .body(ApplicationSummary[].class);
-            if (apps != null && apps.length > 0) {
-                return apps[0];
-            }
-            Thread.sleep(50);
-        }
-        throw new AssertionError("tracking did not project a scholarship application");
+    private ApplicationSummary awaitApplication(RestClient http, UUID citizenId) {
+        return Awaitility.await()
+                .atMost(Duration.ofSeconds(10))
+                .until(
+                        () -> http.get()
+                                .uri(url("/api/applications?citizenId=" + citizenId + "&size=5"))
+                                .retrieve()
+                                .body(ApplicationSummary[].class),
+                        apps -> apps != null && apps.length > 0)[0];
     }
 
     private String url(String path) {
