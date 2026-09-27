@@ -40,6 +40,7 @@ import com.samanvay.identity.internal.repository.CandidateMatchRepository;
 import com.samanvay.identity.internal.repository.CitizenRepository;
 import com.samanvay.identity.internal.repository.LinkRepository;
 import com.samanvay.identity.internal.repository.ProfileRepository;
+import com.samanvay.shared.security.CitizenOwnership;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -57,7 +58,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 @Service
-class IdentityServices implements IdentityLinking, IdentityResolution, CitizenProfiles {
+class IdentityServices implements IdentityLinking, IdentityResolution, CitizenProfiles, CitizenOwnership {
 
     static final double NOISE_FLOOR = 0.60;
     static final double HIGH_CONFIDENCE = 0.90;
@@ -102,9 +103,30 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
     @Override
     @Transactional
     public UUID register(ProfileDraft draft) {
+        return create(draft, null);
+    }
+
+    @Override
+    @Transactional
+    public UUID registerSelf(ProfileDraft draft, String authSubject) {
+        if (authSubject == null || authSubject.isBlank()) {
+            throw new IllegalArgumentException("authSubject required for self-registration");
+        }
+        return citizens.findByAuthSubject(authSubject)
+                .map(CitizenEntity::getId)
+                .orElseGet(() -> create(draft, authSubject));
+    }
+
+    @Override
+    public boolean isBoundTo(UUID citizenId, String authSubject) {
+        return citizenId != null && authSubject != null && citizens.existsByIdAndAuthSubject(citizenId, authSubject);
+    }
+
+    private UUID create(ProfileDraft draft, String authSubject) {
         UUID id = UUID.randomUUID();
         CitizenEntity c = new CitizenEntity();
         c.setId(id);
+        c.setAuthSubject(authSubject);
         c.setStatus("ACTIVE");
         c.setCreatedAt(Instant.now());
         citizens.save(c);
@@ -251,10 +273,8 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
 
     @Override
     @Transactional
-    public Link confirm(UUID candidateId, String reviewerId, String note) {
-        if (!reviewerAuth.isReviewer()) {
-            throw new ReviewerRequiredException();
-        }
+    public Link confirm(UUID candidateId, String note) {
+        String reviewerId = reviewerAuth.currentReviewer().orElseThrow(ReviewerRequiredException::new);
         CandidateMatchEntity c = candidates.findById(candidateId).orElseThrow(() -> new CandidateNotFoundException(candidateId));
         c.setStatus("CONFIRMED");
         c.setReviewedBy(reviewerId);
@@ -288,10 +308,8 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
 
     @Override
     @Transactional
-    public void reject(UUID candidateId, String reviewerId, String note) {
-        if (!reviewerAuth.isReviewer()) {
-            throw new ReviewerRequiredException();
-        }
+    public void reject(UUID candidateId, String note) {
+        String reviewerId = reviewerAuth.currentReviewer().orElseThrow(ReviewerRequiredException::new);
         CandidateMatchEntity c = candidates.findById(candidateId).orElseThrow(() -> new CandidateNotFoundException(candidateId));
         c.setStatus("REJECTED");
         c.setReviewedBy(reviewerId);

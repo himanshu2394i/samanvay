@@ -27,8 +27,9 @@ class LicencePortalStaticPagesTest {
         assertThat(html).contains("Officer login");
         assertThat(html).contains("demonstration — not SSO");
         assertThat(html).contains("Retry");
-        assertThat(html).contains("AUTH STUBBED");
-        assertThat(html).contains("not live SSO");
+        assertThat(html).contains("DEV SIGN-IN");
+        assertThat(html).doesNotContain("AUTH STUBBED");
+        assertThat(html).contains("not production SSO");
         assertThat(html).contains("Skip to main content");
         assertThat(html).doesNotContain("Control plane");
         assertThat(html).doesNotContain("Apply for scholarship");
@@ -47,7 +48,9 @@ class LicencePortalStaticPagesTest {
         assertThat(page("shared/records.js")).contains("/issued-records");
         assertThat(html).contains("/shared/records.js");
         assertThat(js).contains("INDUSTRY");
-        assertThat(js).contains("X-Auth-Jti");
+        assertThat(js).doesNotContain("X-Auth-Jti");
+        assertThat(js).contains("SamanvayAuth.fetch");
+        assertThat(html).contains("/shared/auth.js");
         assertThat(js).contains("/retry");
         assertThat(js).doesNotContain("POST_MATRIC_SCHOLARSHIP");
         assertThat(js).doesNotContain("PARTIALLY_VERIFIED");

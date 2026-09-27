@@ -1,7 +1,9 @@
 package com.samanvay.audit.internal.repository;
 
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.samanvay.audit.api.ActorType;
 import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditQuery;
@@ -30,7 +32,12 @@ public class AuditEntryRepository {
 
     private final JdbcTemplate jdbc;
     private final CanonicalJson canonicalJson;
-    private final ObjectMapper metaMapper = new ObjectMapper();
+    // Decimals must read back exactly as they were hashed: a BigDecimal 0.800
+    // is stored in jsonb as 0.800, and reading it as a Double (0.8) would
+    // change the canonical bytes and fail verification of that entry.
+    private final ObjectMapper metaMapper = JsonMapper.builder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build();
     private final RowMapper<AuditEntryRow> rowMapper = this::mapRow;
 
     AuditEntryRepository(JdbcTemplate jdbc, CanonicalJson canonicalJson) {

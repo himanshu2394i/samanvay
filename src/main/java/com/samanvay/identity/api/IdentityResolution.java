@@ -10,7 +10,15 @@ public interface IdentityResolution {
 
     Page<Candidate> reviewQueue(ReviewFilter filter, Pageable pageable);
 
-    Link confirm(UUID candidateId, String reviewerId, String note);
+    /**
+     * Confirms a candidate match as the <em>authenticated reviewer</em>. There is
+     * deliberately no reviewerId parameter: the reviewer recorded on the link
+     * and in audit is the caller's token subject.
+     *
+     * @throws ReviewerRequiredException if the caller is not an authenticated reviewer
+     */
+    Link confirm(UUID candidateId, String note);
 
-    void reject(UUID candidateId, String reviewerId, String note);
+    /** Rejects a candidate match as the authenticated reviewer; see {@link #confirm}. */
+    void reject(UUID candidateId, String note);
 }

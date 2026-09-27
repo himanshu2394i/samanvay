@@ -1,6 +1,7 @@
 package com.samanvay.audit.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -17,10 +18,12 @@ import com.samanvay.audit.internal.repository.InMemoryCheckpointRepository;
 import com.samanvay.shared.CanonicalJson;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class HashChainServiceTest {
 
@@ -33,6 +36,23 @@ class HashChainServiceTest {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.query(anyString(), any(ResultSetExtractor.class), any())).thenReturn(null);
         service = new JdbcAuditService(entries, new InMemoryCheckpointRepository(), jdbc, canonicalJson);
+        // Stand-in for the @Transactional proxy these unit tests bypass.
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+    }
+
+    @AfterEach
+    void tearDown() {
+        TransactionSynchronizationManager.setActualTransactionActive(false);
+    }
+
+    @Test
+    void record_refusesWithoutActiveTransaction() {
+        TransactionSynchronizationManager.setActualTransactionActive(false);
+
+        assertThatThrownBy(() -> service.record(ping("s1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("active transaction");
+        assertThat(entries.rows).as("nothing appended").isEmpty();
     }
 
     @Test

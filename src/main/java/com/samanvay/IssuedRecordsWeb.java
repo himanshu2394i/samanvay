@@ -3,6 +3,7 @@ package com.samanvay;
 import com.samanvay.connector.api.IssuedDocuments;
 import com.samanvay.connector.api.IssuedRecord;
 import com.samanvay.tracking.api.ApplicationTracking;
+import com.samanvay.shared.security.CitizenAccess;
 import com.samanvay.tracking.api.StepView;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,14 +17,17 @@ class IssuedRecordsWeb {
 
     private final ApplicationTracking tracking;
     private final IssuedDocuments issued;
+    private final CitizenAccess citizenAccess;
 
-    IssuedRecordsWeb(ApplicationTracking tracking, IssuedDocuments issued) {
+    IssuedRecordsWeb(ApplicationTracking tracking, IssuedDocuments issued, CitizenAccess citizenAccess) {
         this.tracking = tracking;
         this.issued = issued;
+        this.citizenAccess = citizenAccess;
     }
 
     @GetMapping("/{referenceNo}/issued-records")
     List<IssuedRecord> issuedRecords(@PathVariable String referenceNo) {
+        citizenAccess.requireMayActOn(tracking.byReference(referenceNo).citizenId());
         return tracking.steps(referenceNo).stream()
                 .map(this::preview)
                 .toList();

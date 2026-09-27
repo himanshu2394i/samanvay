@@ -1,6 +1,7 @@
 package com.samanvay.consent.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.samanvay.shared.test.TestPrincipals;
 
 import com.samanvay.SamanvayApplication;
 import com.samanvay.consent.api.AccessGrant;
@@ -51,6 +52,7 @@ class ConsentVersionRevocationIT extends PostgresIntegrationTest {
                 "REVENUE",
                 "rev-income@1",
                 PurposeCode.SCHOLARSHIP_ELIGIBILITY,
+                TestPrincipals.OFFICER,
                 Instant.now(),
                 Instant.now().plusSeconds(60));
         AccessGrant grant = new AccessGrant(
@@ -64,6 +66,7 @@ class ConsentVersionRevocationIT extends PostgresIntegrationTest {
                 unsigned.departmentCode(),
                 unsigned.connectorRef(),
                 unsigned.purpose(),
+                unsigned.principal(),
                 unsigned.issuedAt(),
                 unsigned.expiresAt(),
                 signer.sign(unsigned));

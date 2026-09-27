@@ -46,8 +46,9 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("Skip to main content");
         assertThat(html).contains("<main");
         assertThat(html).contains("lang=\"mr\"");
-        assertThat(html).contains("AUTH STUBBED");
-        assertThat(html).contains("not live SSO");
+        assertThat(html).contains("DEV SIGN-IN");
+        assertThat(html).doesNotContain("AUTH STUBBED");
+        assertThat(html).contains("not production SSO");
         assertThat(html).contains("Linked");
         assertThat(html).contains("of 3");
         assertThat(html).contains("/demo.html");
@@ -79,7 +80,9 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(shared).contains("DigiLocker");
         assertThat(shared).contains("not stored");
         assertThat(html).contains("/shared/records.js");
-        assertThat(js).contains("X-Auth-Jti");
+        assertThat(js).doesNotContain("X-Auth-Jti");
+        assertThat(js).contains("SamanvayAuth.fetch");
+        assertThat(html).contains("/shared/auth.js");
         assertThat(js).contains("DIGILOCKER");
         assertThat(js).contains("LOCAL_ID_OTP");
         assertThat(js).contains("sandbox");
@@ -141,8 +144,9 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).doesNotContain("Apply for scholarship");
         assertThat(html).doesNotContain("no farmer portal");
         assertThat(html).doesNotContain("no licence website");
-        assertThat(html).contains("AUTH STUBBED");
-        assertThat(html).contains("not live Keycloak");
+        assertThat(html).contains("DEV SIGN-IN");
+        assertThat(html).doesNotContain("AUTH STUBBED");
+        assertThat(html).contains("local dev Keycloak");
     }
 
     private static String page(String name) {

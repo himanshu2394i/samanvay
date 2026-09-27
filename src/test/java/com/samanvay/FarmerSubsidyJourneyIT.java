@@ -1,6 +1,7 @@
 package com.samanvay;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPrincipals;
 
 import com.samanvay.consent.api.AuthProof;
 import com.samanvay.consent.api.ConsentRequestDraft;
@@ -76,7 +77,8 @@ class FarmerSubsidyJourneyIT extends PostgresIntegrationTest {
                 List.of("LAND_PARCEL", "CROP_RECORD", "BANK_ACCOUNT")));
         consents.grant(request.id(), citizen, new AuthProof("session-jti"));
 
-        JourneyInstance instance = journeys.start("FARMER_SUBSIDY", citizen, JsonMapper.builder().build().createObjectNode());
+        JourneyInstance instance = journeys.start("FARMER_SUBSIDY", citizen, JsonMapper.builder().build().createObjectNode(),
+                TestPrincipals.OFFICER);
         assertThat(instance.id()).isNotNull();
 
         ApplicationView view = awaitProjected(citizen);

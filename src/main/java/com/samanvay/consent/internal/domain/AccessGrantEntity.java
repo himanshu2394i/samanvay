@@ -29,6 +29,10 @@ public class AccessGrantEntity {
     private String connectorRef;
     @Column(name = "purpose_code")
     private String purposeCode;
+    @Column(name = "principal_type")
+    private String principalType;
+    @Column(name = "principal_id")
+    private String principalId;
     @Column(name = "issued_at")
     private Instant issuedAt;
     @Column(name = "expires_at")
@@ -91,6 +95,22 @@ public class AccessGrantEntity {
 
     public void setPurposeCode(String purposeCode) {
         this.purposeCode = purposeCode;
+    }
+
+    public String getPrincipalType() {
+        return principalType;
+    }
+
+    public void setPrincipalType(String principalType) {
+        this.principalType = principalType;
+    }
+
+    public String getPrincipalId() {
+        return principalId;
+    }
+
+    public void setPrincipalId(String principalId) {
+        this.principalId = principalId;
     }
 
     public Instant getIssuedAt() {

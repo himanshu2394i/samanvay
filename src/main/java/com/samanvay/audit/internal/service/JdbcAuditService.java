@@ -23,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 class JdbcAuditService implements AuditService {
@@ -55,6 +56,14 @@ class JdbcAuditService implements AuditService {
     @Override
     @Transactional
     public AuditRef record(AuditEntry entry) {
+        // The advisory lock is transaction-scoped: without an open transaction
+        // it would be released as soon as the SELECT autocommits, and the
+        // read-latest-hash + insert below would no longer be serialized. That
+        // can only happen if this method is reached without the proxy (e.g.
+        // self-invocation), so refuse rather than silently fork the chain.
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("audit append requires an active transaction");
+        }
         jdbc.query("SELECT pg_advisory_xact_lock(?)", rs -> null, CHAIN_LOCK_KEY);
 
         byte[] prevHash = entries.findLatestHash().orElse(GENESIS_HASH);

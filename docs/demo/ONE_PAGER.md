@@ -27,7 +27,7 @@ Farmer subsidy’s **journey** was added as **catalog configuration** (`/schemes
 3. Licence and farmer portals — second and third callers, same APIs  
 4. `/audit.html` then `/schemes.html`
 
-Demo identity is **AUTH STUBBED** (not live Keycloak). DigiLocker and OTP on the portals are labelled mocks.
+Demo identity comes from the local dev Keycloak (bearer tokens, not production SSO). DigiLocker and OTP on the portals are labelled mocks.
 
 ## Principles (spoken)
 

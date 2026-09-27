@@ -41,8 +41,9 @@ class PhaseUiStaticPagesTest {
             assertThat(html).contains("Staff tools");
             assertThat(html).contains("/demo.html");
             assertThat(html).contains("class=\"tricolor\"");
-            assertThat(html).contains("AUTH STUBBED");
-            assertThat(html).contains("not live Keycloak");
+            assertThat(html).contains("DEV SIGN-IN");
+        assertThat(html).doesNotContain("AUTH STUBBED");
+            assertThat(html).contains("local dev Keycloak");
         }
 
         assertThat(demo).contains("Start demo (external caller)");
@@ -52,8 +53,9 @@ class PhaseUiStaticPagesTest {
         assertThat(demo).contains("interoperability middle layer");
         assertThat(demo).contains("Officer desk");
         assertThat(demo).contains("Published schemes");
-        assertThat(demo).contains("AUTH STUBBED");
-        assertThat(demo).contains("not live Keycloak");
+        assertThat(demo).contains("DEV SIGN-IN");
+        assertThat(demo).doesNotContain("AUTH STUBBED");
+        assertThat(demo).contains("local dev Keycloak");
         assertThat(demo).doesNotContain("/api/");
         assertThat(demo).doesNotContain("<script");
         assertThat(command).contains("Command");
@@ -101,9 +103,11 @@ class PhaseUiStaticPagesTest {
         assertThat(caller).doesNotContain("Apply for scholarship");
         assertThat(caller).contains("nav-tools");
         assertThat(caller).contains("Now open Journey / Incident / Audit to see what happened inside");
-        assertThat(caller).contains("AUTH STUBBED");
-        assertThat(caller).contains("not live Keycloak");
-        assertThat(caller).contains("X-Auth-Jti");
+        assertThat(caller).contains("DEV SIGN-IN");
+        assertThat(caller).doesNotContain("AUTH STUBBED");
+        assertThat(caller).contains("local dev Keycloak");
+        assertThat(caller).doesNotContain("X-Auth-Jti");
+        assertThat(caller).contains("/shared/auth.js");
         assertThat(caller).contains("connect-accounts");
         assertThat(caller).contains("Connect accounts");
         assertThat(caller).contains("Connect each missing department once. Already linked departments are skipped.");
@@ -152,6 +156,25 @@ class PhaseUiStaticPagesTest {
         assertThat(PhaseUiStaticPagesTest.class.getResource("/static/fonts/plex-mono-400.woff2"))
                 .as("IBM Plex Mono")
                 .isNotNull();
+    }
+
+    @Test
+    void browserSignInUsesPkceAndBearerTokens() {
+        String auth = page("shared/auth.js");
+        assertThat(auth).contains("code_challenge_method: \"S256\"");
+        assertThat(auth).contains("grant_type: \"authorization_code\"");
+        assertThat(auth).contains("sessionStorage");
+        assertThat(auth).doesNotContain("localStorage");
+        assertThat(auth).doesNotContain("refresh_token");
+        assertThat(auth).contains("\"Authorization\", \"Bearer \"");
+        assertThat(auth).contains("samanvay-staff-ui");
+        assertThat(auth).contains("samanvay-citizen-ui");
+        assertThat(auth).contains("Paste token");
+        assertThat(page("console.js")).contains("SamanvayAuth.fetch");
+        for (String name : new String[] {"command.html", "journey.html", "ops.html", "audit.html", "onboard.html", "schemes.html"}) {
+            assertThat(page(name)).as(name).contains("<script src=\"/shared/auth.js\" data-realm=\"staff\"></script>");
+        }
+        assertThat(page("caller.html")).contains("<script src=\"/shared/auth.js\" data-realm=\"citizen\"></script>");
     }
 
     private static String page(String name) {

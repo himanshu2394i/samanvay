@@ -34,8 +34,14 @@ class ChainCheckpointSchedulerTest {
                 .thenReturn(null);
 
         JdbcAuditService audit = new JdbcAuditService(entries, checkpoints, jdbc, new CanonicalJson());
-        audit.record(new AuditEntry(
-                ActorType.SYSTEM, "test", "PING", "s", null, null, null, null, Outcome.ALLOWED, null, Map.of()));
+        // Stand-in for the @Transactional proxy this unit test bypasses.
+        org.springframework.transaction.support.TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            audit.record(new AuditEntry(
+                    ActorType.SYSTEM, "test", "PING", "s", null, null, null, null, Outcome.ALLOWED, null, Map.of()));
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
 
         ChainCheckpointScheduler scheduler = new ChainCheckpointScheduler(entries, checkpoints, store);
         scheduler.createCheckpoint();

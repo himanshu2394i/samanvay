@@ -1,6 +1,7 @@
 package com.samanvay;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPrincipals;
 
 import com.samanvay.audit.api.ActorType;
 import com.samanvay.audit.api.AuditEntry;
@@ -117,10 +118,11 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 List.of("INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"),
                 links("REVENUE", "RATION", "EDUCATION", "STUDENT", "DBT", "DBT"));
         JourneyInstance down = journeys.start(
-                "POST_MATRIC_SCHOLARSHIP", chaosCitizen, JsonMapper.builder().build().createObjectNode());
+                "POST_MATRIC_SCHOLARSHIP", chaosCitizen, JsonMapper.builder().build().createObjectNode(),
+                        TestPrincipals.OFFICER);
         assertThat(awaitStatus(chaosCitizen, "PARTIALLY_VERIFIED").status()).isEqualTo("PARTIALLY_VERIFIED");
         chaos.revive("revenue-rest-mock");
-        journeys.retryPending(down.id());
+        journeys.retryPending(down.id(), TestPrincipals.OFFICER);
         assertThat(awaitStatus(chaosCitizen, "VERIFIED").status()).isEqualTo("VERIFIED");
 
         UUID revokeCitizen = seed(
@@ -136,17 +138,25 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
                 "REVENUE",
                 "rev-income@1",
                 PurposeCode.SCHOLARSHIP_ELIGIBILITY,
-                "POST_MATRIC_SCHOLARSHIP");
+                "POST_MATRIC_SCHOLARSHIP",
+                TestPrincipals.OFFICER);
         assertThat(awaitGranted(req)).isInstanceOf(AccessDecision.Granted.class);
         consents.revoke(artifact.id(), revokeCitizen, "demo");
         assertThat(access.authorize(req)).isInstanceOf(AccessDecision.Denied.class);
 
-        audit.record(new AuditEntry(
-                ActorType.SYSTEM, "rehearsal", "PING", "demo", null, null, null, null, Outcome.ALLOWED, null, Map.of()));
-        long head = audit.headSeq();
+        long head = audit.record(new AuditEntry(
+                        ActorType.SYSTEM, "rehearsal", "PING", "demo", null, null, null, null, Outcome.ALLOWED, null, Map.of()))
+                .seq();
         assertThat(audit.verify(head, head).valid()).isTrue();
         tamper.rewriteReason(head, "tampered-demo");
-        assertThat(audit.verify(head, head).valid()).isFalse();
+        try {
+            assertThat(audit.verify(head, head).valid()).isFalse();
+        } finally {
+            // The Postgres container is shared by every IT class; put the row
+            // back so later full-chain verifications are not order-dependent.
+            tamper.rewriteReason(head, null);
+        }
+        assertThat(audit.verify(head, head).valid()).isTrue();
 
         ImportPreview preview = importer.preview(
                 """
@@ -171,7 +181,7 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
             String journey, String requester, String purpose, List<String> cats, List<String[]> links)
             throws InterruptedException {
         UUID citizen = seed(requester, purpose, cats, links);
-        journeys.start(journey, citizen, JsonMapper.builder().build().createObjectNode());
+        journeys.start(journey, citizen, JsonMapper.builder().build().createObjectNode(), TestPrincipals.OFFICER);
         return awaitProjected(citizen);
     }
 

@@ -13,6 +13,9 @@ import com.samanvay.identity.api.LinkProofProviderInfo;
 import com.samanvay.identity.api.Profile;
 import com.samanvay.identity.api.ProfileDraft;
 import com.samanvay.identity.api.ReviewFilter;
+import com.samanvay.shared.security.Caller;
+import com.samanvay.shared.security.Callers;
+import com.samanvay.shared.security.CitizenAccess;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -32,20 +35,29 @@ class IdentityController {
     private final CitizenProfiles profiles;
     private final IdentityLinking linking;
     private final IdentityResolution resolution;
+    private final CitizenAccess citizenAccess;
 
-    IdentityController(CitizenProfiles profiles, IdentityLinking linking, IdentityResolution resolution) {
+    IdentityController(
+            CitizenProfiles profiles,
+            IdentityLinking linking,
+            IdentityResolution resolution,
+            CitizenAccess citizenAccess) {
         this.profiles = profiles;
         this.linking = linking;
         this.resolution = resolution;
+        this.citizenAccess = citizenAccess;
     }
 
+    /** A citizen token self-registers (bound to its subject, idempotent); an officer registers on someone's behalf. */
     @PostMapping("/citizens")
     UUID register(@RequestBody ProfileDraft draft) {
-        return profiles.register(draft);
+        Caller caller = Callers.require();
+        return caller.isCitizen() ? profiles.registerSelf(draft, caller.subject()) : profiles.register(draft);
     }
 
     @GetMapping("/citizens/{id}")
     Profile profile(@PathVariable UUID id) {
+        citizenAccess.requireMayActOn(id);
         return profiles.profile(id);
     }
 
@@ -56,6 +68,7 @@ class IdentityController {
 
     @PostMapping("/links")
     Link assertLink(@RequestBody LinkBody body) {
+        citizenAccess.requireMayActOn(body.citizenId());
         return linking.assertLink(
                 body.citizenId(),
                 body.departmentCode(),
@@ -66,11 +79,13 @@ class IdentityController {
 
     @GetMapping("/citizens/{id}/links")
     List<Link> links(@PathVariable UUID id) {
+        citizenAccess.requireMayActOn(id);
         return linking.activeLinks(id);
     }
 
     @GetMapping("/citizens/{id}/connect-accounts")
     ConnectAccounts connectAccounts(@PathVariable UUID id, @RequestParam String journeyCode) {
+        citizenAccess.requireMayActOn(id);
         return linking.connectAccounts(id, journeyCode);
     }
 
@@ -79,20 +94,22 @@ class IdentityController {
         return resolution.reviewQueue(ReviewFilter.pending(), pageable);
     }
 
+    /** The reviewer is the token subject; a {@code reviewerId} in the body is not read. */
     @PostMapping("/candidates/{id}/confirm")
-    Link confirm(@PathVariable UUID id, @RequestBody ReviewBody body) {
-        return resolution.confirm(id, body.reviewerId(), body.note());
+    Link confirm(@PathVariable UUID id, @RequestBody(required = false) ReviewBody body) {
+        return resolution.confirm(id, body == null ? null : body.note());
     }
 
     @PostMapping("/candidates/{id}/reject")
-    void reject(@PathVariable UUID id, @RequestBody ReviewBody body) {
-        resolution.reject(id, body.reviewerId(), body.note());
+    void reject(@PathVariable UUID id, @RequestBody(required = false) ReviewBody body) {
+        resolution.reject(id, body == null ? null : body.note());
     }
 
     record LinkBody(
             UUID citizenId, String departmentCode, String localIdType, String localId, String provider, String proof) {}
 
-    record ReviewBody(String reviewerId, String note) {}
+    /** Only the note is read. Unknown properties (e.g. a legacy reviewerId) are ignored. */
+    record ReviewBody(String note) {}
 
     private static LinkProofKind parseProvider(String provider) {
         if (provider == null || provider.isBlank()) {

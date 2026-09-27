@@ -94,6 +94,17 @@
             <artifactId>spring-modulith-starter-jdbc</artifactId>
         </dependency>
 
+        <!-- Edge authN/authZ: OAuth2 resource server validating Keycloak JWTs
+             (staff + citizen realms). See com.samanvay.shared.security. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -116,6 +127,27 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Realm-export check only (KeycloakRealmExportIT); ITs never need a live IdP. -->
+        <dependency>
+            <groupId>com.github.dasniko</groupId>
+            <artifactId>testcontainers-keycloak</artifactId>
+            <version>4.3.1</version>
+            <scope>test</scope>
+            <exclusions>
+                <!-- The admin client drags Jackson 2 + RESTEasy onto the test
+                     classpath; the realm check talks to the admin REST API
+                     with the JDK HttpClient instead. -->
+                <exclusion>
+                    <groupId>org.keycloak</groupId>
+                    <artifactId>keycloak-admin-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
             <version>1.4.1</version>
@@ -124,6 +156,16 @@
     </dependencies>
 
     <build>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <!-- the committed dev realm exports, so KeycloakRealmExportIT imports exactly what docker compose does -->
+            <testResource>
+                <directory>keycloak/realms</directory>
+                <targetPath>keycloak-realms</targetPath>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

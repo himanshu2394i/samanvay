@@ -1,6 +1,8 @@
 package com.samanvay.consent.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPurposes;
+import com.samanvay.shared.test.TestPrincipals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -101,6 +103,7 @@ class StalePolicyTest {
                 linking,
                 registry,
                 journeys,
+                TestPurposes.catalog(),
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},
@@ -112,6 +115,7 @@ class StalePolicyTest {
                 "MUNICIPAL",
                 "muni-property@1",
                 PurposeCode.of("BUSINESS_NOC"),
-                "BUSINESS_NOC"));
+                "BUSINESS_NOC",
+                TestPrincipals.OFFICER));
     }
 }

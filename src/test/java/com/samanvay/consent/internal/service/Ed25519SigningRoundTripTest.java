@@ -1,6 +1,7 @@
 package com.samanvay.consent.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.samanvay.shared.test.TestPrincipals;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -55,6 +56,7 @@ class Ed25519SigningRoundTripTest {
                 unsigned.departmentCode(),
                 unsigned.connectorRef(),
                 unsigned.purpose(),
+                unsigned.principal(),
                 unsigned.issuedAt(),
                 unsigned.expiresAt(),
                 signer.sign(unsigned));
@@ -90,6 +92,7 @@ class Ed25519SigningRoundTripTest {
                 "REVENUE",
                 "rev-income@1",
                 PurposeCode.SCHOLARSHIP_ELIGIBILITY,
+                TestPrincipals.OFFICER,
                 now,
                 now.plusSeconds(60));
     }

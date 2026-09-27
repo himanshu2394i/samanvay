@@ -1,5 +1,6 @@
 async function api(path, opts) {
-  const res = await fetch(path, opts);
+  // Bearer token from /shared/auth.js; the server takes the actor only from it.
+  const res = await (window.SamanvayAuth ? SamanvayAuth.fetch(path, opts) : fetch(path, opts));
   const text = await res.text();
   let body = null;
   if (text) {

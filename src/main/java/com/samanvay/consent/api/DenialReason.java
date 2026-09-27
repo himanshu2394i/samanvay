@@ -9,5 +9,7 @@ public enum DenialReason {
     NO_POINTER,
     POINTER_EXPIRED,
     INSUFFICIENT_CLEARANCE,
-    STALE_NOT_ACCEPTED
+    STALE_NOT_ACCEPTED,
+    /** The purpose code is not an active catalog purpose. */
+    UNKNOWN_PURPOSE
 }

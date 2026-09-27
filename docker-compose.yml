@@ -15,5 +15,22 @@ services:
     volumes:
       - samanvay-postgres-data:/var/lib/postgresql/data
 
+  # DEV-ONLY identity provider. Imports the two realms in keycloak/realms on
+  # first start (staff: officer/reviewer/admin, password + TOTP required;
+  # citizen: username + one-time code). Passkeys are allowed in both.
+  # `start-dev` = in-memory H2 + HTTP: never use this service outside a laptop.
+  # The app finds it via samanvay.security.{staff,citizen}.issuer-uri
+  # (SAMANVAY_STAFF_ISSUER_URI / SAMANVAY_CITIZEN_ISSUER_URI).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: ["start-dev", "--import-realm", "--http-port=8180", "--hostname=http://localhost:8180"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_DEV_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_DEV_ADMIN_PASSWORD:-admin}
+    ports:
+      - "8180:8180"
+    volumes:
+      - ./keycloak/realms:/opt/keycloak/data/import:ro
+
 volumes:
   samanvay-postgres-data:

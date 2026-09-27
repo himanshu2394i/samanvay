@@ -1,5 +1,8 @@
 package com.samanvay.tracking.internal.web;
 
+import com.samanvay.shared.security.Callers;
+import com.samanvay.shared.security.CitizenAccess;
+import org.springframework.security.access.AccessDeniedException;
 import com.samanvay.tracking.api.ApplicationSummary;
 import com.samanvay.tracking.api.ApplicationTracking;
 import com.samanvay.tracking.api.ApplicationView;
@@ -18,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 class TrackingController {
 
     private final ApplicationTracking tracking;
+    private final CitizenAccess citizenAccess;
 
-    TrackingController(ApplicationTracking tracking) {
+    TrackingController(ApplicationTracking tracking, CitizenAccess citizenAccess) {
         this.tracking = tracking;
+        this.citizenAccess = citizenAccess;
     }
 
     @GetMapping
@@ -28,17 +33,24 @@ class TrackingController {
             @RequestParam(required = false) UUID citizenId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
+        if (citizenId == null && Callers.require().isCitizen()) {
+            throw new AccessDeniedException("citizens may only list their own applications (citizenId required)");
+        }
+        citizenAccess.requireMayActOn(citizenId);
         var p = PageRequest.of(page, size);
         return citizenId == null ? tracking.recent(p).getContent() : tracking.forCitizen(citizenId, p).getContent();
     }
 
     @GetMapping("/{referenceNo}")
     ApplicationView byReference(@PathVariable String referenceNo) {
-        return tracking.byReference(referenceNo);
+        ApplicationView view = tracking.byReference(referenceNo);
+        citizenAccess.requireMayActOn(view.citizenId());
+        return view;
     }
 
     @GetMapping("/{referenceNo}/steps")
     List<StepView> steps(@PathVariable String referenceNo) {
+        citizenAccess.requireMayActOn(tracking.byReference(referenceNo).citizenId());
         return tracking.steps(referenceNo);
     }
 }
