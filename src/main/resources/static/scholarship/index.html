@@ -12,7 +12,7 @@
   <p id="live" class="visually-hidden" aria-live="polite"></p>
 
   <div class="tricolor" aria-hidden="true"></div>
-  <p class="sandbox">Demonstration portal. DigiLocker sandbox and OTP demo are labelled mocks — not live DigiLocker, not live Aadhaar, and no secrets are used. <strong>AUTH STUBBED</strong> — this is not live SSO.</p>
+  <p class="sandbox">Demonstration portal. DigiLocker sandbox and OTP demo are labelled mocks — not live DigiLocker, not live Aadhaar, and no secrets are used. <strong>DEV SIGN-IN</strong> — sign-in uses the local dev Keycloak, not production SSO.</p>
 
   <div class="util">
     <div class="util-inner">
@@ -155,7 +155,7 @@
         <form id="consentForm" action="/scholarship/" method="get">
           <p>I agree to share income and caste from Revenue, marks from Education, and bank details from DBT so this scholarship application can be checked for eligibility.</p>
           <p lang="mr">मी महसूल विभागाकडून उत्पन्न व जात, शिक्षण विभागाकडून गुण, आणि DBT कडून बँक तपशील शिष्यवृत्ती पात्रतेसाठी देण्यास सहमत आहे.</p>
-          <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records your agreement with a labelled session. This is not live Aadhaar login and not live SSO.</p>
+          <p class="callout honesty"><strong>DEV SIGN-IN.</strong> Your agreement is recorded against your signed-in session from the local dev Keycloak. This is not live Aadhaar login and not production SSO.</p>
           <label class="choice">
             <input type="checkbox" id="consentCheck" name="consent" required/>
             I have read this and I agree / <span lang="mr">मी सहमत आहे</span>
@@ -204,7 +204,7 @@
       </div>
 
       <div id="officerWork" hidden>
-        <p class="callout honesty"><strong>AUTH STUBBED.</strong> Officer session is a labelled demonstration. This is not live SSO.</p>
+        <p class="callout honesty"><strong>DEV SIGN-IN.</strong> Officer actions need a staff-realm token (use the sign-in bar, realm "staff"). This is not production SSO.</p>
         <details class="demo-controls">
           <summary>Demonstration: department records unavailable</summary>
           <p>For the live demo only: mark Revenue records unavailable, then restore them. Officers retry the application after the department is back. This needs the demonstration profile; otherwise the service reports that the control is not available.</p>
@@ -260,6 +260,7 @@
     <p class="cutaway">Other citizen services: <a href="/">Home</a> · <a href="/licence/">Licence</a> · <a href="/farmer/">Farmer subsidy</a></p>
     <p class="cutaway">Optional SIH cutaway after the citizen and officer beats (not the citizen product): <a href="/demo.html">Samanvay operations</a> · <a href="/schemes.html">Published schemes</a> · <a href="/audit.html">Audit</a></p>
   </footer>
+  <script src="/shared/auth.js" data-realm="citizen"></script>
   <script src="/shared/records.js"></script>
   <script src="/scholarship/portal.js"></script>
 </body>

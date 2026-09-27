@@ -11,7 +11,7 @@
   <a class="skip-link visually-hidden" href="#content">Skip to content</a>
   <p id="live" class="visually-hidden" aria-live="polite"></p>
   <div class="tricolor" aria-hidden="true"></div>
-  <p class="sandbox"><strong>AUTH STUBBED.</strong> Government of Maharashtra interoperability operations. This is a labelled demonstration — not live Keycloak SSO.</p>
+  <p class="sandbox"><strong>DEV SIGN-IN.</strong> Government of Maharashtra interoperability operations. This is a labelled demonstration — API calls carry a bearer token from the local dev Keycloak, not production SSO.</p>
   <div class="shell">
     <header class="mast">
       <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">State operations</span></div>
@@ -73,6 +73,7 @@
       </div>
     </main>
   </div>
+  <script src="/shared/auth.js" data-realm="staff"></script>
   <script src="/console.js"></script>
   <script>
     const out = document.getElementById("out");

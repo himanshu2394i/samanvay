@@ -75,7 +75,10 @@ const STEP_STATUS = {
 };
 
 async function api(path, opts) {
-  const res = await fetch(path, opts);
+  // Bearer token from /shared/auth.js: citizen realm on the applicant views,
+  // staff realm on the officer desk. The server takes the actor only from it.
+  const realm = location.hash === "#officer" ? "staff" : "citizen";
+  const res = await (window.SamanvayAuth ? SamanvayAuth.fetch(path, opts, realm) : fetch(path, opts));
   const text = await res.text();
   let body = null;
   if (text) {
@@ -406,7 +409,7 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
     });
     await api("/api/consent/requests/" + req.id + "/grant", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Auth-Jti": "ui-session" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ citizenId: citizenId() }),
     });
     await api("/api/journeys/" + encodeURIComponent(JOURNEY) + "/start", {

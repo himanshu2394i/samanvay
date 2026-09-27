@@ -11,7 +11,7 @@
   <a class="skip-link" href="#content">Skip to main content</a>
   <p id="live" class="visually-hidden" aria-live="polite"></p>
   <div class="tricolor" aria-hidden="true"></div>
-  <p class="sandbox"><strong>Demonstration portal.</strong> DigiLocker sandbox and OTP demo here are labelled mocks — not live DigiLocker, not live Aadhaar SSO, and no secrets are used. <strong>AUTH STUBBED</strong> — this is not live SSO.</p>
+  <p class="sandbox"><strong>Demonstration portal.</strong> DigiLocker sandbox and OTP demo here are labelled mocks — not live DigiLocker, not live Aadhaar SSO, and no secrets are used. <strong>DEV SIGN-IN</strong> — sign-in uses the local dev Keycloak, not production SSO.</p>
   <div class="util">
     <div class="util-inner">
       <p class="lang-switch" role="group" aria-label="Language">
@@ -125,7 +125,7 @@
         <h2>Consent to share records</h2>
         <form id="consentForm" action="/farmer/" method="post">
           <p>I agree to share land parcel from Revenue, crop record from Agriculture, and bank details from DBT so this farmer subsidy can be checked.</p>
-          <p class="callout honesty"><strong>AUTH STUBBED.</strong> This demonstration records consent with a labelled session stub. This is not live SSO.</p>
+          <p class="callout honesty"><strong>DEV SIGN-IN.</strong> Consent is recorded against your signed-in session from the local dev Keycloak. This is not production SSO.</p>
           <label class="choice">
             <input type="checkbox" id="consentCheck" name="consent" required/>
             I have read this and I agree
@@ -211,6 +211,7 @@
     <p>Government of Maharashtra — Department of Agriculture. Content for SIH demonstration only.</p>
     <p class="cutaway">This is a separate government service. The journey is catalog configuration; this page is only a caller. Optional cutaway: <a href="/">Citizen services</a> · <a href="/demo.html">Samanvay operations</a></p>
   </footer>
+  <script src="/shared/auth.js" data-realm="citizen"></script>
   <script src="/shared/records.js"></script>
   <script src="/farmer/portal.js"></script>
 </body>
