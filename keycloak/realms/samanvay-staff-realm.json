@@ -489,7 +489,7 @@
   "authenticationFlows": [
     {
       "alias": "staff browser",
-      "description": "Password + TOTP required",
+      "description": "Passkey, or password + TOTP",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -512,7 +512,7 @@
     },
     {
       "alias": "staff browser forms",
-      "description": "username/password then TOTP",
+      "description": "username/password (or passkey), then TOTP unless passkey",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
@@ -523,6 +523,30 @@
           "userSetupAllowed": false,
           "autheticatorFlow": false,
           "authenticator": "auth-username-password-form"
+        },
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": true,
+          "flowAlias": "staff second factor"
+        }
+      ]
+    },
+    {
+      "alias": "staff second factor",
+      "description": "TOTP for every non-passkey sign-in",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "conditional-credential",
+          "authenticatorConfig": "not signed in with a passkey"
         },
         {
           "requirement": "REQUIRED",
@@ -562,10 +586,57 @@
           "authenticator": "direct-grant-validate-otp"
         }
       ]
+    },
+    {
+      "alias": "staff reset credentials",
+      "description": "Reset password only after TOTP",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "reset-credentials-choose-user"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "reset-credential-email"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "auth-otp-form"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 40,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "reset-password"
+        }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "not signed in with a passkey",
+      "config": {
+        "credentials": "webauthn-passwordless",
+        "included": "false"
+      }
     }
   ],
   "browserFlow": "staff browser",
   "directGrantFlow": "staff direct grant",
+  "resetCredentialsFlow": "staff reset credentials",
   "requiredActions": [
     {
       "alias": "CONFIGURE_TOTP",

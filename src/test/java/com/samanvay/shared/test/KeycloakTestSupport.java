@@ -13,12 +13,15 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -40,19 +43,79 @@ public final class KeycloakTestSupport {
     private static final HttpClient HTTP = HttpClient.newHttpClient();
     private static final Pattern FORM_ACTION = Pattern.compile("<form[^>]*action=\"([^\"]+)\"", Pattern.CASE_INSENSITIVE);
 
+    /** Built by the Maven build (process-test-classes) from keycloak/email-otp. */
+    public static final java.io.File EMAIL_OTP_PROVIDER =
+            new java.io.File("target/keycloak-providers/samanvay-keycloak-email-otp.jar");
+    public static final String MAILPIT_IMAGE = "axllent/mailpit:v1.27";
+
     private static KeycloakContainer keycloak;
+    private static GenericContainer<?> mailpit;
 
     private KeycloakTestSupport() {}
 
+    /**
+     * Keycloak plus the Mailpit mail catcher, reachable from Keycloak under the
+     * host name {@code mailpit} - the SMTP host the committed citizen realm
+     * points at, as in docker compose. Both stay on Docker's default bridge (a
+     * host entry, not a user-defined network: some sandboxed Docker hosts drop
+     * container-to-container traffic on user-defined networks).
+     */
     public static synchronized KeycloakContainer keycloak() {
         if (keycloak == null) {
+            assertThat(EMAIL_OTP_PROVIDER).as("email OTP provider jar (run the Maven build)").exists();
+            GenericContainer<?> mail = new GenericContainer<>(MAILPIT_IMAGE)
+                    .withExposedPorts(8025, 1025)
+                    .waitingFor(Wait.forHttp("/livez").forPort(8025));
+            mail.start();
+            mailpit = mail;
+            String mailpitIp = mail.getContainerInfo().getNetworkSettings().getIpAddress();
             KeycloakContainer k = new KeycloakContainer(IMAGE)
+                    .withExtraHost("mailpit", mailpitIp)
+                    .withProviderLibsFrom(List.of(EMAIL_OTP_PROVIDER))
                     .withRealmImportFiles(
                             "/keycloak-realms/samanvay-staff-realm.json", "/keycloak-realms/samanvay-citizen-realm.json");
             k.start();
             keycloak = k;
         }
         return keycloak;
+    }
+
+    private static String mailpitUrl() {
+        keycloak();
+        return "http://" + mailpit.getHost() + ":" + mailpit.getMappedPort(8025);
+    }
+
+    /**
+     * The newest sign-in code mailed to {@code address} after {@code sentAfter}
+     * (Mailpit API), waiting up to 15s for it to arrive.
+     */
+    public static String mailedCode(String address, java.time.Instant sentAfter) throws Exception {
+        long deadline = System.currentTimeMillis() + 15_000;
+        while (System.currentTimeMillis() < deadline) {
+            HttpResponse<String> res = HTTP.send(
+                    HttpRequest.newBuilder(URI.create(mailpitUrl() + "/api/v1/search?query="
+                                    + URLEncoder.encode("to:\"" + address + "\"", StandardCharsets.UTF_8)))
+                            .GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            for (JsonNode m : JSON.readTree(res.body()).path("messages")) {
+                java.time.Instant created = java.time.Instant.parse(m.get("Created").asString());
+                if (!created.isBefore(sentAfter.minusSeconds(1))) {
+                    String text = JSON.readTree(HTTP.send(
+                                            HttpRequest.newBuilder(URI.create(mailpitUrl() + "/api/v1/message/"
+                                                            + m.get("ID").asString()))
+                                                    .GET().build(),
+                                            HttpResponse.BodyHandlers.ofString())
+                                    .body())
+                            .get("Text").asString();
+                    Matcher code = Pattern.compile("sign-in code is (\\d{6})").matcher(text);
+                    if (code.find()) {
+                        return code.group(1);
+                    }
+                }
+            }
+            Thread.sleep(250);
+        }
+        throw new AssertionError("no sign-in code mailed to " + address);
     }
 
     public static String issuer(String realm) {
@@ -202,6 +265,19 @@ public final class KeycloakTestSupport {
                             .POST(HttpRequest.BodyPublishers.ofString(form(fields)))
                             .build(),
                     HttpResponse.BodyHandlers.ofString());
+            return this;
+        }
+
+        /** Follows Keycloak-internal redirects (not the final one back to the UI). */
+        public BrowserLogin follow() throws Exception {
+            while (last.statusCode() == 302 && !finished()) {
+                String location = last.headers().firstValue("Location").orElseThrow();
+                if (location.startsWith(UI_REDIRECT)) {
+                    break;
+                }
+                last = client.send(HttpRequest.newBuilder(URI.create(location)).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+            }
             return this;
         }
 

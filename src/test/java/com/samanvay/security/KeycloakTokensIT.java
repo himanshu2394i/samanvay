@@ -95,6 +95,21 @@ class KeycloakTokensIT extends PostgresContainerSupport {
     }
 
     @Test
+    void citizenTokenFromAnEmailCodeLoginIsAccepted() throws Exception {
+        importUser(CITIZEN, "kc-citizen", null, null, "\"default-roles-samanvay-citizen\"", Map.of());
+        java.time.Instant sent = java.time.Instant.now();
+        BrowserLogin login = new BrowserLogin(CITIZEN, "samanvay-citizen-ui").submit(Map.of("username", "kc-citizen"));
+        login.submit(Map.of("emailCode", KeycloakTestSupport.mailedCode("kc-citizen@test.samanvay.invalid", sent)));
+        String accessToken = login.accessToken();
+
+        JsonNode claims = claims(accessToken);
+        assertThat(claims.get("aud").toString()).contains("samanvay-api");
+        assertThat(claims.get("realm_access").toString()).contains("citizen");
+        assertThat(get(accessToken, "/api/identity/proof-providers")).isEqualTo(200);
+        assertThat(get(accessToken, "/api/journeys/exceptions")).as("citizen is not staff").isEqualTo(403);
+    }
+
+    @Test
     void adminCliPasswordGrantTokenIsRefused() throws Exception {
         // Keycloak will issue it (admin-cli allows direct grants and the staff
         // direct-grant flow is satisfied by password + TOTP) - the API must not accept it.
