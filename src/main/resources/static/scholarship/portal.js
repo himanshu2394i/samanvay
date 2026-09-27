@@ -421,10 +421,7 @@ document.getElementById("consentForm").addEventListener("submit", async (event) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         citizenId: citizenId(),
-        requesterId: "SCHOLARSHIP",
         purposeCode: "SCHOLARSHIP_ELIGIBILITY",
-        purposeText: "share income & caste from Revenue, marks from Education, bank from DBT for scholarship eligibility",
-        categories: ["INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"],
       }),
     });
     await api("/api/consent/requests/" + req.id + "/grant", {

@@ -72,6 +72,15 @@ class KeycloakJwtConverterTest {
     }
 
     @Test
+    void serviceAccountWithoutAzpIsNotADepartment() {
+        // no fallback to client_id: azp must be present and equal it
+        assertThat(authorities(staff.convert(jwt("svc", Map.of(
+                        "client_id", "dept-a",
+                        "realm_access", Map.of("roles", List.of("department")))))))
+                .isEmpty();
+    }
+
+    @Test
     void jtiIsTheSessionProof() {
         var auth = (SamanvayAuthentication) citizen.convert(jwt("c1", Map.of("realm_access", Map.of("roles", List.of("citizen")))));
         assertThat(auth.caller().sessionId()).isEqualTo("jti-1");

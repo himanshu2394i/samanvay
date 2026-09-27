@@ -64,9 +64,7 @@ class BusinessNocJourneyIT extends PostgresIntegrationTest {
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "INDUSTRY",
-                "BUSINESS_NOC",
-                "Business licence / NOC",
-                List.of("PROPERTY", "FIRE_NOC", "POLLUTION_CLEARANCE", "LAND_RECORD")));
+                "BUSINESS_NOC"));
         consents.grant(request.id(), citizen, new AuthProof("session-jti"));
 
         JourneyInstance instance = journeys.start("BUSINESS_NOC", citizen, JsonMapper.builder().build().createObjectNode(),

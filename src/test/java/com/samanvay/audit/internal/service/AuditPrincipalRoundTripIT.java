@@ -42,7 +42,7 @@ class AuditPrincipalRoundTripIT extends PostgresIntegrationTest {
     @ParameterizedTest
     @EnumSource(
             value = ActorType.class,
-            names = {"OFFICER", "DEPARTMENT", "CITIZEN", "ADMIN"})
+            names = {"OFFICER", "REVIEWER", "DEPARTMENT", "CITIZEN", "ADMIN", "AUTHENTICATED"})
     void attributedEntryRecomputesToStoredHash(ActorType actorType) {
         AuditEntry written = new AuditEntry(
                 actorType,

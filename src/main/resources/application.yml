@@ -37,11 +37,32 @@ spring:
 
 samanvay:
   security:
-    # The two trusted Keycloak realms (see docker-compose.yml + keycloak/).
-    # Tokens from any other issuer are rejected with 401. Keys are fetched
-    # lazily by OIDC discovery, so the app boots before Keycloak is up.
-    # Optional per realm: jwk-set-uri, or public-key-location (pinned PEM).
+    # The two trusted Keycloak realms. Tokens from any other issuer are
+    # rejected with 401. Keys are fetched lazily by OIDC discovery, so the app
+    # boots before Keycloak is up. Optional per realm: jwk-set-uri, or
+    # public-key-location (pinned PEM).
+    #
+    # No issuer defaults here: outside the dev/demo profiles the app refuses to
+    # boot unless both issuers are set and use https (RealmIssuerStartupCheck).
+    # The local docker-compose Keycloak lives in application-dev.yml/-demo.yml.
+    # Every accepted token must have this in `aud` (Keycloak audience mapper on
+    # the clients below), typ=Bearer, and an azp from its realm's allow-list.
+    audience: samanvay-api
     staff:
-      issuer-uri: ${SAMANVAY_STAFF_ISSUER_URI:http://localhost:8180/realms/samanvay-staff}
+      issuer-uri: ${SAMANVAY_STAFF_ISSUER_URI:}
+      ui-client-id: samanvay-staff-ui
+      allowed-clients: samanvay-staff-ui, dept-scholarship-dev
     citizen:
-      issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:http://localhost:8180/realms/samanvay-citizen}
+      issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:}
+      ui-client-id: samanvay-citizen-ui
+      allowed-clients: samanvay-citizen-ui
+
+# Actuator is on the classpath only for the Micrometer registry (refused-call
+# counter); no actuator endpoint is served over HTTP.
+management:
+  server:
+    port: -1
+  endpoints:
+    web:
+      exposure:
+        exclude: "*"

@@ -30,8 +30,9 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 /**
  * Every live {@code /api/**} route x {anonymous, citizen, officer, reviewer,
  * admin, department client}: 401 for anonymous, 403 for a role the matrix does
- * not allow, and neither 401 nor 403 for an allowed role (the actual 2xx/4xx
- * then depends on the dummy input). Routes come from
+ * not allow, and for an allowed role neither 401/403 nor a 5xx (the actual
+ * 2xx/4xx then depends on the dummy input; a server error on dummy input is a
+ * bug, not a pass). Routes come from
  * {@link RequestMappingHandlerMapping}, so a new endpoint that is not in
  * {@link ApiAccessMatrix} fails this test.
  */
@@ -97,8 +98,8 @@ abstract class AbstractApiAccessMatrixIT extends PostgresIntegrationTest {
                     ok = status == 401;
                     expected = "401";
                 } else if (allowed.contains(who)) {
-                    ok = status != 401 && status != 403;
-                    expected = "not 401/403";
+                    ok = status != 401 && status != 403 && status < 500;
+                    expected = "not 401/403/5xx";
                 } else {
                     ok = status == 403;
                     expected = "403";

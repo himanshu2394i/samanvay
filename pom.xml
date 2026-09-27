@@ -19,6 +19,8 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- must match the Keycloak image in docker-compose.yml / KeycloakTestSupport -->
+        <keycloak.version>26.4.7</keycloak.version>
     </properties>
 
     <dependencyManagement>
@@ -104,6 +106,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
+        <!-- Micrometer registry for the refused-call counter (samanvay.api.unauthenticated);
+             only the health endpoint is exposed over HTTP (Boot default). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
 
         <!-- Testing -->
         <dependency>
@@ -147,6 +155,66 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- Compile-only API for the Keycloak email-OTP provider in keycloak/email-otp
+             (built into target/keycloak-providers, never part of the app). Test scope
+             keeps it out of the Spring Boot jar; no transitive dependencies. -->
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-server-spi</artifactId>
+            <version>${keycloak.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-server-spi-private</artifactId>
+            <version>${keycloak.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-core</artifactId>
+            <version>${keycloak.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-common</artifactId>
+            <version>${keycloak.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.ws.rs</groupId>
+            <artifactId>jakarta.ws.rs-api</artifactId>
+            <version>3.1.0</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- jboss-logging (needed to compile the Keycloak provider) is NOT declared
+             here: it is a runtime dependency of Hibernate, and a test-scoped
+             declaration would drop it from the packaged app (PackagedJarIT). -->
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
@@ -170,6 +238,72 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- keycloak/email-otp: the citizen realm's email one-time-code
+                 authenticator (Keycloak 26.4 ships none). Compiled against the
+                 test-scoped Keycloak SPI into its own directory and packaged as
+                 target/keycloak-providers/samanvay-keycloak-email-otp.jar, which
+                 docker compose mounts and the Keycloak ITs load. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>keycloak-email-otp</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                        <configuration>
+                            <compileSourceRoots>
+                                <compileSourceRoot>${project.basedir}/keycloak/email-otp/src/main/java</compileSourceRoot>
+                            </compileSourceRoots>
+                            <outputDirectory>${project.build.directory}/keycloak-email-otp/classes</outputDirectory>
+                            <useIncrementalCompilation>false</useIncrementalCompilation>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>keycloak-email-otp-resources</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/keycloak-email-otp/classes</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/keycloak/email-otp/src/main/resources</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>keycloak-email-otp-jar</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${project.build.directory}/keycloak-providers"/>
+                                <jar destfile="${project.build.directory}/keycloak-providers/samanvay-keycloak-email-otp.jar"
+                                     basedir="${project.build.directory}/keycloak-email-otp/classes"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

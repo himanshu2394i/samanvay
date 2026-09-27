@@ -27,10 +27,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
 /**
- * Many writers released at once - refused API calls (401/403, audited from the
- * security filter chain, outside any business transaction) mixed with normal
- * audited writes - must still produce one linear chain: no two entries share
- * a prev_hash, and the whole chain from seq 1 verifies.
+ * Many writers released at once - refused API calls (403s are audited from the
+ * security filter chain, outside any business transaction; anonymous 401s are
+ * only counted) mixed with normal audited writes - must still produce one
+ * linear chain: no two entries share a prev_hash, and the whole chain from
+ * seq 1 verifies.
  */
 @SpringBootTest(classes = SamanvayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AuditChainConcurrencyIT extends PostgresIntegrationTest {
@@ -54,7 +55,7 @@ class AuditChainConcurrencyIT extends PostgresIntegrationTest {
         RestClient anonymous = TestHttp.anonymous();
         RestClient citizen = TestHttp.as(TestTokens.citizen("concurrency-citizen"));
 
-        int expectedRefused = 0;
+        int expectedForbidden = 0;
         int expectedDirect = 0;
         ExecutorService pool = Executors.newFixedThreadPool(THREADS);
         try {
@@ -67,14 +68,14 @@ class AuditChainConcurrencyIT extends PostgresIntegrationTest {
                     String subject = "conc-" + round + "-" + t;
                     if (kind == 2) {
                         expectedDirect++;
-                    } else {
-                        expectedRefused++;
+                    } else if (kind == 1) {
+                        expectedForbidden++;
                     }
                     results.add(pool.submit(() -> {
                         ready.countDown();
                         go.await();
                         return switch (kind) {
-                            case 0 -> status(anonymous, url); // 401 via entry point
+                            case 0 -> status(anonymous, url); // 401 via entry point: no chain row
                             case 1 -> status(citizen, url); // 403 via access-denied handler
                             default -> {
                                 audit.record(new AuditEntry(
@@ -101,9 +102,10 @@ class AuditChainConcurrencyIT extends PostgresIntegrationTest {
         }
 
         long head = audit.headSeq();
-        assertThat(count("action IN ('API_UNAUTHENTICATED','API_FORBIDDEN') AND resource = 'GET /api/audit/head'", before))
-                .as("one audit row per refused call")
-                .isEqualTo(expectedRefused);
+        assertThat(count("action = 'API_FORBIDDEN' AND resource = 'GET /api/audit/head'", before))
+                .as("one audit row per 403")
+                .isEqualTo(expectedForbidden);
+        assertThat(count("action = 'API_UNAUTHENTICATED'", before)).as("anonymous 401s stay out of the chain").isZero();
         assertThat(count("action = 'PING' AND actor_id = 'concurrency-it'", before)).isEqualTo(expectedDirect);
 
         Integer forks = jdbc.queryForObject(

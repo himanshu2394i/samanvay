@@ -17,6 +17,11 @@ public class PurposeEntity {
     @Column(name = "category_type")
     private String categoryType;
     private String status;
+    @Column(name = "requester_department")
+    private String requesterDepartment;
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "data_categories", columnDefinition = "text[]")
+    private String[] dataCategories;
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -38,6 +43,14 @@ public class PurposeEntity {
 
     public String getStatus() {
         return status;
+    }
+
+    public String getRequesterDepartment() {
+        return requesterDepartment;
+    }
+
+    public String[] getDataCategories() {
+        return dataCategories;
     }
 
     public Instant getCreatedAt() {

@@ -1,32 +1,43 @@
 /*
- * Samanvay browser sign-in (dev): OIDC Authorization Code + PKCE against the
- * staff or citizen Keycloak realm, plus a paste-token fallback for scripted demos.
- * Access tokens live in sessionStorage only (per tab, gone on close); no refresh
- * tokens are kept. Every /api call must carry "Authorization: Bearer <token>";
- * the server takes the actor only from that token.
+ * Samanvay browser sign-in: OIDC Authorization Code + PKCE against the staff
+ * or citizen Keycloak realm. Access tokens live in sessionStorage only (per
+ * tab, gone on close); no refresh tokens are kept. Every /api call must carry
+ * "Authorization: Bearer <token>"; the server takes the actor only from that token.
  *
- * Config: set window.SAMANVAY_AUTH before this script to override the defaults
- * (e.g. a non-localhost Keycloak). The page's default realm comes from the
- * data-realm attribute on the <script> tag ("staff" or "citizen").
+ * Config comes from the server (GET /ui/auth-config): each realm's issuer and
+ * browser client, and whether the dev sign-in tools are on. Only the dev/demo
+ * profiles turn those on and serve /shared/auth-dev.js (paste-token bar).
+ * The page's default realm comes from the data-realm attribute on the
+ * <script> tag ("staff" or "citizen").
  */
 (function () {
   const script = document.currentScript;
-  const defaults = {
-    keycloakUrl: "http://localhost:8180",
-    realms: {
-      staff: { realm: "samanvay-staff", clientId: "samanvay-staff-ui" },
-      citizen: { realm: "samanvay-citizen", clientId: "samanvay-citizen-ui" },
-    },
-  };
-  const cfg = Object.assign({}, defaults, window.SAMANVAY_AUTH || {});
+  const REALM_KEYS = ["staff", "citizen"];
+  let cfg = null; // { devSignIn, realms: { staff: { issuer, clientId }, citizen: {...} } }
+  let dev = null; // window.SamanvayAuthDev once /shared/auth-dev.js has loaded (dev/demo only)
   const pageRealm = (script && script.dataset.realm) || "staff";
   const KEY_TOKEN = (r) => "samanvay.auth.token." + r;
   const KEY_ACTIVE = "samanvay.auth.active";
   const KEY_PKCE = "samanvay.auth.pkce";
 
   function oidc(realmKey) {
-    const r = cfg.realms[realmKey];
-    return cfg.keycloakUrl + "/realms/" + r.realm + "/protocol/openid-connect";
+    return cfg.realms[realmKey].issuer.replace(/\/+$/, "") + "/protocol/openid-connect";
+  }
+
+  async function loadConfig() {
+    const res = await fetch("/ui/auth-config", { cache: "no-store" });
+    if (!res.ok) throw new Error("sign-in configuration unavailable");
+    cfg = await res.json();
+    if (cfg.devSignIn) {
+      await new Promise((resolve) => {
+        const s = document.createElement("script");
+        s.src = "/shared/auth-dev.js";
+        s.onload = resolve;
+        s.onerror = resolve;
+        document.head.appendChild(s);
+      });
+      dev = window.SamanvayAuthDev || null;
+    }
   }
 
   function b64url(bytes) {
@@ -66,11 +77,12 @@
   }
 
   function useRealm(realmKey) {
-    if (cfg.realms[realmKey]) sessionStorage.setItem(KEY_ACTIVE, realmKey);
+    if (REALM_KEYS.includes(realmKey)) sessionStorage.setItem(KEY_ACTIVE, realmKey);
     render();
   }
 
   async function login(realmKey) {
+    await ready;
     const realm = realmKey || activeRealm();
     const verifier = randomString();
     const state = randomString();
@@ -92,7 +104,7 @@
   async function completeLogin() {
     const params = new URLSearchParams(location.search);
     const pending = JSON.parse(sessionStorage.getItem(KEY_PKCE) || "null");
-    if (!params.has("code") || !pending) return;
+    if (!params.has("code") || !pending || !cfg) return;
     sessionStorage.removeItem(KEY_PKCE);
     const clean = () => history.replaceState(null, "", pending.redirectUri + (pending.hash || ""));
     if (params.get("state") !== pending.state) {
@@ -118,9 +130,8 @@
     }
   }
 
-  function pasteToken(realmKey, value) {
-    const t = (value || "").trim().replace(/^Bearer\s+/i, "");
-    if (!claims(t)) throw new Error("That does not look like a JWT access token.");
+  /** Stores a pasted access token; only the dev sign-in tools (dev/demo profiles) call this. */
+  function storeToken(realmKey, t) {
     sessionStorage.setItem(KEY_TOKEN(realmKey), t);
     sessionStorage.setItem(KEY_ACTIVE, realmKey);
     render();
@@ -139,8 +150,13 @@
     return h;
   }
 
-  /** fetch() for /api calls with the bearer token attached. */
-  function authFetch(path, opts, realmKey) {
+  /**
+   * fetch() for /api calls with the bearer token attached. Waits for sign-in to
+   * settle first: on the redirect back from Keycloak the page's own scripts run
+   * before the code-for-token exchange has finished.
+   */
+  async function authFetch(path, opts, realmKey) {
+    await ready;
     const o = Object.assign({}, opts || {});
     o.headers = withAuth(o.headers, realmKey);
     return fetch(path, o);
@@ -154,6 +170,7 @@
   }
 
   function render() {
+    if (!cfg) return;
     let bar = document.getElementById("samanvay-auth");
     if (!bar) {
       if (!document.body) return;
@@ -169,11 +186,11 @@
     const active = activeRealm();
     bar.innerHTML = "";
     const label = document.createElement("span");
-    label.textContent = "Dev sign-in (local Keycloak) - acting as:";
+    label.textContent = "Signed in as:";
     bar.appendChild(label);
     const select = document.createElement("select");
     select.setAttribute("aria-label", "Realm");
-    Object.keys(cfg.realms).forEach((k) => {
+    REALM_KEYS.forEach((k) => {
       const o = document.createElement("option");
       o.value = k;
       o.textContent = k + " (" + describe(k) + ")";
@@ -189,26 +206,21 @@
       b.textContent = text;
       b.addEventListener("click", fn);
       bar.appendChild(b);
+      return b;
     };
     if (token(active)) {
       btn("Sign out", () => logout(active));
     } else {
       btn("Sign in", () => login(active));
-      btn("Paste token", () => {
-        const v = prompt("Paste an access token for the " + active + " realm");
-        if (v) {
-          try {
-            pasteToken(active, v);
-          } catch (e) {
-            alert(e.message);
-          }
-        }
-      });
     }
+    if (dev) dev.decorate(bar, { realm: active, signedIn: !!token(active), storeToken, claims, btn });
   }
 
-  const ready = completeLogin().catch(() => {}).then(render);
+  const ready = loadConfig()
+    .then(completeLogin)
+    .catch(() => {})
+    .then(render);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);
 
-  window.SamanvayAuth = { login, logout, pasteToken, token, withAuth, fetch: authFetch, useRealm, activeRealm, ready };
+  window.SamanvayAuth = { login, logout, token, withAuth, fetch: authFetch, useRealm, activeRealm, ready };
 })();

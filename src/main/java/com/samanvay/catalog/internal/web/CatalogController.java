@@ -1,5 +1,8 @@
 package com.samanvay.catalog.internal.web;
 
+import static com.samanvay.shared.InvalidRequestException.requirePresent;
+import static com.samanvay.shared.InvalidRequestException.requireText;
+
 import com.samanvay.catalog.api.CatalogOnboarding;
 import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.ConnectorDefinition;
@@ -73,6 +76,8 @@ class CatalogController {
 
     @PostMapping("/departments")
     Department registerDepartment(@RequestBody DepartmentDraft draft) {
+        requireText(draft.code(), "code");
+        requireText(draft.name(), "name");
         return onboarding.registerDepartment(draft);
     }
 
@@ -83,11 +88,18 @@ class CatalogController {
 
     @PostMapping("/connectors")
     ConnectorDefinition createDraft(@RequestBody ConnectorDraft draft) {
+        requireText(draft.connectorId(), "connectorId");
+        requireText(draft.dataSourceCode(), "dataSourceCode");
+        requirePresent(draft.category(), "category");
+        requireText(draft.capabilitiesJson(), "capabilitiesJson");
         return onboarding.createDraft(draft);
     }
 
     @PostMapping("/mappings")
     MappingDefinition saveMapping(@RequestBody MappingDraft draft) {
+        requireText(draft.ref(), "ref");
+        requireText(draft.connectorRef(), "connectorRef");
+        requirePresent(draft.rules(), "rules");
         return onboarding.saveMapping(draft);
     }
 
@@ -108,6 +120,9 @@ class CatalogController {
 
     @PostMapping("/import/openapi")
     ImportPreview importOpenApi(@RequestBody ImportBody body) {
+        requireText(body.spec(), "spec");
+        requireText(body.operationId(), "operationId");
+        requireText(body.targetSchemaRef(), "targetSchemaRef");
         return importer.preview(body.spec(), body.operationId(), body.targetSchemaRef());
     }
 

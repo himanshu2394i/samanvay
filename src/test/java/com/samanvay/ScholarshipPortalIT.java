@@ -107,14 +107,8 @@ class ScholarshipPortalIT extends PostgresIntegrationTest {
                 .body(Map.of(
                         "citizenId",
                         citizenId,
-                        "requesterId",
-                        "SCHOLARSHIP",
                         "purposeCode",
-                        "SCHOLARSHIP_ELIGIBILITY",
-                        "purposeText",
-                        "Post-matric scholarship eligibility",
-                        "categories",
-                        new String[] {"INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "MARKS", "BANK_ACCOUNT"}))
+                        "SCHOLARSHIP_ELIGIBILITY"))
                 .retrieve()
                 .body(Map.class);
         assertThat(request.get("id")).isNotNull();

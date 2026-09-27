@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.samanvay.audit.api.ActorType;
 import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.identity.api.ReviewerRequiredException;
@@ -79,6 +80,7 @@ class ConfirmRequiresReviewerRoleTest {
         verify(audit).record(entry.capture());
         assertThat(entry.getValue().actorId()).isEqualTo("reviewer-sub-42");
         assertThat(entry.getValue().action()).isEqualTo("CANDIDATE_CONFIRMED");
+        assertThat(entry.getValue().actorType()).isEqualTo(ActorType.REVIEWER);
     }
 
     private static void authenticate(String subject, String authority) {

@@ -12,7 +12,7 @@ import tools.jackson.databind.json.JsonMapper;
 /** Writes 401/403 bodies in the same RFC 7807 shape as {@code shared.ApiExceptionHandler}. */
 final class ProblemWriter {
 
-    static final String REASON_ATTRIBUTE = ProblemWriter.class.getName() + ".reason";
+    static final String REASON_ATTRIBUTE = ApiAccessRefused.REASON_ATTRIBUTE;
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 

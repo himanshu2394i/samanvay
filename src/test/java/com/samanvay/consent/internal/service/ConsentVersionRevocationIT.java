@@ -39,7 +39,7 @@ class ConsentVersionRevocationIT extends PostgresIntegrationTest {
     void revokedConsentRejectsOldGrant() {
         UUID citizen = UUID.randomUUID();
         var req = consents.request(new ConsentRequestDraft(
-                citizen, "SCHOLARSHIP", "SCHOLARSHIP_ELIGIBILITY", "t", List.of("INCOME_CERTIFICATE")));
+                citizen, "SCHOLARSHIP", "SCHOLARSHIP_ELIGIBILITY"));
         var artifact = consents.grant(req.id(), citizen, new AuthProof("jti"));
         UnsignedGrant unsigned = new UnsignedGrant(
                 UUID.randomUUID(),

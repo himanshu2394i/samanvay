@@ -1,64 +1,27 @@
 package com.samanvay.security;
 
+import static com.samanvay.shared.test.KeycloakTestSupport.CITIZEN;
+import static com.samanvay.shared.test.KeycloakTestSupport.STAFF;
+import static com.samanvay.shared.test.KeycloakTestSupport.admin;
+import static com.samanvay.shared.test.KeycloakTestSupport.token;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dasniko.testcontainers.keycloak.KeycloakContainer;
-import java.net.URI;
+import com.samanvay.shared.test.KeycloakTestSupport;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Boots the pinned Keycloak with the committed realm exports (the same files
  * docker compose imports) and checks, through the admin REST API, the security
  * properties the application relies on. No admin-client dependency: plain JDK
- * HttpClient + Jackson.
+ * HttpClient + Jackson (see {@link KeycloakTestSupport}).
  */
 class KeycloakRealmExportIT {
-
-    static final String IMAGE = "quay.io/keycloak/keycloak:26.4";
-    static final String STAFF = "samanvay-staff";
-    static final String CITIZEN = "samanvay-citizen";
-
-    static KeycloakContainer keycloak;
-    static final HttpClient HTTP = HttpClient.newHttpClient();
-    static final ObjectMapper JSON = JsonMapper.builder().build();
-    static String adminToken;
-
-    @BeforeAll
-    static void start() throws Exception {
-        keycloak = new KeycloakContainer(IMAGE)
-                .withRealmImportFiles(
-                        "/keycloak-realms/samanvay-staff-realm.json", "/keycloak-realms/samanvay-citizen-realm.json");
-        keycloak.start();
-        adminToken = token("master", Map.of(
-                        "grant_type", "password",
-                        "client_id", "admin-cli",
-                        "username", keycloak.getAdminUsername(),
-                        "password", keycloak.getAdminPassword()))
-                .get("access_token")
-                .asString();
-    }
-
-    @AfterAll
-    static void stop() {
-        if (keycloak != null) {
-            keycloak.stop();
-        }
-    }
 
     @Test
     void realmRolesExist() throws Exception {
@@ -69,14 +32,27 @@ class KeycloakRealmExportIT {
     }
 
     @Test
-    void staffBrowserAndDirectGrantRequireTotp() throws Exception {
+    void staffSignInIsPasskeyOrPasswordPlusTotpAndNothingElse() throws Exception {
         JsonNode realm = admin("/admin/realms/" + STAFF);
-        String browser = realm.get("browserFlow").asString();
-        String direct = realm.get("directGrantFlow").asString();
-        assertThat(browser).isNotEqualTo("browser");
-        assertThat(requirementOf(STAFF, browser, "auth-otp-form")).isEqualTo("REQUIRED");
-        assertThat(requirementOf(STAFF, browser, "auth-username-password-form")).isEqualTo("REQUIRED");
-        assertThat(requirementOf(STAFF, direct, "direct-grant-validate-otp")).isEqualTo("REQUIRED");
+        // the whole browser flow, exactly: any extra alternative would be a new way in
+        assertThat(shape(STAFF, realm.get("browserFlow").asString())).containsExactly(
+                "0 auth-cookie ALTERNATIVE",
+                "0 [staff browser forms] ALTERNATIVE",
+                "1 auth-username-password-form REQUIRED",
+                "1 [staff second factor] CONDITIONAL",
+                "2 conditional-credential REQUIRED {credentials=webauthn-passwordless, included=false}",
+                "2 auth-otp-form REQUIRED");
+        assertThat(shape(STAFF, realm.get("directGrantFlow").asString())).containsExactly(
+                "0 direct-grant-validate-username REQUIRED",
+                "0 direct-grant-validate-password REQUIRED",
+                "0 direct-grant-validate-otp REQUIRED");
+        // reset: TOTP before the new password, and the TOTP itself is never reset
+        assertThat(realm.get("resetPasswordAllowed").asBoolean()).isFalse();
+        assertThat(shape(STAFF, realm.get("resetCredentialsFlow").asString())).containsExactly(
+                "0 reset-credentials-choose-user REQUIRED",
+                "0 reset-credential-email REQUIRED",
+                "0 auth-otp-form REQUIRED",
+                "0 reset-password REQUIRED");
 
         JsonNode totp = admin("/admin/realms/" + STAFF + "/authentication/required-actions/CONFIGURE_TOTP");
         assertThat(totp.get("enabled").asBoolean()).isTrue();
@@ -84,22 +60,62 @@ class KeycloakRealmExportIT {
     }
 
     @Test
-    void citizenBrowserFlowRequiresOtp() throws Exception {
-        String browser = admin("/admin/realms/" + CITIZEN).get("browserFlow").asString();
-        assertThat(requirementOf(CITIZEN, browser, "auth-otp-form")).isEqualTo("REQUIRED");
-    }
-
-    @Test
-    void passkeysPolicyEnabledInBothRealms() throws Exception {
+    void passkeysRequireUserVerificationWithDefaultAttestationAndAuthenticators() throws Exception {
         for (String realmName : List.of(STAFF, CITIZEN)) {
             JsonNode realm = admin("/admin/realms/" + realmName);
-            assertThat(realm.get("webAuthnPolicyPasswordlessPasskeysEnabled").asBoolean())
-                    .as(realmName + " passkeys")
-                    .isTrue();
+            assertThat(realm.get("webAuthnPolicyPasswordlessPasskeysEnabled").asBoolean()).as(realmName).isTrue();
+            assertThat(realm.get("webAuthnPolicyPasswordlessUserVerificationRequirement").asString())
+                    .as(realmName + " user verification")
+                    .isEqualTo("required");
+            assertThat(realm.get("webAuthnPolicyPasswordlessAttestationConveyancePreference").asString())
+                    .isEqualTo("not specified");
+            assertThat(realm.get("webAuthnPolicyPasswordlessAuthenticatorAttachment").asString())
+                    .isEqualTo("not specified");
+            assertThat(realm.get("webAuthnPolicyPasswordlessAcceptableAaguids")).isEmpty();
             assertThat(realm.get("webAuthnPolicyPasswordlessRpEntityName").asString()).isNotBlank();
             JsonNode action = admin(
                     "/admin/realms/" + realmName + "/authentication/required-actions/webauthn-register-passwordless");
             assertThat(action.get("enabled").asBoolean()).as(realmName + " passkey registration").isTrue();
+        }
+    }
+
+    @Test
+    void citizenSignInIsEmailCodeOrPasskeyWithoutPasswordsOrTotp() throws Exception {
+        JsonNode realm = admin("/admin/realms/" + CITIZEN);
+        assertThat(shape(CITIZEN, realm.get("browserFlow").asString())).containsExactly(
+                "0 auth-cookie ALTERNATIVE",
+                "0 [citizen browser forms] ALTERNATIVE",
+                "1 auth-username-form REQUIRED",
+                "1 [citizen email code] CONDITIONAL",
+                "2 conditional-credential REQUIRED {credentials=webauthn-passwordless, included=false}",
+                "2 samanvay-email-otp REQUIRED {length=6, maxAttempts=5, ttlSeconds=300}");
+        // no password or TOTP enrolment, ever
+        for (String action : List.of("CONFIGURE_TOTP", "UPDATE_PASSWORD")) {
+            JsonNode a = admin("/admin/realms/" + CITIZEN + "/authentication/required-actions/" + action);
+            assertThat(a.get("enabled").asBoolean()).as(action).isFalse();
+            assertThat(a.get("defaultAction").asBoolean()).as(action).isFalse();
+        }
+        assertThat(realm.get("resetPasswordAllowed").asBoolean()).isFalse();
+        // registration asks for no password; the email is verified by link before the first token
+        assertThat(realm.get("verifyEmail").asBoolean()).isTrue();
+        assertThat(shape(CITIZEN, realm.get("registrationFlow").asString())).containsExactly(
+                "0 [citizen registration form] REQUIRED",
+                "1 registration-user-creation REQUIRED",
+                "1 registration-recaptcha-action DISABLED",
+                "1 registration-terms-and-conditions DISABLED");
+        // mail goes to the dev/test catcher
+        assertThat(realm.get("smtpServer").get("host").asString()).isEqualTo("mailpit");
+    }
+
+    @Test
+    void citizenDirectGrantsAreDeniedByFlowAndOnEveryClient() throws Exception {
+        JsonNode realm = admin("/admin/realms/" + CITIZEN);
+        assertThat(shape(CITIZEN, realm.get("directGrantFlow").asString()))
+                .containsExactly("0 deny-access-authenticator REQUIRED");
+        for (JsonNode client : admin("/admin/realms/" + CITIZEN + "/clients")) {
+            assertThat(client.path("directAccessGrantsEnabled").asBoolean(false))
+                    .as(client.get("clientId").asString())
+                    .isFalse();
         }
     }
 
@@ -120,8 +136,7 @@ class KeycloakRealmExportIT {
                 "client_id", "dept-scholarship-dev",
                 "client_secret", secret,
                 "scope", "source:revenue-rest-mock source:education-soap-mock source:dbt-rest-mock"));
-        JsonNode claims = JSON.readTree(Base64.getUrlDecoder()
-                .decode(tokenResponse.get("access_token").asString().split("\\.")[1]));
+        JsonNode claims = KeycloakTestSupport.claims(tokenResponse.get("access_token").asString());
         assertThat(claims.get("client_id").asString()).isEqualTo("dept-scholarship-dev");
         assertThat(claims.get("azp").asString()).isEqualTo("dept-scholarship-dev");
         assertThat(claims.get("iss").asString()).endsWith("/realms/" + STAFF);
@@ -140,47 +155,81 @@ class KeycloakRealmExportIT {
         }
     }
 
-    private static String requirementOf(String realm, String flowAlias, String providerId) throws Exception {
-        JsonNode executions = admin("/admin/realms/" + realm + "/authentication/flows/"
-                + URLEncoder.encode(flowAlias, StandardCharsets.UTF_8).replace("+", "%20") + "/executions");
-        for (JsonNode e : executions) {
-            if (e.has("providerId") && providerId.equals(e.get("providerId").asString())) {
-                return e.get("requirement").asString();
+    @Test
+    void onlyTheApisOwnClientsCarryTheSamanvayApiAudience() throws Exception {
+        for (String[] rc : new String[][] {
+            {STAFF, "samanvay-staff-ui"}, {STAFF, "dept-scholarship-dev"}, {CITIZEN, "samanvay-citizen-ui"}
+        }) {
+            JsonNode client = admin("/admin/realms/" + rc[0] + "/clients?clientId=" + rc[1]).get(0);
+            List<String> audiences = new ArrayList<>();
+            client.path("protocolMappers").forEach(m -> {
+                if ("oidc-audience-mapper".equals(m.get("protocolMapper").asString())
+                        && "true".equals(m.get("config").path("access.token.claim").asString())) {
+                    audiences.add(m.get("config").path("included.custom.audience").asString());
+                }
+            });
+            assertThat(audiences).as(rc[1] + " audience mapper").containsExactly("samanvay-api");
+        }
+        for (String realm : List.of(STAFF, CITIZEN)) {
+            for (JsonNode client : admin("/admin/realms/" + realm + "/clients")) {
+                String id = client.get("clientId").asString();
+                if (id.startsWith("samanvay-") || id.startsWith("dept-")) {
+                    continue;
+                }
+                client.path("protocolMappers").forEach(m -> assertThat(m.path("config").path("included.custom.audience").asString(""))
+                        .as(realm + "/" + id + " must not get the API audience")
+                        .isNotEqualTo("samanvay-api"));
             }
         }
-        return "ABSENT";
     }
+
+    @Test
+    void staffDepartmentIsAnAdminManagedAttributeReleasedAsAClaim() throws Exception {
+        JsonNode profile = admin("/admin/realms/" + STAFF + "/users/profile");
+        JsonNode department = null;
+        for (JsonNode a : profile.get("attributes")) {
+            if ("department".equals(a.get("name").asString())) {
+                department = a;
+            }
+        }
+        assertThat(department).as("department attribute declared").isNotNull();
+        assertThat(department.get("permissions").get("edit").toString()).isEqualTo("[\"admin\"]");
+        JsonNode ui = admin("/admin/realms/" + STAFF + "/clients?clientId=samanvay-staff-ui").get(0);
+        assertThat(ui.get("defaultClientScopes").toString()).contains("\"department\"");
+        JsonNode dept = admin("/admin/realms/" + STAFF + "/clients?clientId=dept-scholarship-dev").get(0);
+        assertThat(dept.get("protocolMappers").toString())
+                .contains("oidc-hardcoded-claim-mapper")
+                .contains("\"claim.value\":\"SCHOLARSHIP\"");
+    }
+
+    /**
+     * A flow as "level provider-or-[subflow] REQUIREMENT {config}" lines, in
+     * execution order (nested sub-flows included).
+     */
+    private static List<String> shape(String realm, String flowAlias) throws Exception {
+        JsonNode executions = admin("/admin/realms/" + realm + "/authentication/flows/"
+                + URLEncoder.encode(flowAlias, StandardCharsets.UTF_8).replace("+", "%20") + "/executions");
+        List<String> out = new ArrayList<>();
+        for (JsonNode e : executions) {
+            String what = e.path("authenticationFlow").asBoolean(false)
+                    ? "[" + e.get("displayName").asString() + "]"
+                    : e.get("providerId").asString();
+            String line = e.get("level").asInt() + " " + what + " " + e.get("requirement").asString();
+            if (e.hasNonNull("authenticationConfig")) {
+                JsonNode config = admin("/admin/realms/" + realm + "/authentication/config/"
+                        + e.get("authenticationConfig").asString()).get("config");
+                line += " " + new java.util.TreeMap<>(JSON_MAPPER.convertValue(config, Map.class));
+            }
+            out.add(line);
+        }
+        return out;
+    }
+
+    private static final tools.jackson.databind.ObjectMapper JSON_MAPPER = KeycloakTestSupport.JSON;
 
     private static List<String> names(JsonNode array, String field) {
         List<String> out = new ArrayList<>();
         array.forEach(n -> out.add(field == null ? n.asString() : n.get(field).asString()));
         return out;
-    }
-
-    private static JsonNode admin(String path) throws Exception {
-        HttpResponse<String> res = HTTP.send(
-                HttpRequest.newBuilder(URI.create(keycloak.getAuthServerUrl() + path))
-                        .header("Authorization", "Bearer " + adminToken)
-                        .GET()
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
-        assertThat(res.statusCode()).as(path + " -> " + res.body()).isEqualTo(200);
-        return JSON.readTree(res.body());
-    }
-
-    private static JsonNode token(String realm, Map<String, String> form) throws Exception {
-        String body = form.entrySet().stream()
-                .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "="
-                        + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
-                .collect(Collectors.joining("&"));
-        HttpResponse<String> res = HTTP.send(
-                HttpRequest.newBuilder(URI.create(
-                                keycloak.getAuthServerUrl() + "/realms/" + realm + "/protocol/openid-connect/token"))
-                        .header("Content-Type", "application/x-www-form-urlencoded")
-                        .POST(HttpRequest.BodyPublishers.ofString(body))
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
-        assertThat(res.statusCode()).as("token " + realm + " -> " + res.body()).isEqualTo(200);
-        return JSON.readTree(res.body());
     }
 }

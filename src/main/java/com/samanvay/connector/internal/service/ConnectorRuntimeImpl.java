@@ -151,7 +151,8 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
         }
         return switch (grant.principal().kind()) {
             case CITIZEN -> ActorType.CITIZEN;
-            case OFFICER, REVIEWER -> ActorType.OFFICER;
+            case OFFICER -> ActorType.OFFICER;
+            case REVIEWER -> ActorType.REVIEWER;
             case ADMIN -> ActorType.ADMIN;
             case DEPARTMENT -> ActorType.DEPARTMENT;
         };

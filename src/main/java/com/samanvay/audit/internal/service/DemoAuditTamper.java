@@ -1,5 +1,6 @@
 package com.samanvay.audit.internal.service;
 
+import com.samanvay.shared.NotFoundException;
 import java.sql.DriverManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -32,9 +33,9 @@ public class DemoAuditTamper {
             ps.setString(1, reason);
             ps.setLong(2, seq);
             if (ps.executeUpdate() != 1) {
-                throw new IllegalArgumentException("no audit row " + seq);
+                throw new NotFoundException("no audit row " + seq);
             }
-        } catch (IllegalArgumentException e) {
+        } catch (NotFoundException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException("demo tamper failed", e);

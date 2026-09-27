@@ -47,7 +47,10 @@ class LicencePortalStaticPagesTest {
         assertThat(js).contains("/api/journeys/");
         assertThat(page("shared/records.js")).contains("/issued-records");
         assertThat(html).contains("/shared/records.js");
-        assertThat(js).contains("INDUSTRY");
+        // the requesting department comes from the purpose catalog, never from the page
+        assertThat(js).contains("purposeCode: \"BUSINESS_NOC\"");
+        assertThat(js).doesNotContain("requesterId");
+        assertThat(js).doesNotContain("INDUSTRY");
         assertThat(js).doesNotContain("X-Auth-Jti");
         assertThat(js).contains("SamanvayAuth.fetch");
         assertThat(html).contains("/shared/auth.js");

@@ -6,7 +6,9 @@ import com.samanvay.audit.api.AuditService;
 import com.samanvay.audit.api.Outcome;
 import com.samanvay.catalog.api.JourneyCatalog;
 import com.samanvay.catalog.api.PurposeCatalog;
+import com.samanvay.consent.api.RequesterNotEntitledException;
 import com.samanvay.consent.api.UnknownPurposeException;
+import com.samanvay.catalog.api.Purpose;
 import com.samanvay.consent.api.AccessAuthority;
 import com.samanvay.consent.api.AccessDecision;
 import com.samanvay.consent.api.AccessGrant;
@@ -97,16 +99,22 @@ class ConsentServices implements ConsentService, AccessAuthority {
     @Override
     @Transactional
     public ConsentRequest request(ConsentRequestDraft draft) {
-        if (!purposes.isActive(draft.purposeCode())) {
-            throw new UnknownPurposeException(draft.purposeCode());
+        // Text and categories come from the catalog purpose, never from the caller;
+        // only the purpose's own department may request under it.
+        Purpose purpose = purposes.byCode(draft.purposeCode())
+                .filter(Purpose::active)
+                .filter(p -> !p.dataCategories().isEmpty())
+                .orElseThrow(() -> new UnknownPurposeException(draft.purposeCode()));
+        if (draft.requesterId() == null || !draft.requesterId().equals(purpose.requesterDepartment())) {
+            throw new RequesterNotEntitledException(draft.requesterId(), purpose.code());
         }
         ConsentRequestEntity e = new ConsentRequestEntity();
         e.setId(UUID.randomUUID());
         e.setSubjectCitizenId(draft.citizenId());
         e.setRequesterId(draft.requesterId());
-        e.setPurposeCode(draft.purposeCode());
-        e.setPurposeText(draft.purposeText());
-        e.setDataCategories(draft.categories().toArray(String[]::new));
+        e.setPurposeCode(purpose.code());
+        e.setPurposeText(purpose.text());
+        e.setDataCategories(purpose.dataCategories().toArray(String[]::new));
         e.setStatus("PENDING");
         e.setCreatedAt(clock.instant());
         requests.save(e);
@@ -117,6 +125,17 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 e.getPurposeCode(),
                 Arrays.asList(e.getDataCategories())));
         return toRequest(e);
+    }
+
+    /** A pending request the citizen can grant - only if the requester may ask under this purpose at all. */
+    private ConsentRequest remedy(AccessRequest req) {
+        boolean entitled = purposes.byCode(req.purpose().code())
+                .map(p -> req.requester().id().equals(p.requesterDepartment()) && !p.dataCategories().isEmpty())
+                .orElse(false);
+        if (!entitled) {
+            return null;
+        }
+        return request(new ConsentRequestDraft(req.subject().citizenId(), req.requester().id(), req.purpose().code()));
     }
 
     @Override
@@ -193,13 +212,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         }
         var consent = find(req.requester(), req.subject(), req.category(), req.purpose());
         if (consent.isEmpty()) {
-            var remedy = request(new ConsentRequestDraft(
-                    req.subject().citizenId(),
-                    req.requester().id(),
-                    req.purpose().code(),
-                    "Required for " + req.purpose().code(),
-                    List.of(req.category().code())));
-            return deny(req, DenialReason.NO_CONSENT, remedy);
+            return deny(req, DenialReason.NO_CONSENT, remedy(req));
         }
         var c = consent.get();
         if ("REVOKED".equals(c.status())) {
