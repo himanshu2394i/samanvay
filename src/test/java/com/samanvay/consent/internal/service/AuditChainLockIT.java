@@ -48,7 +48,8 @@ class AuditChainLockIT extends PostgresIntegrationTest {
             assertThatThrownBy(() -> refusals.record(RefusalAuditorTest.entry()))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("deadlock");
-            status.setRollbackOnly();
+            // commits: a rolled-back append would leave a gap in the audit sequence (the chain
+            // verification other ITs run requires contiguous seq numbers)
         }));
         assertThat(AuditChainLock.heldByCurrentTransaction()).as("cleared with the transaction").isFalse();
         // and outside any chain-holding transaction the refusal audit works
