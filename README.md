@@ -159,6 +159,40 @@ profile. Without Docker: `./mvnw -f simulators/pom.xml spring-boot:run`.
 `StandaloneDepartmentServiceTest` is the proof: it builds and starts the service as its own JVM process on a free
 port and runs both sandbox connectors through the real adapters, asserting values only that service produces.
 
+### All four protocols, deployable (REST, SOAP, SFTP, JDBC)
+
+`department-service` above already covers **REST** and **SOAP**. Two more compose services make **SFTP** and
+**JDBC** real and deployable too, each with FAKE sandbox data over a real transport (never a real system):
+
+- **`department-db`** (Postgres, `:5433`) — the **JDBC** source `sandbox-pollution-jdbc` (catalog V198). Seeded
+  by `docker/department-db/init.sql` with a `pcb_clearance` table and a read-only role `pcb_ro`. A fetch runs a
+  parameterized `SELECT` through the real `JdbcQueryClient` (`JdbcSqlGuard` permits SELECT only).
+- **`department-sftp`** (`atmoz/sftp`, `:2222`) — the **SFTP** source `sandbox-property-sftp` (catalog V193).
+  Serves `docker/department-sftp/property.csv` over real SFTP through `SftpCsvClient`.
+
+Credentials are read from `SecretStore`, never from config. In the dev/demo profile (`EnvSecretStore`) that means
+one env var per source, base64 of `username:password`:
+
+```bash
+docker compose up -d department-db department-sftp        # plus the base services
+
+# JDBC read-only credential  (pcb_ro:pcb_ro_demo)
+export SAMANVAY_SECRET_SOURCE_SANDBOX_POLLUTION_JDBC_CREDENTIAL="$(printf 'pcb_ro:pcb_ro_demo' | base64)"
+# SFTP credential            (fixtureuser:fixturepass)
+export SAMANVAY_SECRET_SOURCE_SANDBOX_PROPERTY_SFTP_CREDENTIAL="$(printf 'fixtureuser:fixturepass' | base64)"
+
+# SFTP host key is pinned (no trust-on-first-use). Capture the running server's fingerprint once:
+export SAMANVAY_SANDBOX_SFTP_HOSTKEY="$(ssh-keyscan -t ed25519 -p 2222 localhost 2>/dev/null \
+  | ssh-keygen -lf - | awk '{print $2}')"
+
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
+```
+
+A fetch through `ConnectorRuntimeImpl` for `sandbox-pollution@1` / `sandbox-property@1` is then a real JDBC query /
+SFTP download. Locally verifiable without Docker: `JdbcRealTransportTest` (H2) and `SftpCsvRealTransportTest`
+(in-process sshd) prove the same code paths, and the `*BootTest`s prove a LIVE source refuses to start without its
+credential.
+
 ## Contributing
 
 1. Branch off `main`, work in your module's package (`com.samanvay.<module>.*`).

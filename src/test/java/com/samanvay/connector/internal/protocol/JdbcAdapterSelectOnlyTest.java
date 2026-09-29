@@ -10,9 +10,11 @@ import org.junit.jupiter.api.Test;
 
 class JdbcAdapterSelectOnlyTest {
 
+    // These exercise the mock host and the SELECT-only guard, so the real JDBC client is never
+    // reached; null makes that explicit. Real transport is covered by JdbcRealTransportTest.
     @Test
     void rejectsNonSelect() {
-        JdbcAdapter adapter = new JdbcAdapter(new MockDepartmentBackend());
+        JdbcAdapter adapter = new JdbcAdapter(new MockDepartmentBackend(), null);
         AdapterRequest req = new AdapterRequest(
                 "pollution-jdbc-mock",
                 "JDBC",
@@ -26,7 +28,7 @@ class JdbcAdapterSelectOnlyTest {
 
     @Test
     void acceptsParameterizedSelectOnMock() {
-        JdbcAdapter adapter = new JdbcAdapter(new MockDepartmentBackend());
+        JdbcAdapter adapter = new JdbcAdapter(new MockDepartmentBackend(), null);
         AdapterRequest req = new AdapterRequest(
                 "pollution-jdbc-mock",
                 "JDBC",
