@@ -68,6 +68,9 @@ import tools.jackson.databind.json.JsonMapper;
 @SpringBootTest(classes = SamanvayApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ConsentFrequencyIT extends OneCheckITSupport {
 
+    @Autowired
+    com.samanvay.payments.api.DisbursementService disbursements;
+
     // ---- 1. concurrent checks ----------------------------------------------------------------
 
     @Test
@@ -166,15 +169,66 @@ class ConsentFrequencyIT extends OneCheckITSupport {
     }
 
     @Test
-    void oncePerPaymentIsNotYetScopeEnforced() {
-        // ONCE_PER_PAYMENT needs a payment/instalment id (disbursement flow, not built): only the 24h limit applies.
+    void oncePerPaymentAllowsOneCheckPerPaymentIdAndScopesByAKeyedHash() {
         jdbc.update("UPDATE consent_artifact SET frequency = 'ONCE_PER_PAYMENT' WHERE id = ?", consentId);
         department.onCall = g -> success();
         String app = app();
-        assertThat(delegate.execute(fetch(app), inputs())).isEqualTo("COMPLETED");
-        assertThat(delegate.execute(fetch(app), inputs())).isEqualTo("COMPLETED");
-        assertThat(department.calls.get()).isEqualTo(2);
+        String payment1 = UUID.randomUUID().toString();
+        String payment2 = UUID.randomUUID().toString();
+        assertThat(delegate.execute(fetch(app, payment1), inputs())).isEqualTo("COMPLETED");
+        long before = headSeq();
+        assertThat(delegate.execute(fetch(app, payment1), inputs())).as("same payment again").isEqualTo("CHECK_ALREADY_USED");
+        assertThat(delegate.execute(fetch(app(), payment1), inputs()))
+                .as("the scope is the payment, not the application").isEqualTo("CHECK_ALREADY_USED");
+        assertThat(audit(before, "CONSENT_FREQUENCY_REFUSED")).hasSize(2);
+        assertThat(delegate.execute(fetch(app, payment2), inputs())).as("a different payment").isEqualTo("COMPLETED");
+        assertThat(department.calls.get()).as("refused checks never reach the department").isEqualTo(2);
+
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT scope_key, scope_key_version, state FROM consent_usage WHERE consent_id = ?", consentId);
+        assertThat(rows).hasSize(2).allSatisfy(r -> {
+            assertThat(r.get("state")).isEqualTo("USED");
+            assertThat(r.get("scope_key_version")).as("key version stored beside the hash").isEqualTo("v1");
+            assertThat(r.get("scope_key").toString()).matches("PAYMENT:[0-9a-f]{64}");
+        });
+        assertThat(rows.stream().map(r -> r.get("scope_key").toString()).toList())
+                .as("the raw payment id is never the scope key")
+                .noneMatch(k -> k.contains(payment1) || k.contains(payment2))
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void theInstalmentIdsOfADisbursementAreThePaymentIdsTheChecksAreScopedBy() {
+        jdbc.update("UPDATE consent_artifact SET frequency = 'ONCE_PER_PAYMENT' WHERE id = ?", consentId);
+        department.onCall = g -> success();
+        var disbursement = disbursements.disburse(UUID.randomUUID(), citizen, "SOME_JOURNEY");
+        String first = disbursement.instalments().get(0).id().toString();
+        String second = disbursement.instalments().get(1).id().toString();
+        String app = disbursement.applicationId().toString();
+        assertThat(delegate.execute(fetch(app, first), inputs())).isEqualTo("COMPLETED");
+        assertThat(delegate.execute(fetch(app, first), inputs())).as("instalment 1 already checked").isEqualTo("CHECK_ALREADY_USED");
+        assertThat(delegate.execute(fetch(app, second), inputs())).as("instalment 2 is its own payment").isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void oncePerPaymentWithoutAPaymentIdIsRefused() {
+        jdbc.update("UPDATE consent_artifact SET frequency = 'ONCE_PER_PAYMENT' WHERE id = ?", consentId);
+        department.onCall = g -> success();
+        assertThat(delegate.execute(fetch(app(), null), inputs())).isEqualTo("PAYMENT_REQUIRED");
+        assertThat(delegate.execute(fetch(app(), "  "), inputs())).as("blank counts as none").isEqualTo("PAYMENT_REQUIRED");
+        assertThat(department.calls.get()).isZero();
         assertThat(count("SELECT count(*) FROM consent_usage WHERE consent_id = ?", consentId)).isZero();
+    }
+
+    @Test
+    void aFailedPaymentCheckIsReleasedSoTheSamePaymentCanBeRetried() {
+        jdbc.update("UPDATE consent_artifact SET frequency = 'ONCE_PER_PAYMENT' WHERE id = ?", consentId);
+        String payment = UUID.randomUUID().toString();
+        department.onCall = g -> new ConnectorResult.Unavailable(com.samanvay.connector.api.FailureKind.REMOTE_FAULT, true);
+        assertThat(delegate.execute(fetch(app(), payment), inputs())).isEqualTo("PENDING_SOURCE");
+        assertThat(count("SELECT count(*) FROM consent_usage WHERE consent_id = ?", consentId)).as("released").isZero();
+        department.onCall = g -> success();
+        assertThat(delegate.execute(fetch(app(), payment), inputs())).isEqualTo("COMPLETED");
     }
 
     // ---- 2. timeout, then retry --------------------------------------------------------------

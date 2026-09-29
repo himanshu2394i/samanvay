@@ -9,7 +9,7 @@ class SoapAdapterEscapingTest {
 
     @Test
     void specialCharactersAreEscaped() {
-        SoapAdapter adapter = new SoapAdapter(new MockDepartmentBackend());
+        SoapAdapter adapter = new SoapAdapter(new MockDepartmentBackend(), null);
         String rendered = adapter.renderTemplate("<n>{{name}}</n>", Map.of("name", "A&B<C\""));
         assertThat(rendered).contains("A&amp;B&lt;C&quot;").doesNotContain("A&B<C\"");
     }

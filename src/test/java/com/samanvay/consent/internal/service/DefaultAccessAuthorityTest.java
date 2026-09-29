@@ -62,10 +62,12 @@ class DefaultAccessAuthorityTest {
                 anyCitizen -> java.util.List.of(),
                 new RefusalAuditor(audit, mock(org.springframework.transaction.PlatformTransactionManager.class)),
                 mock(ConsentUsageService.class),
+                mock(PaymentScopeKeys.class),
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},
-                Clock.fixed(Instant.parse("2026-09-13T12:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-09-13T12:00:00Z"), ZoneOffset.UTC),
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 
     private static AccessRequest req() {

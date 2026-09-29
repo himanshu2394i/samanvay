@@ -1,0 +1,11 @@
+-- V195__audit_checkpoint_key_id.sql
+-- Audit signing-key rotation: record which key id signed each checkpoint, so the
+-- verifier checks a checkpoint against the key it was signed with and rotating the
+-- key cannot break verification of older ones.
+--
+-- Additive and safe for existing audit data: one NULLABLE column, no default, no
+-- backfill, no rewrite of any row, no change to audit_entry or to the hash chain.
+-- NULL means "written before key ids existed" and is read as the legacy key id 'v1'
+-- (the key that signed it). samanvay_app keeps INSERT-only on the table (table-level
+-- grants from V1 cover the new column); it still cannot UPDATE or DELETE.
+ALTER TABLE audit.audit_checkpoint ADD COLUMN key_id VARCHAR(32);

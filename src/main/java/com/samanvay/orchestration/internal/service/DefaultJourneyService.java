@@ -224,7 +224,22 @@ class DefaultJourneyService implements JourneyService {
             }
         }
         String status = pending ? "PARTIALLY_VERIFIED" : failed ? "REJECTED" : "VERIFIED";
+        // Keep orchestration's own status current (the officer approval step reads it). An approved
+        // application is final: a late retry must not walk it back to VERIFIED, here or in tracking.
+        int recorded = jdbc.update(
+                "UPDATE orchestration_instance SET status = ? WHERE id = ? AND status <> 'APPROVED'", status, instanceId);
+        if (recorded == 0 && isApproved(instanceId)) {
+            return;
+        }
         events.publishEvent(new ApplicationStateChanged(instanceId, status));
+    }
+
+    private boolean isApproved(UUID instanceId) {
+        Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM orchestration_instance WHERE id = ? AND status = 'APPROVED'",
+                Integer.class,
+                instanceId);
+        return n != null && n > 0;
     }
 
     @Override
@@ -236,6 +251,7 @@ class DefaultJourneyService implements JourneyService {
     @Override
     public void cancel(UUID instanceId, String reason) {
         instances.findById(instanceId).orElseThrow(InstanceNotFoundException::new);
+        jdbc.update("UPDATE orchestration_instance SET status = 'CLOSED' WHERE id = ?", instanceId);
         events.publishEvent(new ApplicationStateChanged(instanceId, "CLOSED"));
     }
 

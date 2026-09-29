@@ -34,6 +34,14 @@ spring:
       # that has to match its JPA entity exactly across versions.
       jdbc-schema-initialization:
         enabled: true
+  mail:
+    # No spring.mail.host here on purpose: Boot then creates no JavaMailSender, the default context boots without
+    # any SMTP server, and the EMAIL channel reports a failed DeliveryOutcome. The dev profile points at Mailpit.
+    # Timeouts apply to whichever host is configured, so an unreachable SMTP server can never hang the dispatcher.
+    properties:
+      mail.smtp.connectiontimeout: 3000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
   servlet:
     multipart:
       # Passbook / cancelled-cheque uploads; the app also validates content and size (PassbookUpload).
@@ -41,6 +49,27 @@ spring:
       max-request-size: 512KB
 
 samanvay:
+  # Secrets provider (see SecretStoreStartupCheck). Unset = "env": the dev/demo EnvSecretStore, which generates
+  # ephemeral keys and is REFUSED outside the dev/demo profiles. Production: SAMANVAY_SECRETS_PROVIDER=file and
+  # SAMANVAY_SECRETS_DIR=<mounted dir, one base64 file per key>. Audit checkpoint key rotation:
+  # samanvay.audit.checkpoint.signing-key-id (default v1).
+  secrets:
+    provider: ${SAMANVAY_SECRETS_PROVIDER:env}
+    dir: ${SAMANVAY_SECRETS_DIR:}
+  notifications:
+    email:
+      from: ${SAMANVAY_NOTIFICATIONS_EMAIL_FROM:no-reply@samanvay.local}
+  identity:
+    department-idp:
+      # Accept a department-brokered Keycloak sign-in as a link proof (LinkProofKind.DEPT_IDP,
+      # DepartmentBrokerLinkProofProvider). Off by default: with it off the proof kind is refused
+      # and not listed. The citizen realm's broker (keycloak/gen_realms.py) points at a MOCK
+      # department realm; no real government IdP is integrated.
+      enabled: ${SAMANVAY_DEPARTMENT_IDP_ENABLED:false}
+      # Alias of the citizen realm's identity provider whose logins may prove a link.
+      alias: dept-idp
+      # How recent the department sign-in (auth_time) may be when the link is asserted.
+      max-auth-age: PT10M
   bank-review:
     # Officer passbook uploads: the file is deleted on decision and after this window; the hash stays.
     retention: 30d

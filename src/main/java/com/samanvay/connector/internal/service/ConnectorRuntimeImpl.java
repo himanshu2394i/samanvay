@@ -25,12 +25,15 @@ import com.samanvay.connector.api.ProtocolAdapter;
 import com.samanvay.connector.api.Provenance;
 import com.samanvay.connector.api.SourceOutcome;
 import com.samanvay.shared.DataCategory;
+import com.samanvay.shared.OpsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.samanvay.connector.internal.mapping.MappingExecutor;
 import com.samanvay.connector.internal.protocol.ExchangeDeadline;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -48,6 +51,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
     private final DepartmentChaos chaos;
     private final java.time.Duration totalTimeout;
     private final BankCheckAdapters bankCheckAdapters;
+    private final MeterRegistry meters;
     private final JsonMapper json = JsonMapper.builder().build();
 
     ConnectorRuntimeImpl(
@@ -61,7 +65,8 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             DepartmentChaos chaos,
             @org.springframework.beans.factory.annotation.Value("${samanvay.connector.total-timeout:PT10S}")
                     java.time.Duration totalTimeout,
-            BankCheckAdapters bankCheckAdapters) {
+            BankCheckAdapters bankCheckAdapters,
+            MeterRegistry meters) {
         this.totalTimeout = totalTimeout;
         this.grantVerifier = grantVerifier;
         this.connectors = connectors;
@@ -73,6 +78,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
         this.audit = audit;
         this.chaos = chaos;
         this.bankCheckAdapters = bankCheckAdapters;
+        this.meters = meters;
     }
 
     @Override
@@ -90,10 +96,12 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
     @Override
     public SourceOutcome<BankCheckAnswer> bankCheck(AccessGrant grant, String sourceCode, BankCheckRequest request) {
         verifyOrAuditAndThrow(grant, DataCategory.BANK_ACCOUNT, sourceCode);
+        long started = System.nanoTime();
         SourceOutcome<BankCheckAnswer> outcome = bankCheckAdapters
                 .forSource(sourceCode)
                 .<SourceOutcome<BankCheckAnswer>>map(adapter -> adapter.check(request))
                 .orElseGet(() -> new SourceOutcome.SourceFault<>(SourceOutcome.ReasonCode.NOT_CONFIGURED, false));
+        OpsMetrics.recordConnectorExchange(meters, sourceCode, bankCheckMetricOutcome(outcome), System.nanoTime() - started);
         if (outcome instanceof SourceOutcome.Answered<BankCheckAnswer>) {
             auditBankCheckAccessed(grant, sourceCode);
         } else if (outcome instanceof SourceOutcome.SourceFault<BankCheckAnswer> fault
@@ -101,6 +109,19 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             auditMarkerInLiveMode(grant, sourceCode);
         }
         return outcome;
+    }
+
+    /** Ops-metric outcome of a bank-check call: an answer (even a negative one) is a success; not-called is unavailable. */
+    private static String bankCheckMetricOutcome(SourceOutcome<BankCheckAnswer> outcome) {
+        if (outcome instanceof SourceOutcome.Answered<BankCheckAnswer>) {
+            return OpsMetrics.OUTCOME_SUCCESS;
+        }
+        if (outcome instanceof SourceOutcome.SourceFault<BankCheckAnswer> fault
+                && (fault.reasonCode() == SourceOutcome.ReasonCode.NOT_CONFIGURED
+                        || fault.reasonCode() == SourceOutcome.ReasonCode.CREDENTIAL_MISSING)) {
+            return OpsMetrics.OUTCOME_UNAVAILABLE;
+        }
+        return OpsMetrics.OUTCOME_FAILURE;
     }
 
     /**
@@ -183,17 +204,19 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                 bound,
                 dataSource.authConfigRef());
         if (chaos.killed(dataSource.code())) {
+            OpsMetrics.countConnectorCall(meters, dataSource.code(), OpsMetrics.OUTCOME_UNAVAILABLE);
             return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
         }
         try {
             var adapter = adapters.get(dataSource.protocol());
             if (adapter == null) {
+                OpsMetrics.countConnectorCall(meters, dataSource.code(), OpsMetrics.OUTCOME_UNAVAILABLE);
                 return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
             }
             com.samanvay.connector.api.AdapterResponse raw;
             // One total deadline for the whole exchange, every retry attempt included.
             try (ExchangeDeadline deadline = ExchangeDeadline.start(totalTimeout)) {
-                raw = resilience.execute(dataSource.code(), () -> adapter.execute(request));
+                raw = timedExchange(dataSource.code(), () -> adapter.execute(request));
             }
             var mapped = mappingRef == null ? raw.body() : mapping.apply(connectors.mapping(mappingRef), raw.body());
             if (outputSchema != null) {
@@ -221,6 +244,28 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             return new ConnectorResult.Unavailable(FailureKind.BREAKER_OPEN, true);
         } catch (io.github.resilience4j.bulkhead.BulkheadFullException e) {
             return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
+        }
+    }
+
+    /**
+     * The resilience-wrapped adapter exchange (every retry attempt), timed per data source. The
+     * outcome is the exchange's: it returned (success), a breaker or bulkhead refused it
+     * (unavailable), or it threw (failure). Exceptions propagate exactly as before.
+     */
+    private com.samanvay.connector.api.AdapterResponse timedExchange(
+            String source, Supplier<com.samanvay.connector.api.AdapterResponse> call) {
+        long started = System.nanoTime();
+        String outcome = OpsMetrics.OUTCOME_FAILURE;
+        try {
+            var response = resilience.execute(source, call);
+            outcome = OpsMetrics.OUTCOME_SUCCESS;
+            return response;
+        } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException
+                | io.github.resilience4j.bulkhead.BulkheadFullException e) {
+            outcome = OpsMetrics.OUTCOME_UNAVAILABLE;
+            throw e;
+        } finally {
+            OpsMetrics.recordConnectorExchange(meters, source, outcome, System.nanoTime() - started);
         }
     }
 

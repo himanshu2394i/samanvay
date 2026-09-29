@@ -15,10 +15,14 @@ services:
     volumes:
       - samanvay-postgres-data:/var/lib/postgresql/data
 
-  # DEV-ONLY identity provider. Imports the two realms in keycloak/realms on
+  # DEV-ONLY identity provider. Imports every realm in keycloak/realms on
   # first start. Staff: passkey, or password + TOTP. Citizen: email one-time
-  # code (read it in Mailpit below), or passkey. The citizen email-code
-  # authenticator is built by the Maven build (./mvnw -DskipTests package, or
+  # code (read it in Mailpit below), or passkey, or a sign-in brokered through
+  # the MOCK department realm (samanvay-department: password + TOTP there;
+  # portals send citizens with kc_idp_hint=dept-idp). No real government IdP is
+  # involved; the brokered login is what DepartmentBrokerLinkProofProvider
+  # accepts as a link proof (samanvay.identity.department-idp.enabled).
+  # The citizen email-code authenticator is built by the Maven build (./mvnw -DskipTests package, or
   # any verify) into target/keycloak-providers - build before `up`.
   # `start-dev` = in-memory H2 + HTTP: never use this service outside a laptop.
   # The app finds it via samanvay.security.{staff,citizen}.issuer-uri
@@ -43,6 +47,53 @@ services:
     image: axllent/mailpit:v1.27
     ports:
       - "8025:8025"
+      # SMTP for the app running on the host (dev profile: spring.mail.host=localhost).
+      - "1025:1025"
+
+  # DEV/DEMO-ONLY standalone department service: a separate Spring Boot app (simulators/, built by
+  # simulators/Dockerfile) that serves FAKE data over real network endpoints, on http://localhost:8090:
+  #   REST  GET  /v1/income?rationCard=RC-1001   -> JSON {annualIncome, holderName, ...}
+  #   SOAP  POST /marks/service (SOAP 1.1, text/xml) with <studentId> -> GetMarksResponse {percentage, board, exam}
+  # With the dev or demo profile, the app points the V193 sandbox sources (sandbox-income-rest,
+  # sandbox-marks-soap) here (samanvay.sources.department-service.urls), so a fetch through the connector
+  # runtime crosses the network via the real RestAdapter/SoapAdapter, not the in-process mock backend.
+  # Never a real government system. See README "Department simulators".
+  department-service:
+    build: ./simulators
+    ports:
+      - "8090:8090"
+
+  # DEV/DEMO-ONLY department DATABASE for the JDBC connector path (fourth protocol). A plain Postgres
+  # seeded with FAKE pollution-control-board rows (docker/department-db/init.sql) and a read-only role
+  # pcb_ro. On :5433 so it never clashes with the app's own postgres above. With the dev/demo profile
+  # the app points the V198 JDBC source (sandbox-pollution-jdbc) here via
+  # samanvay.sources.jdbc.sources.*.jdbc-url, so a fetch crosses the network through the real
+  # JdbcQueryClient (parameterized SELECT only), not the in-process mock backend. Never a real system.
+  # The connector's credential is source-sandbox-pollution-jdbc-credential = pcb_ro:pcb_ro_demo (see README).
+  department-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: deptdb
+      POSTGRES_USER: dept_admin
+      POSTGRES_PASSWORD: dept_admin_demo
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./docker/department-db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  # DEV/DEMO-ONLY department SFTP server for the SFTP_CSV connector path. Serves a FAKE property CSV
+  # (docker/department-sftp/property.csv) over real SFTP on :2222. With the dev/demo profile the app
+  # points the V193 SFTP source (sandbox-property-sftp) here, so a fetch crosses the network through
+  # the real SftpCsvClient. The client PINS the server host key (no trust-on-first-use), so after the
+  # first `up` capture the fingerprint and export SAMANVAY_SANDBOX_SFTP_HOSTKEY (see README). Login is
+  # the DEV credential source-sandbox-property-sftp-credential = fixtureuser:fixturepass. Never real.
+  department-sftp:
+    image: atmoz/sftp:alpine
+    command: ["fixtureuser:fixturepass:::outbound"]
+    ports:
+      - "2222:22"
+    volumes:
+      - ./docker/department-sftp/property.csv:/home/fixtureuser/outbound/property.csv:ro
 
 volumes:
   samanvay-postgres-data:

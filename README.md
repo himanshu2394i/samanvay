@@ -126,6 +126,73 @@ reaches it only over HTTP, through the same client it will use for the live API.
 response carries `X-Samanvay-Simulator: true`. Which endpoint a source uses will be selected by
 `samanvay.sources.<code>.mode=sandbox|simulator|live`, which comes in a separate PR.
 
+### Standalone department service: real REST and SOAP over the network (dev/demo only)
+
+The same `simulators/` app also serves a fake "sandbox department" so the connector's **real** `RestAdapter`
+and `SoapAdapter` can be shown fetching from a separate networked service, not the in-process
+`MockDepartmentBackend`. It serves invented data only and is never a real government system.
+
+| Protocol | Endpoint | Answer |
+|---|---|---|
+| REST | `GET /v1/income?rationCard=RC-1001` | JSON `annualIncome`, `holderName`, `district`, ... |
+| SOAP 1.1 | `POST /marks/service` (`text/xml`, body carries `<studentId>`) | `GetMarksResponse` with `percentage`, `board`, `exam`; a bad request gets a SOAP `Fault` (HTTP 500) |
+
+Named fixtures: `RC-1001`, `RC-1002`, `S-1001`, `S-1002`. Any other id gets a record derived from the id, so a
+given id always answers the same.
+
+```bash
+docker compose up -d                     # postgres, keycloak, mailpit and department-service (:8090)
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo   # or: dev
+curl 'localhost:8090/v1/income?rationCard=RC-1001'
+curl -H 'Content-Type: text/xml' -d '<Envelope><Body><GetMarks><studentId>S-1001</studentId></GetMarks></Body></Envelope>' \
+  localhost:8090/marks/service
+```
+
+Under the `dev` or `demo` profile, `application-dev.yml` / `application-demo.yml` set
+`samanvay.sources.department-service.urls`, which points the V193 sandbox sources (`sandbox-income-rest`,
+`sandbox-marks-soap`, seeded with unresolvable `*.example` hosts) at `http://localhost:8090`
+(`SAMANVAY_DEPT_SERVICE_URL` changes it). A fetch through `ConnectorRuntimeImpl` for those sources is then a
+real HTTP exchange with the service. Nothing else changes: the mock sources and the real journeys' sources
+keep their hosts, the setting is empty by default, and the app refuses to start with it set under any other
+profile. Without Docker: `./mvnw -f simulators/pom.xml spring-boot:run`.
+
+`StandaloneDepartmentServiceTest` is the proof: it builds and starts the service as its own JVM process on a free
+port and runs both sandbox connectors through the real adapters, asserting values only that service produces.
+
+### All four protocols, deployable (REST, SOAP, SFTP, JDBC)
+
+`department-service` above already covers **REST** and **SOAP**. Two more compose services make **SFTP** and
+**JDBC** real and deployable too, each with FAKE sandbox data over a real transport (never a real system):
+
+- **`department-db`** (Postgres, `:5433`) — the **JDBC** source `sandbox-pollution-jdbc` (catalog V198). Seeded
+  by `docker/department-db/init.sql` with a `pcb_clearance` table and a read-only role `pcb_ro`. A fetch runs a
+  parameterized `SELECT` through the real `JdbcQueryClient` (`JdbcSqlGuard` permits SELECT only).
+- **`department-sftp`** (`atmoz/sftp`, `:2222`) — the **SFTP** source `sandbox-property-sftp` (catalog V193).
+  Serves `docker/department-sftp/property.csv` over real SFTP through `SftpCsvClient`.
+
+Credentials are read from `SecretStore`, never from config. In the dev/demo profile (`EnvSecretStore`) that means
+one env var per source, base64 of `username:password`:
+
+```bash
+docker compose up -d department-db department-sftp        # plus the base services
+
+# JDBC read-only credential  (pcb_ro:pcb_ro_demo)
+export SAMANVAY_SECRET_SOURCE_SANDBOX_POLLUTION_JDBC_CREDENTIAL="$(printf 'pcb_ro:pcb_ro_demo' | base64)"
+# SFTP credential            (fixtureuser:fixturepass)
+export SAMANVAY_SECRET_SOURCE_SANDBOX_PROPERTY_SFTP_CREDENTIAL="$(printf 'fixtureuser:fixturepass' | base64)"
+
+# SFTP host key is pinned (no trust-on-first-use). Capture the running server's fingerprint once:
+export SAMANVAY_SANDBOX_SFTP_HOSTKEY="$(ssh-keyscan -t ed25519 -p 2222 localhost 2>/dev/null \
+  | ssh-keygen -lf - | awk '{print $2}')"
+
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
+```
+
+A fetch through `ConnectorRuntimeImpl` for `sandbox-pollution@1` / `sandbox-property@1` is then a real JDBC query /
+SFTP download. Locally verifiable without Docker: `JdbcRealTransportTest` (H2) and `SftpCsvRealTransportTest`
+(in-process sshd) prove the same code paths, and the `*BootTest`s prove a LIVE source refuses to start without its
+credential.
+
 ## Contributing
 
 1. Branch off `main`, work in your module's package (`com.samanvay.<module>.*`).

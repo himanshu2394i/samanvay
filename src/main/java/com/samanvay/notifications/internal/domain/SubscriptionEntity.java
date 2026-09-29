@@ -18,6 +18,7 @@ public class SubscriptionEntity {
     private String channel;
     private String locale;
     private boolean enabled;
+    private String address;
 
     public UUID getId() {
         return id;
@@ -65,5 +66,13 @@ public class SubscriptionEntity {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
     }
 }

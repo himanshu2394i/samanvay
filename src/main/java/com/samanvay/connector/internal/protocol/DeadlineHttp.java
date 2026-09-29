@@ -20,7 +20,7 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
 /**
- * HTTP GET for department connectors, bounded by one TOTAL deadline covering connect, send,
+ * HTTP GET and POST for department connectors, bounded by one TOTAL deadline covering connect, send,
  * headers and the full body.
  *
  * <p>Why not a socket read timeout or {@code HttpRequest.timeout()}: a read timeout restarts every
@@ -52,11 +52,23 @@ public class DeadlineHttp {
     }
 
     public String get(URI uri) {
+        return send(uri, HttpRequest.newBuilder(uri).GET().build());
+    }
+
+    /** POST {@code body} (UTF-8) with the given content type, under the same total deadline as {@link #get}. */
+    public String post(URI uri, String body, String contentType) {
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .header("Content-Type", contentType)
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+        return send(uri, request);
+    }
+
+    private String send(URI uri, HttpRequest request) {
         Duration left = ExchangeDeadline.remaining().orElse(totalTimeout);
         if (left.isZero() || left.isNegative()) {
             throw new ExchangeDeadlineExceededException("connector deadline already passed before calling " + uri.getHost());
         }
-        HttpRequest request = HttpRequest.newBuilder(uri).GET().build();
         CompletableFuture<HttpResponse<String>> exchange =
                 client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         HttpResponse<String> response;

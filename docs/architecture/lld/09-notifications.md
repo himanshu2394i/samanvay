@@ -166,6 +166,26 @@ class ScheduledJobs {
 }
 ```
 
+## 6a. Channels: EMAIL and SMS
+
+| Channel | Bean | Behaviour |
+|---|---|---|
+| `IN_APP` | `InAppChannel` | Always succeeds; the delivery row is the in-app inbox. |
+| `EMAIL` | `EmailChannel` | Real delivery through Spring `JavaMailSender`. Dev SMTP is the docker-compose **Mailpit** (`localhost:1025`, inbox UI <http://localhost:8025>), configured in `application-dev.yml` only. |
+| `SMS` | `SmsChannel` | **Stub.** Logs and returns a not-sent outcome (delivery recorded `FAILED`, error "stub"); a real gateway is a follow-up. |
+
+**Recipient address.** Contact details live on the subscription itself: `notification_subscription.address`
+(`V194__notification_subscription_address.sql`, nullable) holds the e-mail address (EMAIL) or phone number (SMS).
+`SubscriptionService.subscribe(..., address)` requires one for EMAIL/SMS. The dispatcher copies the address of the
+matching subscription into `RenderedMessage.address`, with a subject of `Samanvay notification: <eventType>`;
+`notifications` takes no dependency on `identity` for contact details. An EMAIL delivery without an address fails.
+
+**Default-context safety.** Boot only creates a `JavaMailSender` when `spring.mail.host` is set, and the default
+`application.yml` sets none, so the application boots with no SMTP server. `EmailChannel` takes the sender through an
+`ObjectProvider`; with none configured, or when the server is unreachable (connect/read/write timeouts are set in
+`application.yml`), `send` returns a failed `DeliveryOutcome`, the dispatcher records the delivery `FAILED` and
+publishes `DeliveryFailed`. `send` never throws and never logs the address.
+
 ## 7. Error handling
 
 | Exception (`notifications.api`) | Raised when |
@@ -199,4 +219,8 @@ class ScheduledJobs {
 | `LocaleFallbackTest` | A missing Marathi template falls back to English rather than dropping the message |
 | `TemplateInjectionTest` | A variable value containing `{{` or template-like syntax is rendered as literal text, not re-interpreted |
 | `ReviewerDigestBatchingTest` | Ten candidates raised within one hour produce one digest notification per reviewer, not ten |
+| `EmailChannelTest` | Against an in-JVM GreenMail SMTP server: the message arrives with the right recipient, subject and body; an unreachable SMTP, a missing sender or a missing address yield a failed outcome, without throwing or hanging |
+| `EmailChannelContextTest` | With the mail starter present and no `spring.mail.host` the context starts, no `JavaMailSender` exists and EMAIL degrades to a failed outcome |
+| `EmailRoutingTest` | An EMAIL subscription routes to `EmailChannel` with the subscription's address (also end-to-end into GreenMail); email/SMS failures are recorded `FAILED` and never propagate |
+| `SmsChannelTest` | The SMS stub returns its placeholder not-sent outcome |
 | `RetentionPurgeTest` | A delivery older than 90 days has `rendered_body = NULL` after the purge job runs; the delivery row itself (status, timestamps) remains |

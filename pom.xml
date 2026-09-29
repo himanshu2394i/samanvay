@@ -21,6 +21,10 @@
         <java.version>21</java.version>
         <!-- must match the Keycloak image in docker-compose.yml / KeycloakTestSupport -->
         <keycloak.version>26.4.7</keycloak.version>
+        <!-- Not managed by the Spring Boot BOM, so pinned here. Latest stable 2.x. -->
+        <sshd.version>2.18.0</sshd.version>
+        <!-- Flowable 8.x is the Spring 7 / Boot 4 generation (Jackson 3, jakarta). Not managed by the Boot BOM. -->
+        <flowable.version>8.0.0</flowable.version>
     </properties>
 
     <dependencyManagement>
@@ -83,6 +87,16 @@
             <version>2.4.0</version>
         </dependency>
 
+        <!-- Real SFTP transport for the connector's SFTP_CSV adapter (Apache MINA sshd client).
+             sshd-sftp brings sshd-core transitively; the same jars provide the embedded SshServer
+             used by SftpCsvRealTransportTest, so there is no separate test-scope declaration
+             (declaring sshd-core test-scope would narrow it out of the main classpath). -->
+        <dependency>
+            <groupId>org.apache.sshd</groupId>
+            <artifactId>sshd-sftp</artifactId>
+            <version>${sshd.version}</version>
+        </dependency>
+
         <!--
             Spring Modulith: module boundaries + event publication registry.
             The "-jdbc" starter (not "-jpa") is deliberate: our own entities
@@ -113,7 +127,42 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Notification EMAIL channel (JavaMailSender). Boot only creates the sender when spring.mail.host is
+             set, so the default context (no SMTP configured) is unaffected; EmailChannel degrades to a failed
+             DeliveryOutcome without it. Dev SMTP (Mailpit) lives in application-dev.yml. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Flowable BPMN engine behind the WorkflowEngine port (opt-in, samanvay.workflow.engine=flowable).
+             Wired programmatically in FlowableEngineConfiguration; the flowable-spring-boot-starter is
+             deliberately NOT used because its autoconfiguration would boot the engine (and create ACT_*
+             tables) in the default in-process mode. -->
+        <dependency>
+            <groupId>org.flowable</groupId>
+            <artifactId>flowable-engine</artifactId>
+            <version>${flowable.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.flowable</groupId>
+            <artifactId>flowable-spring</artifactId>
+            <version>${flowable.version}</version>
+        </dependency>
+
         <!-- Testing -->
+        <!-- In-JVM SMTP server for EmailChannel tests (no Docker). -->
+        <dependency>
+            <groupId>com.icegreen</groupId>
+            <artifactId>greenmail</artifactId>
+            <version>2.1.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

@@ -32,29 +32,38 @@ public class MockSftpStore {
 
     JsonRow lookup(String dataSourceCode, String idColumn, String idValue) {
         for (File file : list(dataSourceCode)) {
-            String[] lines = file.csv().split("\\R");
-            if (lines.length < 2) {
+            JsonRow row = findRow(file.csv(), idColumn, idValue);
+            if (row != null) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    /** First row of {@code csv} whose id column equals {@code idValue}; shared by the mock and real SFTP paths. */
+    static JsonRow findRow(String csv, String idColumn, String idValue) {
+        String[] lines = csv.split("\\R");
+        if (lines.length < 2) {
+            return null;
+        }
+        String[] headers = lines[0].split(",");
+        int idIdx = -1;
+        for (int i = 0; i < headers.length; i++) {
+            if (headers[i].equals(idColumn) || "propertyId".equals(headers[i])) {
+                idIdx = i;
+                break;
+            }
+        }
+        if (idIdx < 0) {
+            return null;
+        }
+        for (int r = 1; r < lines.length; r++) {
+            if (lines[r].isBlank()) {
                 continue;
             }
-            String[] headers = lines[0].split(",");
-            int idIdx = -1;
-            for (int i = 0; i < headers.length; i++) {
-                if (headers[i].equals(idColumn) || "propertyId".equals(headers[i])) {
-                    idIdx = i;
-                    break;
-                }
-            }
-            if (idIdx < 0) {
-                continue;
-            }
-            for (int r = 1; r < lines.length; r++) {
-                if (lines[r].isBlank()) {
-                    continue;
-                }
-                String[] cols = lines[r].split(",", -1);
-                if (idIdx < cols.length && cols[idIdx].equals(idValue)) {
-                    return new JsonRow(headers, cols);
-                }
+            String[] cols = lines[r].split(",", -1);
+            if (idIdx < cols.length && cols[idIdx].equals(idValue)) {
+                return new JsonRow(headers, cols);
             }
         }
         return null;

@@ -7,9 +7,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /**
- * consent_usage (V189, V190): one check per (consent, document type, scope key). The scope key
- * is the application id for ONCE and ONCE_PER_DOCUMENT_PER_APPLICATION (the only scopes today). Plain SQL so
- * the claim is a single atomic statement that never aborts the surrounding transaction.
+ * consent_usage (V189, V190, V196): one check per (consent, document type, scope key). The scope
+ * key is the application id for ONCE and ONCE_PER_DOCUMENT_PER_APPLICATION, {@code YEAR:<year>} for
+ * ONCE_PER_YEAR, and {@code PAYMENT:<keyed HMAC of the payment id>} for ONCE_PER_PAYMENT, whose
+ * {@code scope_key_version} names the key that produced the hash. Plain SQL so the claim is a
+ * single atomic statement that never aborts the surrounding transaction.
  */
 @Repository
 public class ConsentUsageRepository {
@@ -35,8 +37,9 @@ public class ConsentUsageRepository {
      */
     static final String CLAIM = """
             INSERT INTO consent_usage
-                (id, consent_id, document_type, scope_key, grant_id, state, claimed_at, claim_token)
-            VALUES (?, ?, ?, ?, ?, 'PENDING', clock_timestamp(), ?)
+                (id, consent_id, document_type, scope_key, grant_id, state, claimed_at, claim_token,
+                 scope_key_version)
+            VALUES (?, ?, ?, ?, ?, 'PENDING', clock_timestamp(), ?, ?)
             ON CONFLICT ON CONSTRAINT consent_usage_one_check DO UPDATE
                SET grant_id = EXCLUDED.grant_id, claimed_at = EXCLUDED.claimed_at,
                    claim_token = EXCLUDED.claim_token
@@ -45,14 +48,29 @@ public class ConsentUsageRepository {
             RETURNING id, (xmax = 0) AS inserted
             """;
 
+    /*
+     * Is this scope key held: USED, or PENDING and still fresh? Used to look for a check made
+     * under a retired payment-scope key, without writing anything. A stale PENDING row is
+     * released (a later claim would take it over), so it does not block.
+     */
+    static final String HELD = """
+            SELECT EXISTS (
+                SELECT 1 FROM consent_usage
+                 WHERE consent_id = ? AND document_type = ? AND scope_key = ?
+                   AND (state = 'USED'
+                        OR claimed_at >= clock_timestamp() - make_interval(secs => ?)))
+            """;
+
     private final JdbcTemplate jdbc;
 
     public ConsentUsageRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
+    /** {@code scopeKeyVersion} is the key that produced {@code scopeKey}; null when it is not a keyed hash. */
     public ClaimResult claim(
-            UUID consentId, String documentType, String scopeKey, UUID grantId, Duration staleAfter) {
+            UUID consentId, String documentType, String scopeKey, String scopeKeyVersion, UUID grantId,
+            Duration staleAfter) {
         UUID token = UUID.randomUUID();
         List<ClaimResult> rows = jdbc.query(
                 CLAIM,
@@ -64,8 +82,15 @@ public class ConsentUsageRepository {
                 scopeKey,
                 grantId,
                 token,
+                scopeKeyVersion,
                 staleAfter.toMillis() / 1000.0);
         return rows.isEmpty() ? new ClaimResult(Claim.REFUSED, null, null) : rows.get(0);
+    }
+
+    /** True when the check for this scope key is used or in flight (a fresh PENDING claim). */
+    public boolean isHeld(UUID consentId, String documentType, String scopeKey, Duration staleAfter) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                HELD, Boolean.class, consentId, documentType, scopeKey, staleAfter.toMillis() / 1000.0));
     }
 
     /** PENDING -> USED only while this claim (id AND token) still holds the row; else 0. */

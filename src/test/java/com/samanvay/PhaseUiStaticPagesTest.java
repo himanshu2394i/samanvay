@@ -19,10 +19,12 @@ class PhaseUiStaticPagesTest {
         String onboard = page("onboard.html");
         String caller = page("caller.html");
         String schemes = page("schemes.html");
+        String metrics = page("metrics.html");
         String css = page("console.css");
         String js = page("console.js");
 
-        for (String html : new String[] {demo, command, journey, incident, audit, onboard, caller, schemes}) {
+        for (String html : new String[] {demo, command, journey, incident, audit, onboard, caller, schemes, metrics}) {
+            assertThat(html).contains("/metrics.html");
             assertThat(html).containsIgnoringCase("interoperability");
             assertThat(html).doesNotContain("Apply for scholarship");
             assertThat(html).contains("journey.html");
@@ -176,10 +178,21 @@ class PhaseUiStaticPagesTest {
         // on the redirect back from Keycloak, page scripts call the API before the token
         // exchange finishes: the authed fetch must wait for sign-in to settle
         assertThat(auth).containsPattern("async function authFetch\\([^)]*\\) \\{(\\s*(/\\*[^*]*\\*/|//[^\\n]*))*\\s*await ready;");
-        for (String name : new String[] {"command.html", "journey.html", "ops.html", "audit.html", "onboard.html", "schemes.html"}) {
+        for (String name : new String[] {"command.html", "journey.html", "ops.html", "audit.html", "onboard.html", "schemes.html", "metrics.html"}) {
             assertThat(page(name)).as(name).contains("<script src=\"/shared/auth.js\" data-realm=\"staff\"></script>");
         }
         assertThat(page("caller.html")).contains("<script src=\"/shared/auth.js\" data-realm=\"citizen\"></script>");
+    }
+
+    @Test
+    void metricsPageReadsOnlyTheStaffSecuredOpsEndpoint() {
+        String metrics = page("metrics.html");
+        assertThat(metrics).contains("/api/ops/metrics");
+        assertThat(metrics).doesNotContain("/actuator").doesNotContain("prometheus");
+        // only same-origin scripts: the page is part of the staff console, no third-party code
+        assertThat(metrics).doesNotContain("https://").doesNotContain("http://");
+        assertThat(metrics).contains("Connector health", "SLA compliance", "Consent and access", "Exception queue");
+        assertThat(metrics).contains("aria-live").contains("role=\"img\"");
     }
 
     private static String page(String name) {

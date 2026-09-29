@@ -59,9 +59,9 @@ public record Purpose(
         ONCE(true),
         /** One check of each document per application: enforced (V189 consent_usage). */
         ONCE_PER_DOCUMENT_PER_APPLICATION(true),
-        /** Recorded only; the 24-hour frequency limit applies. */
+        /** One check of each document per payment/instalment: enforced (consent_usage, keyed-HMAC scope). */
         ONCE_PER_PAYMENT(false),
-        /** Recorded only; the 24-hour frequency limit applies. */
+        /** One check of each document per calendar year: enforced (consent_usage). */
         ONCE_PER_YEAR(false);
 
         private final boolean oneCheckPerApplication;

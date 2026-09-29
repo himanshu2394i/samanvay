@@ -29,9 +29,12 @@ import com.samanvay.registry.api.Sensitivity;
 import com.samanvay.shared.CanonicalJson;
 import com.samanvay.shared.DataCategory;
 import com.samanvay.shared.EnvSecretStore;
+import com.samanvay.shared.OpsMetrics;
 import com.samanvay.shared.PurposeCode;
 import com.samanvay.shared.RequesterRef;
 import com.samanvay.shared.SubjectRef;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -45,18 +48,40 @@ class StalePolicyTest {
 
     @Test
     void stalePointerDeniedWhenJourneyRejectsStale() {
-        AccessDecision denied = authorize(false);
+        AccessDecision denied = authorize(false, new SimpleMeterRegistry());
         assertThat(denied).isInstanceOf(AccessDecision.Denied.class);
         assertThat(((AccessDecision.Denied) denied).reason()).isEqualTo(DenialReason.STALE_NOT_ACCEPTED);
     }
 
     @Test
     void stalePointerAllowedWhenJourneyAcceptsStale() {
-        AccessDecision decision = authorize(true);
+        AccessDecision decision = authorize(true, new SimpleMeterRegistry());
         assertThat(decision).isInstanceOf(AccessDecision.Granted.class);
     }
 
-    private static AccessDecision authorize(boolean acceptStale) {
+    @Test
+    void grantedDecisionIsCountedWithNoReason() {
+        MeterRegistry meters = new SimpleMeterRegistry();
+        authorize(true, meters);
+        assertThat(meters.get(OpsMetrics.CONSENT_AUTHORIZE).tags("outcome", "granted", "reason", "none").counter().count())
+                .isEqualTo(1.0);
+        assertThat(meters.find(OpsMetrics.CONSENT_AUTHORIZE).tag("outcome", "denied").counters()).isEmpty();
+    }
+
+    @Test
+    void deniedDecisionIsCountedByDenialReason() {
+        MeterRegistry meters = new SimpleMeterRegistry();
+        authorize(false, meters);
+        authorize(false, meters);
+        assertThat(meters.get(OpsMetrics.CONSENT_AUTHORIZE)
+                        .tags("outcome", "denied", "reason", "STALE_NOT_ACCEPTED")
+                        .counter()
+                        .count())
+                .isEqualTo(2.0);
+        assertThat(meters.find(OpsMetrics.CONSENT_AUTHORIZE).tag("outcome", "granted").counters()).isEmpty();
+    }
+
+    private static AccessDecision authorize(boolean acceptStale, MeterRegistry meters) {
         UUID citizen = UUID.randomUUID();
         IdentityLinking linking = mock(IdentityLinking.class);
         when(linking.activeLink(any(), any()))
@@ -107,10 +132,12 @@ class StalePolicyTest {
                 anyCitizen -> java.util.List.of(),
                 new RefusalAuditor(audit, mock(org.springframework.transaction.PlatformTransactionManager.class)),
                 mock(ConsentUsageService.class),
+                mock(PaymentScopeKeys.class),
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},
-                Clock.fixed(Instant.parse("2026-09-13T12:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-09-13T12:00:00Z"), ZoneOffset.UTC),
+                meters);
         return authority.authorize(new AccessRequest(
                 new SubjectRef(citizen),
                 new RequesterRef("INDUSTRY"),
