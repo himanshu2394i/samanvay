@@ -89,6 +89,11 @@ class ConsentServices implements ConsentService, AccessAuthority {
     /** Consent lifetime when the catalog purpose sets no max (the pre-V186 behaviour). */
     static final Duration DEFAULT_MAX_DURATION = Duration.ofDays(365);
 
+    /** Most consents one {@link #markExpired()} call marks, so one transaction never holds the audit chain for long. */
+    static final int EXPIRY_BATCH = 500;
+
+    private static final String EXPIRY_JOB = "consent-expiry-job";
+
     ConsentServices(
             ConsentRequestRepository requests,
             ConsentArtifactRepository artifacts,
@@ -314,6 +319,52 @@ class ConsentServices implements ConsentService, AccessAuthority {
         events.publishEvent(new ConsentRevoked(consentId, citizenId, a.getVersion()));
     }
 
+    /**
+     * Marks ACTIVE consents past {@code valid_until} as EXPIRED (batch of at most
+     * {@link #EXPIRY_BATCH}; the caller repeats until a short batch). Reads and authorize()
+     * already treat them as ended, so this only makes the stored row match. No expiry event
+     * exists, so none is published; the citizen-facing state is unchanged.
+     */
+    @Transactional
+    public int markExpired() {
+        Instant now = clock.instant();
+        List<ConsentArtifactEntity> due = artifacts.findActiveEndedBefore(now, EXPIRY_BATCH);
+        for (ConsentArtifactEntity a : due) {
+            a.setStatus("EXPIRED");
+            a.setVersion(a.getVersion() + 1);
+            a.setUpdatedAt(now);
+            artifacts.save(a);
+            logEvent(a.getId(), "EXPIRED");
+            audit.record(consentEntry(a, ActorType.SYSTEM, EXPIRY_JOB, ActorType.SYSTEM.name(), "CONSENT_EXPIRED"));
+            registry.revokeDiscovery(a.getId());
+        }
+        return due.size();
+    }
+
+    /** Smallest retention the purge accepts: a mis-set (zero/negative) window must never delete recently-ended rows. */
+    static final Duration MIN_RETENTION = Duration.ofDays(1);
+
+    /**
+     * Deletes consent records that ended (revoked or expired) more than {@code retention} ago,
+     * with their events, access grants and usage claims. Audit rows are never touched: they are
+     * the permanent record. Returns the number of consents deleted.
+     *
+     * <p>Refuses a retention below {@link #MIN_RETENTION}: with a zero or negative window the cutoff
+     * would be now (or the future), turning the purge into "delete every ended record".
+     */
+    @Transactional
+    public int purgeEndedRecords(Duration retention) {
+        if (retention == null || retention.compareTo(MIN_RETENTION) < 0) {
+            throw new IllegalArgumentException(
+                    "consent retention floor is " + MIN_RETENTION + ", refusing to purge with " + retention);
+        }
+        Instant cutoff = clock.instant().minus(retention);
+        artifacts.deleteUsageOfEndedBefore(cutoff);
+        artifacts.deleteGrantsOfEndedBefore(cutoff);
+        artifacts.deleteEventsOfEndedBefore(cutoff);
+        return artifacts.deleteEndedBefore(cutoff);
+    }
+
     @Override
     public Optional<UUID> ownerOf(UUID consentId) {
         return consentId == null
@@ -516,9 +567,14 @@ class ConsentServices implements ConsentService, AccessAuthority {
     }
 
     private AuditEntry consentEntry(ConsentArtifactEntity a, PrincipalRef by, String action) {
+        return consentEntry(a, actorType(by), by.id(), by.kind().name(), action);
+    }
+
+    private AuditEntry consentEntry(
+            ConsentArtifactEntity a, ActorType actor, String actorId, String principalType, String action) {
         return new AuditEntry(
-                actorType(by),
-                by.id(),
+                actor,
+                actorId,
                 action,
                 a.getSubjectCitizenId().toString(),
                 "consent",
@@ -529,8 +585,8 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 null,
                 Map.of(
                         "purpose", a.getPurposeCode(),
-                        "principalType", by.kind().name(),
-                        "principalId", by.id(),
+                        "principalType", principalType,
+                        "principalId", actorId,
                         "consentVersion", String.valueOf(a.getVersion()),
                         "validUntil", a.getValidUntil().toString()));
     }

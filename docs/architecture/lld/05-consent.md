@@ -393,7 +393,16 @@ filter then skips its generic `API_FORBIDDEN` row. Every other 403 (e.g. a Sprin
 role denial) still gets exactly one `API_FORBIDDEN` row.
 
 **Retention.** Consent records are kept for 7 years after they end (revoked or expired). This
-is a platform policy, not a legal claim; no purge job exists yet.
+is a platform policy, not a legal claim. `ConsentRetentionPurgeJob` (daily 03:45) deletes them
+once `samanvay.consent.retention` (default `P2555D`, 7 years) has passed since they ended
+(`revoked_at`, or `updated_at` for rows revoked before V187, for `REVOKED`; `valid_until` for
+`EXPIRED`), together with their `consent_event`, `consent_access_grant` and `consent_usage`
+rows (those foreign keys do not cascade). Audit rows are never purged.
+
+**Expiry marker.** `ConsentExpiryJob` (daily 03:15) marks `ACTIVE` rows past `valid_until` as
+`EXPIRED` (version bump, `EXPIRED` consent_event, `CONSENT_EXPIRED` audit row by
+`SYSTEM`/`consent-expiry-job`, discovery grants removed). No event is published. Reads and
+`authorize()` still work status out from `valid_until`, so behaviour does not depend on the job.
 
 **Follow-ups that block Phase 2 acceptance:** none open here (`frequency`
 enforcement: §7.4). The **domicile data category** is now wired (V191): `DOMICILE_CERTIFICATE`
@@ -401,8 +410,7 @@ is a real category on `SCH_ELIGIBILITY_CHECK`, served by the `rev-domicile@1` co
 DigiLocker/Aaple Sarkar sandbox like income/caste (assumption: the certificate is issued
 into DigiLocker; a real offline XML verifier is still Phase 2 PR 2, not needed while
 DigiLocker is modelled as a partner sandbox). **Deferred:** department scoping (Phase 2
-step 9), the offline verifier (Phase 2 PR 2), a job that marks rows `EXPIRED` (expiry is
-enforced at `authorize()` and at read time from `valid_until`), and the retention purge job.
+step 9) and the offline verifier (Phase 2 PR 2).
 
 ### 7.4 Phase 2: frequency enforcement, one check per document per application (V189, V190, V196)
 
@@ -572,3 +580,5 @@ instalment an id.
 | `PaymentScopeKeysTest`, `PaymentScopedAuthorizeTest` (unit) | The scope key equals an independently computed HMAC-SHA256, depends on the key, carries the key version; rotation (a payment used under a retired key stays refused); missing key fails closed; boot guard lists the keys; `authorize()` claims the hash with the version and never the raw id |
 | `DisbursementIT`, `DisbursementOnApprovalTest`, `DefaultDisbursementServiceTest` | Instalments with distinct ids, one `DISBURSEMENT_ISSUED` audit row; a repeat or four racing calls give one disbursement and no extra audit; `APPROVED` (also redelivered) issues one, other statuses none |
 | `PurposeFrequencyTest`, `PurposeCatalogColumnsIT` | Unknown frequency throws at load; a misspelled catalog frequency is rejected by the database |
+| `ConsentLifecycleJobsTest` (unit, mocked repositories) | Expiry marks a due ACTIVE row EXPIRED with event, `CONSENT_EXPIRED` audit and discovery removal, and writes nothing when none is due; purge uses the retention cutoff, deletes children before the consent, and never touches audit |
+| `ConsentLifecycleJobsIT` | Expiry leaves not-yet-expired and REVOKED rows alone; purge deletes only ended rows past retention with their events, grants and usage claims (FKs hold) and keeps their audit rows |

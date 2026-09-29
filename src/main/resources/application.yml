@@ -73,6 +73,10 @@ samanvay:
   bank-review:
     # Officer passbook uploads: the file is deleted on decision and after this window; the hash stays.
     retention: 30d
+  consent:
+    # Consent records are kept this long after they end (revoked or expired), then the purge job
+    # deletes them with their events, grants and usage claims. 7 years; audit rows are never purged.
+    retention: P2555D
   connector:
     # Connect timeout for outbound department calls. A one-check consent usage
     # claim still PENDING after 2x this (the stale window) is treated as
