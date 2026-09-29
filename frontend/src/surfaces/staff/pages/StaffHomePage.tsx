@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../../auth/authContext'
 import { STAFF_LINKS } from '../nav'
 import { useStaffSession } from '../StaffContext'
+import { StaffAttention } from '../StaffAttention'
 
 export function StaffHomePage() {
   const { user } = useAuth()
@@ -10,12 +11,15 @@ export function StaffHomePage() {
 
   return (
     <section aria-labelledby="staff-home-h">
+      <span className="eyebrow">Government of Maharashtra · operations</span>
       <h1 id="staff-home-h">Staff consoles</h1>
       <p className="lede">
         Signed in as {user?.name} with the {roles.map((r) => r.toLowerCase()).join(' and ')} role
         {roles.length > 1 ? 's' : ''}
         {department ? ` for ${department}` : ''}. You see only what your role may use.
       </p>
+      <StaffAttention />
+      <h2 className="spaced">Consoles</h2>
       <ul className="grid plain">
         {links.map((l) => (
           <li key={l.to} className="card">

@@ -37,9 +37,15 @@ export function ApplicationsPage() {
       {data.status === 'error' ? <ErrorNotice error={data.error} onRetry={data.reload} /> : null}
       {data.status === 'success' ? (
         data.data.apps.length === 0 ? (
-          <p>
-            You have not applied for anything yet. <Link to="/services">Browse services</Link>.
-          </p>
+          <div className="card narrow">
+            <h2>Nothing here yet</h2>
+            <p>You have not applied for anything yet. When you do, you can track every department check here.</p>
+            <div className="actions">
+              <Link className="btn primary" to="/services">
+                Browse services
+              </Link>
+            </div>
+          </div>
         ) : (
           <div className="table-wrap">
             <table>
