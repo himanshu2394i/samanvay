@@ -26,7 +26,8 @@ import com.samanvay.shared.DataCategory;
 import com.samanvay.shared.PurposeCode;
 import com.samanvay.shared.RequesterRef;
 import com.samanvay.shared.SubjectRef;
-import com.samanvay.shared.test.PostgresIntegrationTest;
+import com.samanvay.shared.test.RealDepartments;
+import com.samanvay.shared.test.RealDepartmentsIT;
 import com.samanvay.tracking.api.ApplicationTracking;
 import com.samanvay.tracking.api.ApplicationView;
 import java.time.LocalDate;
@@ -42,8 +43,7 @@ import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest(classes = SamanvayApplication.class)
-@ActiveProfiles("demo")
-class DemoRehearsalIT extends PostgresIntegrationTest {
+class DemoRehearsalIT extends RealDepartmentsIT {
 
     @Autowired
     CitizenProfiles profiles;
@@ -172,7 +172,15 @@ class DemoRehearsalIT extends PostgresIntegrationTest {
         String suffix = Long.toHexString(System.nanoTime());
         java.util.ArrayList<String[]> out = new java.util.ArrayList<>();
         for (int i = 0; i < deptAndType.length; i += 2) {
-            out.add(new String[] {deptAndType[i], deptAndType[i + 1], "ID-" + suffix + "-" + i});
+            String dept = deptAndType[i];
+            String type = deptAndType[i + 1];
+            String localId = "ID-" + suffix + "-" + i;
+            // The real POLLUTION service (JDBC) keys by premise id and returns nothing for an unknown one,
+            // so register this citizen's (unique) premise with the fixture, as a real department would hold it.
+            if ("POLLUTION".equals(dept) && "PREMISE".equals(type)) {
+                RealDepartments.seedPremise(localId);
+            }
+            out.add(new String[] {dept, type, localId});
         }
         return List.copyOf(out);
     }
