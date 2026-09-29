@@ -296,6 +296,34 @@ If the signing key is unavailable, this throws and the scheduled run is skipped 
 per [hld/01-audit.md §7](../hld/01-audit.md#7-failure-modes), a missed checkpoint is an
 alarm, not a fallback to an unsigned one.
 
+### Signing-key rotation (key ids)
+
+The checkpoint signing key is versioned. `audit.audit_checkpoint.key_id` (V195, nullable, additive)
+records which key id signed each checkpoint; the signed payload (`root_hash || upto_entry_seq`) and the
+hash chain are unchanged, so every already-signed checkpoint verifies exactly as before.
+
+- **Naming.** The legacy id `v1` is the pre-rotation key and keeps its store names
+  (`audit-checkpoint-signing-key`, `audit-checkpoint-verifying-key`). Any other id `X` uses
+  `audit-checkpoint-signing-key-X` / `audit-checkpoint-verifying-key-X`.
+- **Signing.** `samanvay.audit.checkpoint.signing-key-id` (default `v1`) selects the active id; new
+  checkpoints are signed with it and store it.
+- **Verifying.** `CheckpointVerifier` loads the verifying key of the id stored with the checkpoint, never
+  "the current key". `key_id IS NULL` (written before rotation) means `v1`. An unprovisioned or unknown id
+  is a failed verification, never a fallback.
+- **To rotate.** Provision the new pair under the new id, set `signing-key-id`, restart. Keep the retired
+  *verifying* keys mounted for as long as their checkpoints must verify; the retired signing key can go.
+- **Not covered.** Consent grants are still signed by one key (`consent-grant-signing-key`); grants are
+  short-lived and carry no key id, so rotating that key needs a grant-format change (follow-up).
+
+### Secrets provider and the production boot guard
+
+`samanvay.secrets.provider` selects the `SecretStore`: `env` (default, dev/demo: `EnvSecretStore`, which
+generates ephemeral keys when nothing is provisioned) or `file` (`FileSecretStore`: one base64 file per key
+in `samanvay.secrets.dir`, the layout Kubernetes/Docker secrets and a Vault Agent projection produce; it
+never generates). `SecretStoreStartupCheck` refuses to boot outside the dev/demo profiles unless the store
+cannot generate and every key a module declares via `RequiredSecrets` (audit signing + verifying key for the
+active id, consent grant keys, the credential of each LIVE source) is present through `find()`.
+
 ## 5. Sequence: recording an entry (the Phase 0 acceptance path)
 
 ```
@@ -363,6 +391,8 @@ None. Audit is a sink — see [hld/01-audit.md §5](../hld/01-audit.md#5-events)
 | `AuditEntryRepositoryIT extends PostgresIntegrationTest` | Real insert/read against Testcontainers Postgres; a real chain of 5 entries verifies clean |
 | `AuditRolePrivilegeIT extends PostgresIntegrationTest` | **The test that actually proves §1's fix works**: opens a second JDBC connection *as `samanvay_app`* and asserts `UPDATE audit.audit_entry SET reason = 'x'` throws a permission-denied `SQLException`. Without this test, a future migration could silently reintroduce the ownership bug this document opened by fixing |
 | `ChainCheckpointSchedulerTest` | Checkpoint signature verifies against the public key; a tampered `root_hash` fails verification |
+| `AuditKeyRotationTest` | Sign with v1, rotate to v2: v1 checkpoints still verify, new ones sign with v2; NULL key id verifies as v1; a relabelled or unknown key id fails |
+| `CheckpointKeyIdIT` | V195 against real Postgres: a pre-V195 style insert reads back with no key id; a new insert stores it |
 | `AuditPingControllerIT` | The literal Phase 0 acceptance criterion: an HTTP call produces a chained, verifiable entry |
 
 ## 9. Required changes to already-committed files

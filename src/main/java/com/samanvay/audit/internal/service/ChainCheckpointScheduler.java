@@ -13,23 +13,36 @@ import java.security.Signature;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
 class ChainCheckpointScheduler {
 
-    static final String SIGNING_KEY_NAME = "audit-checkpoint-signing-key";
+    static final String SIGNING_KEY_NAME = AuditSigningKeys.SIGNING_KEY_NAME;
 
     private final AuditEntryRepository entries;
     private final CheckpointRepository checkpoints;
     private final SecretStore secretStore;
+    private final AuditSigningKeys keys;
 
+    /** Signs with the legacy key id, as before rotation existed. */
     ChainCheckpointScheduler(
             AuditEntryRepository entries, CheckpointRepository checkpoints, SecretStore secretStore) {
+        this(entries, checkpoints, secretStore, AuditSigningKeys.legacyOnly());
+    }
+
+    @Autowired
+    ChainCheckpointScheduler(
+            AuditEntryRepository entries,
+            CheckpointRepository checkpoints,
+            SecretStore secretStore,
+            AuditSigningKeys keys) {
         this.entries = entries;
         this.checkpoints = checkpoints;
         this.secretStore = secretStore;
+        this.keys = keys;
     }
 
     @Scheduled(cron = "0 0 * * * *")
@@ -39,8 +52,9 @@ class ChainCheckpointScheduler {
             return;
         }
         byte[] rootHash = entries.findHashAt(uptoSeq).orElseThrow();
-        byte[] signature = sign(rootHash, uptoSeq, secretStore.resolve(SIGNING_KEY_NAME));
-        checkpoints.insert(uptoSeq, rootHash, signature);
+        String keyId = keys.activeKeyId();
+        byte[] signature = sign(rootHash, uptoSeq, secretStore.resolve(AuditSigningKeys.signingSecretName(keyId)));
+        checkpoints.insert(uptoSeq, rootHash, signature, keyId);
     }
 
     static byte[] sign(byte[] rootHash, long uptoSeq, SecretStore.Secret secret) {

@@ -16,27 +16,30 @@ public class CheckpointRepository {
             rs.getBytes("root_hash"),
             rs.getTimestamp("signed_at").toInstant(),
             rs.getBytes("signature"),
-            rs.getString("published_ref"));
+            rs.getString("published_ref"),
+            rs.getString("key_id"));
 
     CheckpointRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
-    public void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature) {
+    /** Records which signing key id produced the signature, so a later rotation cannot orphan it. */
+    public void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature, String keyId) {
         jdbc.update(
                 """
-                INSERT INTO audit.audit_checkpoint (upto_entry_seq, root_hash, signature)
-                VALUES (?, ?, ?)
+                INSERT INTO audit.audit_checkpoint (upto_entry_seq, root_hash, signature, key_id)
+                VALUES (?, ?, ?, ?)
                 """,
                 uptoEntrySeq,
                 rootHash,
-                signature);
+                signature,
+                keyId);
     }
 
     public Optional<Checkpoint> findLatest() {
         return jdbc.query(
                 """
-                SELECT seq, upto_entry_seq, root_hash, signed_at, signature, published_ref
+                SELECT seq, upto_entry_seq, root_hash, signed_at, signature, published_ref, key_id
                 FROM audit.audit_checkpoint
                 ORDER BY seq DESC
                 LIMIT 1

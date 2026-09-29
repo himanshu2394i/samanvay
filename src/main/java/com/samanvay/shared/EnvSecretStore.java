@@ -5,21 +5,38 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
  * Honest Phase 0 stub: env/base64 if set, otherwise an ephemeral Ed25519 key
- * generated in-process. Swap for Vault without touching callers.
+ * generated in-process. The dev/demo default ({@code samanvay.secrets.provider}
+ * unset or {@code env}); production uses {@link FileSecretStore}, and the boot
+ * guard refuses this store outside the dev/demo profiles.
  */
 @Component
+@ConditionalOnProperty(name = "samanvay.secrets.provider", havingValue = "env", matchIfMissing = true)
 public class EnvSecretStore implements SecretStore {
 
+    private static final String AUDIT_SIGNING = "audit-checkpoint-signing-key";
+    private static final String AUDIT_VERIFYING = "audit-checkpoint-verifying-key";
+
     private final ConcurrentHashMap<String, Secret> cache = new ConcurrentHashMap<>();
+
+    /** Generates ephemeral keys when nothing is provisioned, so the production guard refuses it. */
+    @Override
+    public boolean mayGenerate() {
+        return true;
+    }
 
     @Override
     public Secret resolve(String key) {
         if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("secret key is required");
+        }
+        String partner = auditPartner(key);
+        if (partner != null) {
+            return resolveAuditKey(key, partner);
         }
         if ("consent-grant-signing-key".equals(key) || "consent-grant-verifying-key".equals(key)) {
             synchronized (cache) {
@@ -41,6 +58,50 @@ public class EnvSecretStore implements SecretStore {
             return java.util.Optional.empty();
         }
         return java.util.Optional.of(new Secret(Base64.getDecoder().decode(encoded.trim())));
+    }
+
+    /**
+     * The audit checkpoint signing key (private) and its verifying key (public) for one key id
+     * are one pair: generating them independently would sign checkpoints nothing can verify.
+     * Returns the other half's name for {@code audit-checkpoint-signing-key[-id]} /
+     * {@code audit-checkpoint-verifying-key[-id]}, else null.
+     */
+    private static String auditPartner(String key) {
+        if (key.equals(AUDIT_SIGNING) || key.startsWith(AUDIT_SIGNING + "-")) {
+            return AUDIT_VERIFYING + key.substring(AUDIT_SIGNING.length());
+        }
+        if (key.equals(AUDIT_VERIFYING) || key.startsWith(AUDIT_VERIFYING + "-")) {
+            return AUDIT_SIGNING + key.substring(AUDIT_VERIFYING.length());
+        }
+        return null;
+    }
+
+    private Secret resolveAuditKey(String key, String partner) {
+        synchronized (cache) {
+            Secret cached = cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            String encoded = System.getenv(envName(key));
+            if (encoded != null && !encoded.isBlank()) {
+                return cache.computeIfAbsent(key, k -> new Secret(Base64.getDecoder().decode(encoded.trim())));
+            }
+            String partnerEncoded = System.getenv(envName(partner));
+            if (partnerEncoded != null && !partnerEncoded.isBlank()) {
+                // Generating this half would not match the provisioned one.
+                throw new IllegalStateException(
+                        "secret '" + key + "' is not provisioned but its pair '" + partner + "' is; provision both");
+            }
+            try {
+                KeyPair pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+                boolean keyIsSigning = key.startsWith(AUDIT_SIGNING);
+                cache.put(key, new Secret(keyIsSigning ? pair.getPrivate().getEncoded() : pair.getPublic().getEncoded()));
+                cache.put(partner, new Secret(keyIsSigning ? pair.getPublic().getEncoded() : pair.getPrivate().getEncoded()));
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("Ed25519 unavailable", e);
+            }
+            return cache.get(key);
+        }
     }
 
     static String envName(String key) {
