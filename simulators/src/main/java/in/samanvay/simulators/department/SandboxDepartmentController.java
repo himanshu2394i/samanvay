@@ -1,5 +1,6 @@
 package in.samanvay.simulators.department;
 
+import in.samanvay.simulators.department.SandboxDepartmentData.Bank;
 import in.samanvay.simulators.department.SandboxDepartmentData.Income;
 import in.samanvay.simulators.department.SandboxDepartmentData.Marks;
 import java.io.ByteArrayInputStream;
@@ -63,6 +64,22 @@ class SandboxDepartmentController {
         body.put("holderName", income.holderName());
         body.put("district", income.district());
         body.put("issuerOffice", income.issuerOffice());
+        body.put("samanvay_simulator", true);
+        return ResponseEntity.ok(body);
+    }
+
+    @GetMapping(path = "/bank", produces = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<Map<String, Object>> bank(@RequestParam(name = "dbtId", required = false) String dbtId) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (dbtId == null || dbtId.isBlank()) {
+            body.put("error", "dbtId is required");
+            body.put("samanvay_simulator", true);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+        }
+        Bank bank = SandboxDepartmentData.bank(dbtId.trim());
+        body.put("accountRef", bank.accountRef());
+        body.put("ifscMasked", bank.ifscMasked());
+        body.put("holderName", bank.holderName());
         body.put("samanvay_simulator", true);
         return ResponseEntity.ok(body);
     }
