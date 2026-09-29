@@ -37,6 +37,10 @@ public final class KeycloakTestSupport {
     public static final String IMAGE = "quay.io/keycloak/keycloak:26.4";
     public static final String STAFF = "samanvay-staff";
     public static final String CITIZEN = "samanvay-citizen";
+    /** The MOCK department identity provider the citizen realm brokers to. */
+    public static final String DEPARTMENT = "samanvay-department";
+    /** The citizen realm's identity-provider alias for it (also the kc_idp_hint value). */
+    public static final String BROKER_ALIAS = "dept-idp";
     public static final String UI_REDIRECT = "http://localhost:8080/";
 
     public static final ObjectMapper JSON = JsonMapper.builder().build();
@@ -73,11 +77,68 @@ public final class KeycloakTestSupport {
                     .withExtraHost("mailpit", mailpitIp)
                     .withProviderLibsFrom(List.of(EMAIL_OTP_PROVIDER))
                     .withRealmImportFiles(
-                            "/keycloak-realms/samanvay-staff-realm.json", "/keycloak-realms/samanvay-citizen-realm.json");
+                            "/keycloak-realms/samanvay-staff-realm.json",
+                            "/keycloak-realms/samanvay-citizen-realm.json",
+                            "/keycloak-realms/samanvay-department-realm.json");
             k.start();
             keycloak = k;
+            try {
+                repointBrokerAtThisContainer();
+            } catch (Exception e) {
+                throw new IllegalStateException("cannot point the citizen realm's broker at this container", e);
+            }
         }
         return keycloak;
+    }
+
+    /**
+     * The committed realms address Keycloak as docker compose does (http://localhost:8180, one URL for
+     * browser and server). In the test container the browser-facing address is a mapped port and Keycloak
+     * itself listens on 8080, so the broker's URLs (and the department client's redirect URI) are rewritten
+     * once after import through the admin API. Everything else - mappers, flows, the client, the secret,
+     * PKCE, signature validation - stays exactly as committed. The upstream {@code issuer} is dropped only
+     * because the token endpoint is now called on the container-internal host name, which Keycloak then
+     * (correctly) puts in {@code iss}.
+     */
+    private static void repointBrokerAtThisContainer() throws Exception {
+        String browser = keycloak.getAuthServerUrl();
+        String internal = "http://localhost:8080";
+        String oidc = "/realms/" + DEPARTMENT + "/protocol/openid-connect";
+
+        String idpPath = "/admin/realms/" + CITIZEN + "/identity-provider/instances/" + BROKER_ALIAS;
+        tools.jackson.databind.node.ObjectNode idp = (tools.jackson.databind.node.ObjectNode) admin(idpPath);
+        tools.jackson.databind.node.ObjectNode config = (tools.jackson.databind.node.ObjectNode) idp.get("config");
+        config.put("authorizationUrl", browser + oidc + "/auth");
+        config.put("tokenUrl", internal + oidc + "/token");
+        config.put("jwksUrl", internal + oidc + "/certs");
+        config.put("logoutUrl", browser + oidc + "/logout");
+        config.remove("issuer");
+        assertThat(adminPut(idpPath, idp.toString())).as("update broker").isBetween(200, 204);
+
+        JsonNode found = admin("/admin/realms/" + DEPARTMENT + "/clients?clientId=samanvay-citizen-broker").get(0);
+        tools.jackson.databind.node.ObjectNode client = (tools.jackson.databind.node.ObjectNode) found;
+        client.set("redirectUris", JSON.createArrayNode()
+                .add(browser + "/realms/" + CITIZEN + "/broker/" + BROKER_ALIAS + "/endpoint"));
+        assertThat(adminPut("/admin/realms/" + DEPARTMENT + "/clients/" + found.get("id").asString(), client.toString()))
+                .as("update department client")
+                .isBetween(200, 204);
+    }
+
+    /**
+     * A citizen signs in through the mock department IdP (password + TOTP THERE) and is brokered into the
+     * citizen realm; returns the citizen realm's access token. Creates the department user first.
+     */
+    public static String brokeredCitizenAccessToken(String departmentUser, String localIdType, String localId)
+            throws Exception {
+        String password = departmentUser + "-Pw-1";
+        String totpSecret = departmentUser + "-totp-secret";
+        importUser(DEPARTMENT, departmentUser, password, totpSecret, "\"default-roles-samanvay-department\"",
+                Map.of("local_id_type", localIdType, "local_id", localId));
+        BrowserLogin login = BrowserLogin.brokered(CITIZEN, "samanvay-citizen-ui", BROKER_ALIAS);
+        login.submit(Map.of("username", departmentUser, "password", password));
+        login.submit(Map.of("otp", totp(totpSecret)));
+        login.follow();
+        return login.accessToken();
     }
 
     private static String mailpitUrl() {
@@ -141,6 +202,18 @@ public final class KeycloakTestSupport {
                 HttpResponse.BodyHandlers.ofString());
         assertThat(res.statusCode()).as(path + " -> " + res.body()).isEqualTo(200);
         return JSON.readTree(res.body());
+    }
+
+    public static int adminPut(String path, String json) throws Exception {
+        HttpResponse<String> res = HTTP.send(
+                HttpRequest.newBuilder(URI.create(keycloak().getAuthServerUrl() + path))
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header("Content-Type", "application/json")
+                        .PUT(HttpRequest.BodyPublishers.ofString(json))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(res.statusCode()).as("PUT " + path + " -> " + res.body()).isBetween(200, 204);
+        return res.statusCode();
     }
 
     public static int adminPost(String path, String json) throws Exception {
@@ -233,6 +306,18 @@ public final class KeycloakTestSupport {
         private HttpResponse<String> last;
 
         public BrowserLogin(String realm, String clientId) throws Exception {
+            this(realm, clientId, null);
+        }
+
+        /**
+         * Starts at {@code realm}'s login with {@code kc_idp_hint=<idpHint>}: Keycloak redirects to the
+         * brokered identity provider, whose login page (another realm) is then the current page.
+         */
+        public static BrowserLogin brokered(String realm, String clientId, String idpHint) throws Exception {
+            return new BrowserLogin(realm, clientId, idpHint);
+        }
+
+        private BrowserLogin(String realm, String clientId, String idpHint) throws Exception {
             this.realm = realm;
             this.clientId = clientId;
             byte[] v = new byte[32];
@@ -248,9 +333,15 @@ public final class KeycloakTestSupport {
             q.put("state", "st");
             q.put("code_challenge", challenge);
             q.put("code_challenge_method", "S256");
+            if (idpHint != null) {
+                q.put("kc_idp_hint", idpHint);
+            }
             last = client.send(
                     HttpRequest.newBuilder(URI.create(issuer(realm) + "/protocol/openid-connect/auth?" + form(q))).GET().build(),
                     HttpResponse.BodyHandlers.ofString());
+            if (idpHint != null) {
+                follow(); // citizen realm -> redirector -> the brokered IdP's login page
+            }
             assertThat(last.statusCode()).as("login page: " + last.body()).isEqualTo(200);
         }
 
@@ -270,7 +361,8 @@ public final class KeycloakTestSupport {
 
         /** Follows Keycloak-internal redirects (not the final one back to the UI). */
         public BrowserLogin follow() throws Exception {
-            while (last.statusCode() == 302 && !finished()) {
+            for (int hops = 0; isRedirect() && !finished(); hops++) {
+                assertThat(hops).as("redirect loop; last Location " + last.headers().firstValue("Location")).isLessThan(25);
                 String location = last.headers().firstValue("Location").orElseThrow();
                 if (location.startsWith(UI_REDIRECT)) {
                     break;
@@ -281,13 +373,24 @@ public final class KeycloakTestSupport {
             return this;
         }
 
+        /**
+         * Keycloak answers with 302 in places and 303 See Other in others (the identity-provider redirector
+         * and the broker endpoints use 303), so any redirect status counts.
+         */
+        private boolean isRedirect() {
+            return switch (last.statusCode()) {
+                case 301, 302, 303, 307, 308 -> true;
+                default -> false;
+            };
+        }
+
         public HttpResponse<String> page() {
             return last;
         }
 
         /** True once Keycloak redirected back to the UI with an authorization code. */
         public boolean finished() {
-            return last.statusCode() == 302
+            return isRedirect()
                     && last.headers().firstValue("Location").orElse("").startsWith(UI_REDIRECT)
                     && last.headers().firstValue("Location").orElse("").contains("code=");
         }
@@ -314,16 +417,17 @@ public final class KeycloakTestSupport {
      * java.net.CookieManager does not.
      */
     static final class PlainCookieJar extends java.net.CookieHandler {
+        /** "path\0name" -> value: two realms both set AUTH_SESSION_ID, told apart only by their Path. */
         private final Map<String, String> cookies = new java.util.concurrent.ConcurrentHashMap<>();
 
         @Override
         public Map<String, java.util.List<String>> get(URI uri, Map<String, java.util.List<String>> headers) {
-            if (cookies.isEmpty()) {
-                return Map.of();
-            }
-            String header = cookies.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue())
+            String requestPath = uri.getPath() == null || uri.getPath().isEmpty() ? "/" : uri.getPath();
+            String header = cookies.entrySet().stream()
+                    .filter(e -> requestPath.startsWith(e.getKey().substring(0, e.getKey().indexOf('\0'))))
+                    .map(e -> e.getKey().substring(e.getKey().indexOf('\0') + 1) + "=" + e.getValue())
                     .collect(Collectors.joining("; "));
-            return Map.of("Cookie", java.util.List.of(header));
+            return header.isEmpty() ? Map.of() : Map.of("Cookie", java.util.List.of(header));
         }
 
         @Override
@@ -331,10 +435,18 @@ public final class KeycloakTestSupport {
             headers.forEach((name, values) -> {
                 if (name != null && name.equalsIgnoreCase("Set-Cookie")) {
                     for (String v : values) {
-                        String pair = v.split(";", 2)[0];
+                        String[] parts = v.split(";");
+                        String pair = parts[0];
+                        String path = "/";
+                        for (int i = 1; i < parts.length; i++) {
+                            String attr = parts[i].trim();
+                            if (attr.regionMatches(true, 0, "Path=", 0, 5)) {
+                                path = attr.substring(5).trim();
+                            }
+                        }
                         int eq = pair.indexOf('=');
                         if (eq > 0) {
-                            String key = pair.substring(0, eq).trim();
+                            String key = path + '\0' + pair.substring(0, eq).trim();
                             String value = pair.substring(eq + 1).trim();
                             if (value.isEmpty() || v.toLowerCase(java.util.Locale.ROOT).contains("max-age=0")) {
                                 cookies.remove(key);

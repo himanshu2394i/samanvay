@@ -23,7 +23,6 @@ import com.samanvay.identity.api.Link;
 import com.samanvay.identity.api.LinkAsserted;
 import com.samanvay.identity.api.LinkProofContext;
 import com.samanvay.identity.api.LinkProofInvalidException;
-import com.samanvay.identity.api.LinkProofKind;
 import com.samanvay.identity.api.LinkProofProvider;
 import com.samanvay.identity.api.LinkProofProviderInfo;
 import com.samanvay.identity.api.LinkRevoked;
@@ -218,8 +217,10 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
 
     @Override
     public List<LinkProofProviderInfo> availableProofProviders() {
+        // Only providers that are configured exist as beans: the department IdP proof is
+        // absent unless samanvay.identity.department-idp.enabled is set, so the default list
+        // is still the two sandbox/demo providers.
         return proofProviders.stream()
-                .filter(p -> p.kind() != LinkProofKind.DEPT_IDP)
                 .map(p -> new LinkProofProviderInfo(p.kind(), p.label()))
                 .toList();
     }

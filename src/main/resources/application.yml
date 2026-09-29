@@ -41,6 +41,17 @@ spring:
       max-request-size: 512KB
 
 samanvay:
+  identity:
+    department-idp:
+      # Accept a department-brokered Keycloak sign-in as a link proof (LinkProofKind.DEPT_IDP,
+      # DepartmentBrokerLinkProofProvider). Off by default: with it off the proof kind is refused
+      # and not listed. The citizen realm's broker (keycloak/gen_realms.py) points at a MOCK
+      # department realm; no real government IdP is integrated.
+      enabled: ${SAMANVAY_DEPARTMENT_IDP_ENABLED:false}
+      # Alias of the citizen realm's identity provider whose logins may prove a link.
+      alias: dept-idp
+      # How recent the department sign-in (auth_time) may be when the link is asserted.
+      max-auth-age: PT10M
   bank-review:
     # Officer passbook uploads: the file is deleted on decision and after this window; the hash stays.
     retention: 30d

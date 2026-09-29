@@ -1,6 +1,8 @@
 package com.samanvay.security;
 
+import static com.samanvay.shared.test.KeycloakTestSupport.BROKER_ALIAS;
 import static com.samanvay.shared.test.KeycloakTestSupport.CITIZEN;
+import static com.samanvay.shared.test.KeycloakTestSupport.DEPARTMENT;
 import static com.samanvay.shared.test.KeycloakTestSupport.STAFF;
 import static com.samanvay.shared.test.KeycloakTestSupport.admin;
 import static com.samanvay.shared.test.KeycloakTestSupport.token;
@@ -84,6 +86,8 @@ class KeycloakRealmExportIT {
         JsonNode realm = admin("/admin/realms/" + CITIZEN);
         assertThat(shape(CITIZEN, realm.get("browserFlow").asString())).containsExactly(
                 "0 auth-cookie ALTERNATIVE",
+                // acts only on kc_idp_hint (no default provider): the way in to the department IdP
+                "0 identity-provider-redirector ALTERNATIVE",
                 "0 [citizen browser forms] ALTERNATIVE",
                 "1 auth-username-form REQUIRED",
                 "1 [citizen email code] CONDITIONAL",
@@ -117,6 +121,115 @@ class KeycloakRealmExportIT {
                     .as(client.get("clientId").asString())
                     .isFalse();
         }
+    }
+
+    @Test
+    void citizenRealmBrokersToTheMockDepartmentRealm() throws Exception {
+        String base = "/admin/realms/" + CITIZEN + "/identity-provider/instances";
+        assertThat(names(admin(base), "alias")).containsExactly(BROKER_ALIAS);
+        JsonNode idp = admin(base + "/" + BROKER_ALIAS);
+        assertThat(idp.get("providerId").asString()).isEqualTo("oidc");
+        assertThat(idp.get("enabled").asBoolean()).isTrue();
+        assertThat(idp.get("storeToken").asBoolean()).isFalse();
+        assertThat(idp.get("linkOnly").asBoolean()).isFalse();
+        JsonNode config = idp.get("config");
+        assertThat(config.get("clientId").asString()).isEqualTo("samanvay-citizen-broker");
+        assertThat(config.get("clientAuthMethod").asString()).isEqualTo("client_secret_post");
+        assertThat(config.get("validateSignature").asString()).isEqualTo("true");
+        assertThat(config.get("useJwksUrl").asString()).isEqualTo("true");
+        assertThat(config.get("pkceEnabled").asString()).isEqualTo("true");
+        assertThat(config.get("pkceMethod").asString()).isEqualTo("S256");
+        assertThat(config.get("authorizationUrl").asString()).contains("/realms/" + DEPARTMENT + "/");
+        // a brokered sign-in creates a new citizen; it never attaches to an existing one
+        assertThat(idp.get("firstBrokerLoginFlowAlias").asString()).isEqualTo("citizen first broker login");
+        assertThat(shape(CITIZEN, "citizen first broker login")).containsExactly("0 idp-create-user-if-unique REQUIRED");
+
+        // broker mappers: department claims -> session notes (never user attributes); unique username
+        JsonNode mappers = admin(base + "/" + BROKER_ALIAS + "/mappers");
+        List<String> lines = new ArrayList<>();
+        for (JsonNode m : mappers) {
+            java.util.TreeMap<String, String> mapperConfig = new java.util.TreeMap<>();
+            m.get("config").properties().forEach(e -> {
+                if (List.of("claims", "are.claim.values.regex", "attribute", "attribute.value", "template", "target").contains(e.getKey())) {
+                    mapperConfig.put(e.getKey(), e.getValue().asString());
+                }
+            });
+            lines.add(m.get("identityProviderMapper").asString() + " " + mapperConfig.entrySet());
+        }
+        assertThat(lines).containsExactlyInAnyOrder(
+                "oidc-username-idp-mapper [target=LOCAL, template=${ALIAS}.${CLAIM.sub}]",
+                "hardcoded-user-session-attribute-idp-mapper [attribute=dept_idp_alias, attribute.value=dept-idp]",
+                // Keycloak names each session note after the claim it copies (any value: regex ".*")
+                "oidc-user-session-note-idp-mapper [are.claim.values.regex=true, claims="
+                        + "[{\"key\":\"department\",\"value\":\".*\"},"
+                        + "{\"key\":\"local_id_type\",\"value\":\".*\"},"
+                        + "{\"key\":\"local_id\",\"value\":\".*\"}]]");
+
+        // ...and the citizen UI client releases exactly those notes as access-token claims
+        JsonNode ui = admin("/admin/realms/" + CITIZEN + "/clients?clientId=samanvay-citizen-ui").get(0);
+        assertThat(ui.get("defaultClientScopes").toString()).contains("department-idp");
+        String scopeId = null;
+        for (JsonNode s : admin("/admin/realms/" + CITIZEN + "/client-scopes")) {
+            if ("department-idp".equals(s.get("name").asString())) {
+                scopeId = s.get("id").asString();
+            }
+        }
+        assertThat(scopeId).isNotNull();
+        List<String> claims = new ArrayList<>();
+        for (JsonNode m : admin("/admin/realms/" + CITIZEN + "/client-scopes/" + scopeId + "/protocol-mappers/models")) {
+            assertThat(m.get("protocolMapper").asString()).isEqualTo("oidc-usersessionmodel-note-mapper");
+            assertThat(m.get("config").get("access.token.claim").asString()).isEqualTo("true");
+            assertThat(m.get("config").get("id.token.claim").asString()).isEqualTo("false");
+            claims.add(m.get("config").get("user.session.note").asString() + "->" + m.get("config").get("claim.name").asString());
+        }
+        assertThat(claims).containsExactlyInAnyOrder(
+                "dept_idp_alias->dept_idp",
+                "department->dept_code",
+                "local_id_type->dept_local_id_type",
+                "local_id->dept_local_id");
+    }
+
+    @Test
+    void mockDepartmentRealmIsPasswordPlusTotpWithAnAdminManagedLocalId() throws Exception {
+        JsonNode realm = admin("/admin/realms/" + DEPARTMENT);
+        assertThat(shape(DEPARTMENT, realm.get("browserFlow").asString())).containsExactly(
+                "0 auth-cookie ALTERNATIVE",
+                "0 [department browser forms] ALTERNATIVE",
+                "1 auth-username-password-form REQUIRED",
+                "1 auth-otp-form REQUIRED");
+        assertThat(shape(DEPARTMENT, realm.get("directGrantFlow").asString()))
+                .containsExactly("0 deny-access-authenticator REQUIRED");
+        assertThat(realm.get("registrationAllowed").asBoolean()).isFalse();
+        assertThat(realm.get("resetPasswordAllowed").asBoolean()).isFalse();
+        JsonNode totp = admin("/admin/realms/" + DEPARTMENT + "/authentication/required-actions/CONFIGURE_TOTP");
+        assertThat(totp.get("enabled").asBoolean()).isTrue();
+        assertThat(totp.get("defaultAction").asBoolean()).isTrue();
+
+        for (JsonNode client : admin("/admin/realms/" + DEPARTMENT + "/clients")) {
+            assertThat(client.path("directAccessGrantsEnabled").asBoolean(false)).as(client.get("clientId").asString()).isFalse();
+        }
+        JsonNode broker = admin("/admin/realms/" + DEPARTMENT + "/clients?clientId=samanvay-citizen-broker").get(0);
+        assertThat(broker.get("publicClient").asBoolean()).isFalse();
+        assertThat(broker.get("standardFlowEnabled").asBoolean()).isTrue();
+        assertThat(broker.get("serviceAccountsEnabled").asBoolean()).isFalse();
+        assertThat(broker.get("attributes").get("pkce.code.challenge.method").asString()).isEqualTo("S256");
+        assertThat(broker.get("redirectUris")).hasSize(1);
+        assertThat(broker.get("redirectUris").get(0).asString())
+                .endsWith("/realms/" + CITIZEN + "/broker/" + BROKER_ALIAS + "/endpoint");
+
+        for (String attribute : List.of("local_id", "local_id_type")) {
+            JsonNode declared = null;
+            for (JsonNode a : admin("/admin/realms/" + DEPARTMENT + "/users/profile").get("attributes")) {
+                if (attribute.equals(a.get("name").asString())) {
+                    declared = a;
+                }
+            }
+            assertThat(declared).as(attribute + " declared").isNotNull();
+            assertThat(declared.get("permissions").get("edit").toString()).as(attribute).isEqualTo("[\"admin\"]");
+        }
+        JsonNode dev = admin("/admin/realms/" + DEPARTMENT + "/users?username=dev-dept-citizen&exact=true").get(0);
+        assertThat(dev.get("attributes").get("local_id").get(0).asString()).isNotBlank();
+        assertThat(dev.get("attributes").get("local_id_type").get(0).asString()).isEqualTo("RATION");
     }
 
     @Test
@@ -170,10 +283,11 @@ class KeycloakRealmExportIT {
             });
             assertThat(audiences).as(rc[1] + " audience mapper").containsExactly("samanvay-api");
         }
-        for (String realm : List.of(STAFF, CITIZEN)) {
+        // nothing from the mock department realm is ever a bearer for the API
+        for (String realm : List.of(STAFF, CITIZEN, DEPARTMENT)) {
             for (JsonNode client : admin("/admin/realms/" + realm + "/clients")) {
                 String id = client.get("clientId").asString();
-                if (id.startsWith("samanvay-") || id.startsWith("dept-")) {
+                if (!realm.equals(DEPARTMENT) && (id.startsWith("samanvay-") || id.startsWith("dept-"))) {
                     continue;
                 }
                 client.path("protocolMappers").forEach(m -> assertThat(m.path("config").path("included.custom.audience").asString(""))

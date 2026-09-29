@@ -15,10 +15,14 @@ services:
     volumes:
       - samanvay-postgres-data:/var/lib/postgresql/data
 
-  # DEV-ONLY identity provider. Imports the two realms in keycloak/realms on
+  # DEV-ONLY identity provider. Imports every realm in keycloak/realms on
   # first start. Staff: passkey, or password + TOTP. Citizen: email one-time
-  # code (read it in Mailpit below), or passkey. The citizen email-code
-  # authenticator is built by the Maven build (./mvnw -DskipTests package, or
+  # code (read it in Mailpit below), or passkey, or a sign-in brokered through
+  # the MOCK department realm (samanvay-department: password + TOTP there;
+  # portals send citizens with kc_idp_hint=dept-idp). No real government IdP is
+  # involved; the brokered login is what DepartmentBrokerLinkProofProvider
+  # accepts as a link proof (samanvay.identity.department-idp.enabled).
+  # The citizen email-code authenticator is built by the Maven build (./mvnw -DskipTests package, or
   # any verify) into target/keycloak-providers - build before `up`.
   # `start-dev` = in-memory H2 + HTTP: never use this service outside a laptop.
   # The app finds it via samanvay.security.{staff,citizen}.issuer-uri
