@@ -78,6 +78,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
     private final ApprovedAwards awards;
     private final RefusalAuditor refusalAudit;
     private final ConsentUsageService usage;
+    private final PaymentScopeKeys paymentScopes;
     private final GrantSigner signer;
     private final AuditService audit;
     private final ApplicationEventPublisher events;
@@ -100,6 +101,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
             ApprovedAwards awards,
             RefusalAuditor refusalAudit,
             ConsentUsageService usage,
+            PaymentScopeKeys paymentScopes,
             GrantSigner signer,
             AuditService audit,
             ApplicationEventPublisher events,
@@ -116,6 +118,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         this.awards = awards;
         this.refusalAudit = refusalAudit;
         this.usage = usage;
+        this.paymentScopes = paymentScopes;
         this.signer = signer;
         this.audit = audit;
         this.events = events;
@@ -378,6 +381,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         ClaimResult claim = null;
         Purpose.Frequency freq = c.frequency();
         String scopeKey = null;
+        String scopeKeyVersion = null;
         if (freq != null && freq.oneCheckPerApplication()) {
             // One check per document per application. Claimed after the consent checks and before
             // the registry lookup: that is before this transaction's first audit write, so no
@@ -391,11 +395,25 @@ class ConsentServices implements ConsentService, AccessAuthority {
         } else if (freq == Purpose.Frequency.ONCE_PER_YEAR) {
             // One check per document per calendar year (Asia/Kolkata). No extra request input needed.
             scopeKey = "YEAR:" + AcademicYears.startYearOf(clock.instant(), 1);
+        } else if (freq == Purpose.Frequency.ONCE_PER_PAYMENT) {
+            // One check per document per payment/instalment. The scope is a keyed HMAC of the payment
+            // id (never the raw id), with the key version stored beside it (LLD 05 section 7.4).
+            if (req.paymentId() == null || req.paymentId().isBlank()) {
+                return deny(req, DenialReason.PAYMENT_REQUIRED, null, c.id(), null);
+            }
+            // After a key rotation a payment already checked under a retired key stays checked.
+            for (PaymentScopeKeys.Scope old : paymentScopes.retired(req.paymentId())) {
+                if (usage.isHeld(c.id(), req.category().code(), old.scopeKey())) {
+                    return refuseRepeatCheck(req, c.id());
+                }
+            }
+            PaymentScopeKeys.Scope scope = paymentScopes.active(req.paymentId());
+            scopeKey = scope.scopeKey();
+            scopeKeyVersion = scope.keyVersion();
         }
-        // ONCE_PER_PAYMENT and legacy (null) rely on the 24h limit above. Per-payment scoping needs a
-        // payment/instalment id, which arrives with the disbursement flow (a separate PR, not built here).
+        // Legacy (null) consents rely on the 24h limit above.
         if (scopeKey != null) {
-            claim = usage.claim(c.id(), req.category().code(), scopeKey, grantId);
+            claim = usage.claim(c.id(), req.category().code(), scopeKey, scopeKeyVersion, grantId);
             if (claim.outcome() == Claim.REFUSED) {
                 return refuseRepeatCheck(req, c.id());
             }
@@ -451,6 +469,9 @@ class ConsentServices implements ConsentService, AccessAuthority {
         if (claim != null) {
             issuedEntry.meta().put("usageClaim", claim.outcome().name());
             issuedEntry.meta().put("usageClaimId", claim.id().toString());
+            if (scopeKeyVersion != null) {
+                issuedEntry.meta().put("scopeKeyVersion", scopeKeyVersion);
+            }
         }
         audit.record(issuedEntry);
         return new AccessDecision.Granted(grant, claim == null ? null : new UsageClaim(claim.id(), claim.token()));

@@ -183,6 +183,18 @@ class TrackingServices implements ApplicationTracking {
     }
 
     @Override
+    public Optional<ApplicationView> byInstanceId(UUID instanceId) {
+        return applications.findById(instanceId).map(e -> new ApplicationView(
+                e.getReferenceNo(),
+                e.getCitizenId(),
+                e.getJourneyCode(),
+                e.getStatus(),
+                e.getSubmittedAt(),
+                e.getSlaDueAt(),
+                e.getId()));
+    }
+
+    @Override
     public Page<ApplicationSummary> forCitizen(UUID citizenId, Pageable p) {
         return applications
                 .findByCitizenId(citizenId, p)
