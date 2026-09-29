@@ -140,11 +140,10 @@ citizen React SPA; the tamper-evident audit spine.
 **Remaining to reach the full-product final state** (see `ROADMAP.md`):
 - **G — Secrets/KMS:** move the SecretStore and the audit signing key off dev stubs onto
   Vault/KMS with rotation (foundational for running any source truly LIVE).
-- **H — Payments/disbursement flow** (core done: mock disbursement + `ONCE_PER_PAYMENT`; still to
-  do: the officer approval step that publishes `APPROVED`), a **semantic** mapping
-  pass for onboarding (today it's lexical, propose-only), and a stronger audit **external
-  witness**.
-- **Officer & admin React surfaces** (citizen is done).
+- **H — Payments/disbursement flow:** done end to end — the officer approval step publishes
+  `APPROVED` (`ApplicationApprovalService`), which the `payments` module turns into an idempotent
+  mock-DBT disbursement; the **semantic** onboarding mapping pass (propose-only, on top of the
+  lexical one) and a stronger audit **external witness** have also landed.
 - **Flowable journey wiring:** give the shipped BPMNs real service tasks + a deploy step so
   `flowable` mode can run the actual journeys (the engine + durable timers already work).
 - **Production hardening:** SMS gateway, deployment (beyond docker-compose), and the
