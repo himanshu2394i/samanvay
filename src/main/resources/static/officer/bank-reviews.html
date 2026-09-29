@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Bank reviews | Samanvay</title>
+  <link rel="preload" href="/fonts/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/console.css"/>
+</head>
+<body>
+  <a class="skip-link visually-hidden" href="#content">Skip to content</a>
+  <p id="live" class="visually-hidden" aria-live="polite"></p>
+  <div class="tricolor" aria-hidden="true"></div>
+  <p class="sandbox"><strong>OFFICER.</strong> Bank-account reviews needing a human. The bank's version of the name is never shown or stored — only a masked account, the machine's reason, and the matcher version.</p>
+  <div class="shell">
+    <header class="mast">
+      <div class="brand"><em lang="hi">समन्वय</em> SAMANVAY <span class="brand-role">Officer</span></div>
+      <p class="tag">Government of Maharashtra · Bank-account verification review.</p>
+    </header>
+    <nav class="bar" aria-label="Officer">
+      <ul class="nav-primary" role="list">
+        <li><a href="/">Citizen services</a></li>
+        <li><a href="/ops.html">Exceptions</a></li>
+        <li><a href="/officer/bank-reviews.html" class="active" aria-current="page">Bank reviews</a></li>
+        <li><a href="/audit.html">Audit</a></li>
+      </ul>
+      <div class="nav-tools">
+        <span class="nav-tools-label">Session</span>
+        <ul role="list">
+          <li><button id="signIn" class="side" type="button">Sign in</button></li>
+          <li><button id="signOut" class="side" type="button" hidden>Sign out</button></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="content" tabindex="-1">
+      <h1 class="page-title">Bank-account reviews</h1>
+      <p class="lede">A bank check comes here when it did not pass automatically: the name only partly matched, did not match, could not be compared, or the account is closed or invalid. Only a full match on a usable account is accepted without you. Nothing is auto-rejected — you decide.</p>
+      <p id="status" class="health" role="status"><span class="loading">Sign in to load the queue…</span></p>
+      <section>
+        <ul id="reviews" class="cards" role="list"></ul>
+      </section>
+    </main>
+  </div>
+
+  <script src="/shared/auth.js" data-realm="staff"></script>
+  <script>
+    (function () {
+      const statusEl = document.getElementById("status");
+      const list = document.getElementById("reviews");
+      const signIn = document.getElementById("signIn");
+      const signOut = document.getElementById("signOut");
+
+      signIn.addEventListener("click", () => SamanvayAuth.login("staff"));
+      signOut.addEventListener("click", () => SamanvayAuth.logout("staff"));
+
+      function say(msg) { statusEl.textContent = msg; }
+      function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+      async function api(path, opts) {
+        const res = await SamanvayAuth.fetch(path, opts);
+        if (res.status === 401 || res.status === 403) throw new Error("Not signed in as an officer.");
+        if (!res.ok) {
+          let detail = "";
+          try { detail = (await res.json()).detail || ""; } catch (e) { /* ignore */ }
+          throw new Error(detail || ("Request failed (" + res.status + ")"));
+        }
+        return res.status === 204 ? null : res.json().catch(() => null);
+      }
+
+      function card(r) {
+        const li = document.createElement("li");
+        li.className = "card";
+        li.innerHTML =
+          '<h3>Application ' + esc(r.applicationId) + '</h3>' +
+          '<dl class="kv">' +
+          '<dt>Account</dt><dd>' + esc(r.accountMasked) + '</dd>' +
+          '<dt>Result</dt><dd>' + esc(r.reasonText) + '</dd>' +
+          '<dt>Matcher</dt><dd>' + esc(r.matcherVersion || "—") + '</dd>' +
+          '<dt>Status</dt><dd>' + esc(r.status) + (r.hasDocument ? " · passbook received" : "") + '</dd>' +
+          '</dl>' +
+          '<div class="row actions">' +
+          '<label class="file">Passbook / cheque (PDF, JPEG or PNG, ≤256 KB) ' +
+          '<input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></label>' +
+          '<button type="button" data-act="upload">Upload</button>' +
+          '<button type="button" data-act="request">Ask for a document</button>' +
+          '<button type="button" data-act="approve">Approve…</button>' +
+          '<button type="button" data-act="reject">Reject…</button>' +
+          '</div>';
+
+        const file = li.querySelector("input[type=file]");
+        li.querySelector('[data-act=upload]').addEventListener("click", () => {
+          const f = file.files[0];
+          if (!f) { say("Choose a file first."); return; }
+          const fd = new FormData();
+          fd.append("file", f);
+          act("/api/officer/bank-reviews/" + r.id + "/passbook", { method: "POST", body: fd }, "Passbook uploaded.");
+        });
+        li.querySelector('[data-act=request]').addEventListener("click", () =>
+          act("/api/officer/bank-reviews/" + r.id + "/request-document", { method: "POST" }, "Document requested."));
+        li.querySelector('[data-act=approve]').addEventListener("click", () => {
+          const reason = prompt("Reason for approving (optional):") || "";
+          decide("/api/officer/bank-reviews/" + r.id + "/approve", reason, "Approved.");
+        });
+        li.querySelector('[data-act=reject]').addEventListener("click", () => {
+          const reason = prompt("Reason for rejecting (required):");
+          if (!reason) { say("A reason is required to reject."); return; }
+          decide("/api/officer/bank-reviews/" + r.id + "/reject", reason, "Rejected.");
+        });
+        return li;
+      }
+
+      function decide(path, reason, ok) {
+        act(path, { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }) }, ok);
+      }
+
+      async function act(path, opts, ok) {
+        try { await api(path, opts); say(ok); await load(); }
+        catch (e) { say(e.message); }
+      }
+
+      async function load() {
+        try {
+          const rows = await api("/api/officer/bank-reviews");
+          list.replaceChildren();
+          if (!rows || rows.length === 0) { say("No reviews waiting. Nothing to do."); return; }
+          rows.forEach((r) => list.appendChild(card(r)));
+          say(rows.length + " review(s) waiting.");
+        } catch (e) { say(e.message); }
+      }
+
+      (async function init() {
+        try { await SamanvayAuth.ready; } catch (e) { /* config may be unavailable */ }
+        const signedIn = !!SamanvayAuth.token("staff");
+        signIn.hidden = signedIn;
+        signOut.hidden = !signedIn;
+        if (signedIn) load(); else say("Sign in as an officer to load the queue.");
+      })();
+    })();
+  </script>
+</body>
+</html>

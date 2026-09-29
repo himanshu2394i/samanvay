@@ -34,8 +34,16 @@ spring:
       # that has to match its JPA entity exactly across versions.
       jdbc-schema-initialization:
         enabled: true
+  servlet:
+    multipart:
+      # Passbook / cancelled-cheque uploads; the app also validates content and size (PassbookUpload).
+      max-file-size: 256KB
+      max-request-size: 512KB
 
 samanvay:
+  bank-review:
+    # Officer passbook uploads: the file is deleted on decision and after this window; the hash stays.
+    retention: 30d
   security:
     # The two trusted Keycloak realms. Tokens from any other issuer are
     # rejected with 401. Keys are fetched lazily by OIDC discovery, so the app

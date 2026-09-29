@@ -75,6 +75,12 @@ final class ApiAccessMatrix {
         allow("GET /api/journeys/instances/{id}", OFFICER);
         allow("POST /api/journeys/instances/{id}/retry", OFFICER);
         allow("GET /api/journeys/exceptions", OFFICER);
+        // officer bank-account review
+        allow("GET /api/officer/bank-reviews", OFFICER);
+        allow("POST /api/officer/bank-reviews/{id}/passbook", OFFICER);
+        allow("POST /api/officer/bank-reviews/{id}/request-document", OFFICER);
+        allow("POST /api/officer/bank-reviews/{id}/approve", OFFICER);
+        allow("POST /api/officer/bank-reviews/{id}/reject", OFFICER);
         // tracking
         allow("GET /api/applications", CITIZEN, OFFICER);
         allow("GET /api/applications/{referenceNo}", CITIZEN, OFFICER);

@@ -258,3 +258,35 @@ outcomes the process must branch on, not error conditions to unwind from.
 | `ProcessSurvivesRestartIT` | A process instance parked at the timer catch event, when the `ProcessEngine` is rebuilt (simulating an app restart), still fires the timer and resumes correctly |
 | `PinnedConnectorVersionTest` | Publishing `rev-income@4` mid-instance does not change which version an already-running instance calls |
 | `IdentityResolutionScannerTest` | The scan's fetch goes through `AccessAuthority` with `purpose = ADMIN_DEDUP` — never calls `ConnectorRuntime` directly |
+
+## Officer bank-account review
+
+A bank check that does not auto-accept (`BankCheckReview.OFFICER_REVIEW` — a
+partial/failed/uncomparable name, or a closed/invalid account) opens a review a
+human resolves. The journey calls `BankReviewService.open(...)`; an officer then
+works the queue on `/officer/bank-reviews.html`.
+
+**No holder name, ever.** The review stores only the masked account, the machine
+reason, and the matcher version — never the bank's version of the name (it never
+leaves the connector adapter). The officer card shows the same, plus a plain
+reason ("Only part of the name matched", …).
+
+**Passbook upload (`POST /api/officer/bank-reviews/{id}/passbook`).** Validated by
+content, not by the declared filename/type: a magic-byte sniff accepts PDF, JPEG
+or PNG only, 10 KB–256 KB (grounded in MahaDBT's PDF/256 KB and NSP's PDF-or-JPEG/
+~200 KB). Files are stored under a generated name (no client path → no traversal).
+
+**Retention: keep the decision and a hash, not the file.** On approve/reject the
+file is deleted and only its SHA-256 is kept; `BankReviewRetentionJob` (daily)
+also deletes the file of any review whose upload is older than
+`samanvay.bank-review.retention` (default 30 days). Every step is audited
+(`BANK_REVIEW_OPENED/DOCUMENT_REQUESTED/PASSBOOK_UPLOADED/APPROVED/REJECTED/
+DOCUMENT_PURGED`). All routes are OFFICER-only.
+
+Migration `V192__orchestration_bank_review.sql`.
+
+| Test | Proves |
+|---|---|
+| `PassbookUploadTest` | PDF/JPEG/PNG accepted by content; text/ZIP and out-of-band sizes refused, with nothing from the content in the error |
+| `BankReviewWorkflowIT` | Open shows masked account + reason + matcher version (no name); a valid passbook is stored and hashed, a bad one refused; approving deletes the file but keeps the hash and decision; the retention purge deletes the file past the window and keeps the hash — each step audited |
+| `ApiAccessMatrixIT` | Every `/api/officer/bank-reviews` route is OFFICER-only |
