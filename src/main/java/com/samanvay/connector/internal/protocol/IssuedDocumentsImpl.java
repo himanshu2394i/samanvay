@@ -28,6 +28,7 @@ class IssuedDocumentsImpl implements IssuedDocuments {
             case "REVENUE" -> List.of(
                     doc("income", "Income certificate", "Revenue / Tahsildar", "Aaple Sarkar", "https://aaplesarkar.mahaonline.gov.in/"),
                     doc("caste", "Caste certificate", "Revenue / Tahsildar", "Aaple Sarkar", "https://aaplesarkar.mahaonline.gov.in/"),
+                    doc("domicile", "Domicile certificate", "Revenue / Tahsildar", "Aaple Sarkar", "https://aaplesarkar.mahaonline.gov.in/"),
                     doc("712", "7/12 extract (Record of Rights)", "Settlement Commissioner", "Mahabhulekh", "https://bhulekh.mahabhumi.gov.in/"));
             case "EDUCATION" -> List.of(
                     doc("marks", "HSC / equivalent marks", "Maharashtra State Board", "MSBSHSE", "https://mahahsscboard.in/"));
@@ -75,6 +76,10 @@ class IssuedDocumentsImpl implements IssuedDocuments {
             case "/caste" -> List.of(
                     field("Category", text(n, "casteCategory")),
                     field("Certificate", text(n, "certificateNo")));
+            case "/domicile" -> List.of(
+                    field("District", text(n, "district")),
+                    field("Issued on", text(n, "issueDate")),
+                    field("Issuer", text(n, "issuerOffice")));
             case "/marks" -> List.of(
                     field("Percentage", text(n, "percentage")),
                     field("Exam", text(n, "exam")));
@@ -127,6 +132,13 @@ class IssuedDocumentsImpl implements IssuedDocuments {
             case "CASTE_CERTIFICATE" -> new Meta(
                     "/caste",
                     "Caste certificate",
+                    "certificate",
+                    "Revenue / Tahsildar",
+                    "Aaple Sarkar",
+                    "https://aaplesarkar.mahaonline.gov.in/");
+            case "DOMICILE_CERTIFICATE" -> new Meta(
+                    "/domicile",
+                    "Domicile certificate",
                     "certificate",
                     "Revenue / Tahsildar",
                     "Aaple Sarkar",
