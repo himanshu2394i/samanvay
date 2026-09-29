@@ -33,7 +33,7 @@ class PurposeCatalogService implements PurposeCatalog {
                 Purpose.RequesterRule.valueOf(p.getRequesterRule()),
                 p.getMaxDurationDays(),
                 p.getDurationRule(),
-                p.getFrequency(),
+                Purpose.Frequency.fromCode(p.getFrequency()),
                 p.getLabelEn(),
                 p.getLabelMr(),
                 Purpose.LabelStatus.valueOf(p.getLabelEnStatus()),

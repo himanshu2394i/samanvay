@@ -36,6 +36,9 @@ import com.samanvay.consent.internal.repository.AccessGrantRepository;
 import com.samanvay.consent.internal.repository.ConsentArtifactRepository;
 import com.samanvay.consent.internal.repository.ConsentEventRepository;
 import com.samanvay.consent.internal.repository.ConsentRequestRepository;
+import com.samanvay.consent.api.UsageClaim;
+import com.samanvay.consent.internal.repository.ConsentUsageRepository.Claim;
+import com.samanvay.consent.internal.repository.ConsentUsageRepository.ClaimResult;
 import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.registry.api.DiscoveryRegistry;
 import com.samanvay.registry.api.Sensitivity;
@@ -72,6 +75,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
     private final PurposeCatalog purposes;
     private final ApprovedAwards awards;
     private final RefusalAuditor refusalAudit;
+    private final ConsentUsageService usage;
     private final GrantSigner signer;
     private final AuditService audit;
     private final ApplicationEventPublisher events;
@@ -92,6 +96,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
             PurposeCatalog purposes,
             ApprovedAwards awards,
             RefusalAuditor refusalAudit,
+            ConsentUsageService usage,
             GrantSigner signer,
             AuditService audit,
             ApplicationEventPublisher events,
@@ -106,6 +111,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         this.purposes = purposes;
         this.awards = awards;
         this.refusalAudit = refusalAudit;
+        this.usage = usage;
         this.signer = signer;
         this.audit = audit;
         this.events = events;
@@ -261,6 +267,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         a.setValidFrom(now);
         a.setValidUntil(now.plus(lifetime));
         a.setFrequencyLimit(20);
+        a.setFrequency(purpose.frequency() == null ? null : purpose.frequency().name());
         a.setStatus("ACTIVE");
         a.setVersion(1);
         a.setCitizenAuthRef(proof.citizenAuthRef());
@@ -345,25 +352,41 @@ class ConsentServices implements ConsentService, AccessAuthority {
                         >= c.frequencyLimit()) {
             return deny(req, DenialReason.FREQUENCY_EXCEEDED, null);
         }
+        UUID grantId = UUID.randomUUID();
+        ClaimResult claim = null;
+        if (ConsentUsageService.oneCheck(c.frequency())) {
+            // One check per document per application. Claimed after the consent checks and before
+            // the registry lookup: that is before this transaction's first audit write, so no
+            // audit chain lock is held while a racing claim waits on ours, and a refused repeat
+            // check writes exactly one audit row. Committed with this transaction, i.e. before
+            // the connector is called. A later denial in this method drops the claim again.
+            if (req.applicationId() == null || req.applicationId().isBlank()) {
+                return deny(req, DenialReason.APPLICATION_REQUIRED, null, c.id(), null);
+            }
+            claim = usage.claim(c.id(), req.category().code(), req.applicationId(), grantId);
+            if (claim.outcome() == Claim.REFUSED) {
+                return refuseRepeatCheck(req, c.id());
+            }
+        }
         var pointer = registry.locate(req.subject(), req.departmentCode(), req.category(), req.requester());
         if (pointer.isEmpty()) {
-            return deny(req, DenialReason.NO_POINTER, null);
+            return dropClaim(grantId, claim, deny(req, DenialReason.NO_POINTER, null));
         }
         var p = pointer.get();
         if (p.validUntil() != null && p.validUntil().isBefore(java.time.LocalDate.now(clock))) {
-            return deny(req, DenialReason.POINTER_EXPIRED, null);
+            return dropClaim(grantId, claim, deny(req, DenialReason.POINTER_EXPIRED, null));
         }
         if (!registry.hasClearance(req.requester(), p.sensitivity())) {
-            return deny(req, DenialReason.INSUFFICIENT_CLEARANCE, null);
+            return dropClaim(grantId, claim, deny(req, DenialReason.INSUFFICIENT_CLEARANCE, null));
         }
         if (p.freshness().isStale() && req.journeyCode() != null && !journeys.policy(req.journeyCode()).acceptStale()) {
-            return deny(req, DenialReason.STALE_NOT_ACCEPTED, null);
+            return dropClaim(grantId, claim, deny(req, DenialReason.STALE_NOT_ACCEPTED, null));
         }
         byte[] nonce = new byte[32];
         random.nextBytes(nonce);
         Instant issued = clock.instant();
         UnsignedGrant unsigned = new UnsignedGrant(
-                UUID.randomUUID(),
+                grantId,
                 nonce,
                 c.id(),
                 c.version(),
@@ -392,8 +415,33 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 unsigned.expiresAt(),
                 signer.sign(unsigned));
         persistGrant(grant);
-        audit.record(entry(req, Outcome.ALLOWED, "GRANT_ISSUED", null, grant.id(), null, null));
-        return new AccessDecision.Granted(grant);
+        AuditEntry issuedEntry = entry(req, Outcome.ALLOWED, "GRANT_ISSUED", null, grant.id(), null, null);
+        if (claim != null) {
+            issuedEntry.meta().put("usageClaim", claim.outcome().name());
+            issuedEntry.meta().put("usageClaimId", claim.id().toString());
+        }
+        audit.record(issuedEntry);
+        return new AccessDecision.Granted(grant, claim == null ? null : new UsageClaim(claim.id(), claim.token()));
+    }
+
+    /** A denial after the one-check claim: the check did not happen, so the claim goes too. */
+    private AccessDecision.Denied dropClaim(UUID grantId, ClaimResult claim, AccessDecision.Denied denied) {
+        if (claim != null) {
+            usage.discard(new UsageClaim(claim.id(), claim.token()));
+        }
+        return denied;
+    }
+
+    /**
+     * The one check this consent allows for (document, application) is used or in flight:
+     * exactly one {@code CONSENT_FREQUENCY_REFUSED} row (no {@code GRANT_DENIED} as well), in
+     * this transaction, with the officer copy as the message.
+     */
+    private AccessDecision.Denied refuseRepeatCheck(AccessRequest req, UUID consentId) {
+        DenialReason reason = DenialReason.CHECK_ALREADY_USED;
+        String copy = ConsentCopy.officerDenied(reason);
+        audit.record(entry(req, Outcome.DENIED, "CONSENT_FREQUENCY_REFUSED", consentId, null, reason.name(), copy));
+        return new AccessDecision.Denied(reason, Optional.empty(), copy);
     }
 
     private AccessDecision.Denied deny(AccessRequest req, DenialReason reason, ConsentRequest remedy) {
@@ -481,6 +529,9 @@ class ConsentServices implements ConsentService, AccessAuthority {
         if (message != null) {
             meta.put("message", message);
         }
+        if (req.applicationId() != null) {
+            meta.put("applicationId", req.applicationId());
+        }
         return new AuditEntry(
                 ActorType.SYSTEM,
                 req.requester().id(),
@@ -531,6 +582,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
                 e.getCreatedAt(),
                 e.getRevokedAt(),
                 e.getRevokedBy(),
-                ConsentCopy.statusLabel(status));
+                ConsentCopy.statusLabel(status),
+                Purpose.Frequency.fromCode(e.getFrequency()));
     }
 }

@@ -34,7 +34,7 @@ class PurposeCatalogColumnsIT extends PostgresIntegrationTest {
                     data_types, requester_rule, max_duration_days, duration_rule, frequency,
                     label_en, label_mr, label_en_status, label_mr_status, separate_opt_in)
                 VALUES ('RT_PURPOSE', 'Round trip', 'JOURNEY', 'ACTIVE', 'REVENUE', ARRAY['MARKS'],
-                    ARRAY['TYPE_A','TYPE_B'], 'PRIOR_AWARD_DEPARTMENT', 42, 'UNTIL_X', 'ONCE_PER_Y',
+                    ARRAY['TYPE_A','TYPE_B'], 'PRIOR_AWARD_DEPARTMENT', 42, 'UNTIL_X', 'ONCE_PER_YEAR',
                     'English label', 'मराठी लेबल', 'APPROVED', 'DRAFT', true)
                 ON CONFLICT DO NOTHING
                 """);
@@ -46,12 +46,32 @@ class PurposeCatalogColumnsIT extends PostgresIntegrationTest {
         assertThat(p.requesterRule()).isEqualTo(Purpose.RequesterRule.PRIOR_AWARD_DEPARTMENT);
         assertThat(p.maxDurationDays()).isEqualTo(42);
         assertThat(p.durationRule()).isEqualTo("UNTIL_X");
-        assertThat(p.frequency()).isEqualTo("ONCE_PER_Y");
+        assertThat(p.frequency()).isEqualTo(Purpose.Frequency.ONCE_PER_YEAR);
         assertThat(p.labelEn()).isEqualTo("English label");
         assertThat(p.labelMr()).isEqualTo("मराठी लेबल");
         assertThat(p.labelEnStatus()).isEqualTo(Purpose.LabelStatus.APPROVED);
         assertThat(p.labelMrStatus()).isEqualTo(Purpose.LabelStatus.DRAFT);
         assertThat(p.separateOptIn()).isTrue();
+    }
+
+    @Test
+    void misspelledFrequencyIsRejectedByTheDatabase() {
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO catalog_purpose (code, text, category_type, status, requester_department, data_categories,
+                    frequency)
+                VALUES ('TYPO_FREQ', 'typo', 'JOURNEY', 'ACTIVE', 'SCHOLARSHIP', ARRAY['MARKS'],
+                    'ONCE_PER_DOCUMENT_PER_APPLICTION')
+                """))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("catalog_purpose_frequency_known");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM catalog_purpose WHERE code = 'TYPO_FREQ'", Integer.class))
+                .isZero();
+        // every seeded value (V186) is allowed, and NULL stays allowed for legacy purposes
+        assertThat(jdbc.queryForList("SELECT DISTINCT frequency FROM catalog_purpose WHERE frequency IS NOT NULL",
+                        String.class))
+                .containsExactlyInAnyOrder("ONCE", "ONCE_PER_DOCUMENT_PER_APPLICATION", "ONCE_PER_PAYMENT", "ONCE_PER_YEAR");
+        assertThat(purposes.byCode("SCHOLARSHIP_ELIGIBILITY").orElseThrow().frequency()).isNull();
+        assertThat(purposes.byCode("SCH_BANK_VERIFY").orElseThrow().frequency()).isEqualTo(Purpose.Frequency.ONCE_PER_PAYMENT);
     }
 
     @Test

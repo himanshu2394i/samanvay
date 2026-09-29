@@ -395,10 +395,80 @@ role denial) still gets exactly one `API_FORBIDDEN` row.
 **Retention.** Consent records are kept for 7 years after they end (revoked or expired). This
 is a platform policy, not a legal claim; no purge job exists yet.
 
-**Follow-ups that block Phase 2 acceptance:** enforcing `frequency` (usage rows) and a
-domicile data category. **Deferred:** department scoping (Phase 2 step 9), the offline
+**Follow-ups that block Phase 2 acceptance:** a domicile data category. (`frequency`
+enforcement: §7.4.) **Deferred:** department scoping (Phase 2 step 9), the offline
 verifier (Phase 2 PR 2), a job that marks rows `EXPIRED` (expiry is enforced at `authorize()`
 and at read time from `valid_until`), and the retention purge job.
+
+### 7.4 Phase 2: frequency enforcement, one check per document per application (V189, V190)
+
+**Frequency values are closed.** `catalog_purpose.frequency` and `consent_artifact.frequency`
+(the purpose's value, copied at grant time) may only be `ONCE`,
+`ONCE_PER_DOCUMENT_PER_APPLICATION`, `ONCE_PER_PAYMENT` or `ONCE_PER_YEAR` (V190 CHECK
+constraints `catalog_purpose_frequency_known`, `consent_artifact_frequency_known`; exactly the
+V186 seed values). NULL stays allowed: legacy purposes and pre-V189 consents have none. Java maps
+the value to `Purpose.Frequency`; `fromCode` throws on anything else, so a typo fails loudly at
+load instead of switching the rule off.
+
+**Which consents.** Enforced only for `ONCE` and `ONCE_PER_DOCUMENT_PER_APPLICATION`
+(`Frequency.oneCheckPerApplication()`): one check of a document (data category) for an
+application (journey instance id). **`ONCE_PER_PAYMENT` and `ONCE_PER_YEAR` are not yet
+enforced** (pending Product's decision); they and NULL keep only the 20-per-24h
+`frequency_limit`. A one-check consent asked for with no application id is refused
+`APPLICATION_REQUIRED`.
+
+**Table.** `consent_usage (id, consent_id, document_type, scope_key, grant_id, state
+PENDING|USED, claimed_at, used_at, claim_token)` with `CONSTRAINT consent_usage_one_check UNIQUE
+(consent_id, document_type, scope_key)`. `scope_key` (V190, renamed from `application_id`) holds
+the application id for the two enforced values; no other scope is written yet.
+
+**Flow** (`FetchDataDelegate` + `ConsentServices.authorize`):
+
+1. `authorize()` is the outermost transaction (the delegate throws if called inside one). After
+   the consent checks it claims with a fresh random `claim_token`:
+   `INSERT ... ON CONFLICT ON CONSTRAINT consent_usage_one_check DO UPDATE SET grant_id,
+   claimed_at, claim_token WHERE state = 'PENDING' AND claimed_at < clock_timestamp() - stale
+   window RETURNING id`. No row back = refused: `Denied(CHECK_ALREADY_USED)` and exactly one
+   `CONSENT_FREQUENCY_REFUSED` audit row. The claim comes before the registry lookup, i.e. before
+   the transaction's first audit write. A later refusal in the same `authorize()` deletes the
+   claim again. `Granted.claim()` carries `(id, token)`. The transaction commits before the
+   connector is called.
+2. The connector runs with no transaction open, under one total deadline (below).
+3. `Success` marks the row USED with `UPDATE ... WHERE id = ? AND claim_token = ? AND state =
+   'PENDING'`. Any other outcome deletes it with `DELETE ... WHERE id = ? AND claim_token = ? AND
+   state = 'PENDING'` and writes one `CONSENT_CHECK_RELEASED` row (reason `TIMEOUT`,
+   `REMOTE_FAULT`, `MALFORMED_RESPONSE`, ...). **0 rows = the claim was lost** (taken over after
+   going stale, with a new token): the fetched result is thrown away (`Unavailable(CLAIM_LOST)`,
+   never returned or stored) and exactly one `CONSENT_CHECK_LOST_CLAIM` row is written. The
+   department has then been called twice, but only one result is kept.
+
+**Stale window and total deadline.** Stale window = 2 x `samanvay.connector.timeout` (default
+PT10S, which is also the connect timeout). `samanvay.connector.total-timeout` (default PT10S) is
+ONE deadline over the whole exchange: every retry attempt, connect, send and the full body
+(`ExchangeDeadline` opened by `ConnectorRuntimeImpl` around the retry-wrapped call; Retry does not
+retry a deadline overrun). `DeadlineHttp` (JDK `HttpClient`, used by `RestAdapter`) buffers the
+full body before its `sendAsync` future completes, waits on it with a timed `get` for the time
+left, and on expiry calls `cancel(true)` on that same future, which aborts the exchange (JDK 16+).
+It deliberately does not use `orTimeout` on that future (that would complete it first, and a later
+`cancel` no longer reaches the transfer), nor a socket read timeout or `HttpRequest.timeout()`
+(reset by each byte, or stop at the headers). Late bytes are discarded with the cancelled future.
+**Boot check:** startup fails unless stale window > total-timeout (+ one `retry.wait` when
+`retry.max-attempts` > 1: the only possible overshoot is a backoff that began just before the
+deadline) + `samanvay.connector.stale-margin` (default PT5S).
+
+**Refusal audits fail fast.** `RefusalAuditor` appends in its own transaction (REQUIRES_NEW). The
+audit append marks its transaction (`AuditChainLock`, a transaction-bound synchronization); if the
+calling transaction already holds the chain, `RefusalAuditor` throws at once instead of waiting
+for ever on the advisory lock its suspended outer transaction holds.
+
+**Officer copy.** The refusal message, *"This document has already been checked for this
+application. The citizen's permission allows one check."*, lives in
+`src/main/resources/consent/officer-copy_en.properties` (read by `ConsentCopy.officerDenied`),
+checked by `ConsentCopyTableTest` and the banned-phrase scan of `src/main`.
+
+**For the future disbursement PR (ONCE_PER_PAYMENT):** key the scope on a keyed HMAC of the
+payment/instalment id, not the raw id, and decide how key rotation works: store the key version
+next to the hash, or treat a rotation as a deliberate fresh start.
 
 ## 8. Error handling
 
@@ -431,3 +501,8 @@ and at read time from `valid_until`), and the retention purge job.
 | `NonceRaceIT extends PostgresIntegrationTest` | Two concurrent `markUsedIfUnused` calls on the same nonce: exactly one succeeds |
 | `ConsentVersionRevocationIT extends PostgresIntegrationTest` | A grant issued at version 1, then the consent revoked (→ version 2): `verifyOrThrow` on the old grant now throws |
 | `ConsentControllerIT` | `citizen_auth_ref` is captured from the actual authenticated session's token, not a client-supplied value |
+| `ConsentFrequencyIT` (§7.4; real Postgres, real `AccessAuthority` and `ConsentUsage`, counting stub connector) | Two overlapping checks: one success, one `CHECK_ALREADY_USED`, one refusal row, one connector call; timeout / 5xx / unparseable / schema-invalid replies release the claim and the retry succeeds; a body trickled past the total limit is cut off and released; stale `PENDING` reclaimed (also under a race), fresh `PENDING` and `USED` not; `authorize()` runs outermost and its `GRANT_DENIED` survives a failing fetch path; a misspelled consent frequency is rejected; the `UNIQUE` constraint is in `pg_constraint` |
+| `ConsentLostClaimIT` (stale window 2 s) | Worker A's claim is taken over by worker B while A's slow reply is pending: A's result is discarded, one `CONSENT_CHECK_LOST_CLAIM` row, the row ends USED with B's token (late success and late failure) |
+| `DeadlineHttpTest`, `ResilienceDeadlineTest`, `ConnectorTimingCheckTest` | Total deadline cuts off a trickled body and cancels the exchange; retries share the deadline and an overrun is not retried; the boot check (good, boundary, retries push over) |
+| `RefusalAuditorTest`, `AuditChainLockIT` | The audit append flags its transaction; a refusal audit from it throws at once |
+| `PurposeFrequencyTest`, `PurposeCatalogColumnsIT` | Unknown frequency throws at load; a misspelled catalog frequency is rejected by the database |
