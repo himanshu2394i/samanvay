@@ -12,8 +12,8 @@ class PurposeFrequencyTest {
     void knownValuesMapAndOnlyTheOneCheckValuesAreEnforced() {
         assertThat(Purpose.Frequency.fromCode("ONCE").oneCheckPerApplication()).isTrue();
         assertThat(Purpose.Frequency.fromCode("ONCE_PER_DOCUMENT_PER_APPLICATION").oneCheckPerApplication()).isTrue();
-        assertThat(Purpose.Frequency.fromCode("ONCE_PER_PAYMENT").oneCheckPerApplication()).as("not yet enforced").isFalse();
-        assertThat(Purpose.Frequency.fromCode("ONCE_PER_YEAR").oneCheckPerApplication()).as("not yet enforced").isFalse();
+        assertThat(Purpose.Frequency.fromCode("ONCE_PER_PAYMENT").oneCheckPerApplication()).as("not scoped per application (not yet enforced: needs the disbursement flow)").isFalse();
+        assertThat(Purpose.Frequency.fromCode("ONCE_PER_YEAR").oneCheckPerApplication()).as("enforced per year, not per application").isFalse();
         assertThat(Purpose.Frequency.fromCode(null)).isNull();
     }
 

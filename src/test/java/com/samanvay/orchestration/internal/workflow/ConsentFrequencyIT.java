@@ -154,8 +154,21 @@ class ConsentFrequencyIT extends OneCheckITSupport {
     }
 
     @Test
-    void otherFrequenciesAreNotLimitedPerApplication() {
+    void oncePerYearAllowsOneCheckPerDocumentPerYear() {
         jdbc.update("UPDATE consent_artifact SET frequency = 'ONCE_PER_YEAR' WHERE id = ?", consentId);
+        department.onCall = g -> success();
+        // Scope is the year, not the application: a different application in the same year is still refused.
+        assertThat(delegate.execute(fetch(app()), inputs())).isEqualTo("COMPLETED");
+        assertThat(delegate.execute(fetch(app()), inputs())).isEqualTo("CHECK_ALREADY_USED");
+        assertThat(department.calls.get()).as("the second check never reaches the department").isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM consent_usage WHERE consent_id = ? AND scope_key LIKE 'YEAR:%' AND state = 'USED'",
+                consentId)).isEqualTo(1);
+    }
+
+    @Test
+    void oncePerPaymentIsNotYetScopeEnforced() {
+        // ONCE_PER_PAYMENT needs a payment/instalment id (disbursement flow, not built): only the 24h limit applies.
+        jdbc.update("UPDATE consent_artifact SET frequency = 'ONCE_PER_PAYMENT' WHERE id = ?", consentId);
         department.onCall = g -> success();
         String app = app();
         assertThat(delegate.execute(fetch(app), inputs())).isEqualTo("COMPLETED");
