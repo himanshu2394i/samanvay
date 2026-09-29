@@ -89,10 +89,34 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
     @Override
     public SourceOutcome<BankCheckAnswer> bankCheck(AccessGrant grant, String sourceCode, BankCheckRequest request) {
         verifyOrAuditAndThrow(grant, DataCategory.BANK_ACCOUNT, sourceCode);
-        return bankCheckAdapters
+        SourceOutcome<BankCheckAnswer> outcome = bankCheckAdapters
                 .forSource(sourceCode)
                 .<SourceOutcome<BankCheckAnswer>>map(adapter -> adapter.check(request))
                 .orElseGet(() -> new SourceOutcome.SourceFault<>(SourceOutcome.ReasonCode.NOT_CONFIGURED, false));
+        if (outcome instanceof SourceOutcome.SourceFault<BankCheckAnswer> fault
+                && fault.reasonCode() == SourceOutcome.ReasonCode.MARKER_IN_LIVE_MODE) {
+            auditMarkerInLiveMode(grant, sourceCode);
+        }
+        return outcome;
+    }
+
+    /**
+     * A LIVE source returned the simulator marker. The adapter has already thrown
+     * the answer away (alarming in its logs); here we leave the durable trail.
+     */
+    private void auditMarkerInLiveMode(AccessGrant grant, String sourceCode) {
+        audit.record(new AuditEntry(
+                actorType(grant),
+                actorId(grant),
+                "LIVE_SOURCE_MARKER_REJECTED",
+                grant.subject().citizenId().toString(),
+                sourceCode,
+                grant.departmentCode(),
+                grant.consentId(),
+                grant.id(),
+                Outcome.DENIED,
+                "live source returned the simulator marker",
+                attribution(grant)));
     }
 
     private void verifyOrAuditAndThrow(AccessGrant grant, DataCategory category, String connectorRef) {
