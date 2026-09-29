@@ -126,6 +126,39 @@ reaches it only over HTTP, through the same client it will use for the live API.
 response carries `X-Samanvay-Simulator: true`. Which endpoint a source uses will be selected by
 `samanvay.sources.<code>.mode=sandbox|simulator|live`, which comes in a separate PR.
 
+### Standalone department service: real REST and SOAP over the network (dev/demo only)
+
+The same `simulators/` app also serves a fake "sandbox department" so the connector's **real** `RestAdapter`
+and `SoapAdapter` can be shown fetching from a separate networked service, not the in-process
+`MockDepartmentBackend`. It serves invented data only and is never a real government system.
+
+| Protocol | Endpoint | Answer |
+|---|---|---|
+| REST | `GET /v1/income?rationCard=RC-1001` | JSON `annualIncome`, `holderName`, `district`, ... |
+| SOAP 1.1 | `POST /marks/service` (`text/xml`, body carries `<studentId>`) | `GetMarksResponse` with `percentage`, `board`, `exam`; a bad request gets a SOAP `Fault` (HTTP 500) |
+
+Named fixtures: `RC-1001`, `RC-1002`, `S-1001`, `S-1002`. Any other id gets a record derived from the id, so a
+given id always answers the same.
+
+```bash
+docker compose up -d                     # postgres, keycloak, mailpit and department-service (:8090)
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo   # or: dev
+curl 'localhost:8090/v1/income?rationCard=RC-1001'
+curl -H 'Content-Type: text/xml' -d '<Envelope><Body><GetMarks><studentId>S-1001</studentId></GetMarks></Body></Envelope>' \
+  localhost:8090/marks/service
+```
+
+Under the `dev` or `demo` profile, `application-dev.yml` / `application-demo.yml` set
+`samanvay.sources.department-service.urls`, which points the V193 sandbox sources (`sandbox-income-rest`,
+`sandbox-marks-soap`, seeded with unresolvable `*.example` hosts) at `http://localhost:8090`
+(`SAMANVAY_DEPT_SERVICE_URL` changes it). A fetch through `ConnectorRuntimeImpl` for those sources is then a
+real HTTP exchange with the service. Nothing else changes: the mock sources and the real journeys' sources
+keep their hosts, the setting is empty by default, and the app refuses to start with it set under any other
+profile. Without Docker: `./mvnw -f simulators/pom.xml spring-boot:run`.
+
+`StandaloneDepartmentServiceTest` is the proof: it builds and starts the service as its own JVM process on a free
+port and runs both sandbox connectors through the real adapters, asserting values only that service produces.
+
 ## Contributing
 
 1. Branch off `main`, work in your module's package (`com.samanvay.<module>.*`).

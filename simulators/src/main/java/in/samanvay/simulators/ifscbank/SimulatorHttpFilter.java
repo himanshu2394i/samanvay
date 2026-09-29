@@ -17,7 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * 1. Marks EVERY response with {@value #MARKER_HEADER}: true (including 401/404/5xx
  *    and malformed bodies), so a caller can always tell it reached a simulator.
- * 2. Authenticates per the bank-check contract: {@code /v1/**} requires HTTP
+ * 2. Authenticates per the bank-check contract: {@code /v1/bank-checks} requires HTTP
  *    Basic (key id + secret from config); IFSC lookup is open RBI data and
  *    takes no credentials.
  */
@@ -40,7 +40,9 @@ class SimulatorHttpFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         response.setHeader(MARKER_HEADER, "true");
-        if (request.getRequestURI().startsWith("/v1/") && !authorized(request.getHeader(HttpHeaders.AUTHORIZATION))) {
+        // Only the bank-check contract is authenticated; the sandbox department endpoints (/v1/income,
+        // /marks/service) are open, as the main app's REST/SOAP adapters send no credential today.
+        if (request.getRequestURI().startsWith("/v1/bank-checks") && !authorized(request.getHeader(HttpHeaders.AUTHORIZATION))) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
             response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"samanvay-simulator\"");
