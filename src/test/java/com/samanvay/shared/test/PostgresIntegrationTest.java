@@ -16,5 +16,8 @@ public abstract class PostgresIntegrationTest extends PostgresContainerSupport {
                 "samanvay.security.citizen.public-key-location", () -> TestTokens.CITIZEN_PUBLIC_KEY_PEM.toUri().toString());
         // The real clients plus the department client ids tests use to tell departments apart.
         registry.add("samanvay.security.staff.allowed-clients", () -> String.join(",", TestTokens.STAFF_CLIENTS));
+        // These contexts run outside dev/demo with the in-process EnvSecretStore's ephemeral keys; the production
+        // secrets boot guard honours this only because JUnit is on the classpath (see SecretStoreStartupCheck).
+        registry.add("samanvay.secrets.allow-ephemeral-keys", () -> "true");
     }
 }

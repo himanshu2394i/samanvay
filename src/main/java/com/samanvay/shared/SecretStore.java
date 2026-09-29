@@ -21,4 +21,14 @@ public interface SecretStore {
     default Optional<Secret> find(String key) {
         return Optional.ofNullable(resolve(key));
     }
+
+    /**
+     * Whether {@link #resolve} may mint a secret that nobody provisioned (an ephemeral,
+     * in-process key that is lost on restart and never shared between instances). True
+     * only for the dev stub; the production boot guard refuses such a store. Provisioned
+     * stores (mounted files, Vault, KMS) keep the default {@code false}.
+     */
+    default boolean mayGenerate() {
+        return false;
+    }
 }

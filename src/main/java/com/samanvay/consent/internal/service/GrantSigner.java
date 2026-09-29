@@ -20,7 +20,7 @@ public class GrantSigner {
 
     GrantSigner(SecretStore secretStore, CanonicalJson canonicalJson) {
         try {
-            var secret = secretStore.resolve("consent-grant-signing-key");
+            var secret = secretStore.resolve(ConsentSigningSecrets.SIGNING_KEY);
             this.signingKey = KeyFactory.getInstance("Ed25519").generatePrivate(new PKCS8EncodedKeySpec(secret.bytes()));
         } catch (GeneralSecurityException e) {
             throw new GrantSigningException(e);

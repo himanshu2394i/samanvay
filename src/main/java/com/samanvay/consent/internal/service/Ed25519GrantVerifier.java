@@ -39,7 +39,7 @@ class Ed25519GrantVerifier implements AccessGrantVerifier {
             CanonicalJson canonicalJson,
             Clock clock) {
         try {
-            var secret = secretStore.resolve("consent-grant-verifying-key");
+            var secret = secretStore.resolve(ConsentSigningSecrets.VERIFYING_KEY);
             this.verifyingKey = KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(secret.bytes()));
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("verifying key unavailable", e);

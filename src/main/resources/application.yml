@@ -49,6 +49,13 @@ spring:
       max-request-size: 512KB
 
 samanvay:
+  # Secrets provider (see SecretStoreStartupCheck). Unset = "env": the dev/demo EnvSecretStore, which generates
+  # ephemeral keys and is REFUSED outside the dev/demo profiles. Production: SAMANVAY_SECRETS_PROVIDER=file and
+  # SAMANVAY_SECRETS_DIR=<mounted dir, one base64 file per key>. Audit checkpoint key rotation:
+  # samanvay.audit.checkpoint.signing-key-id (default v1).
+  secrets:
+    provider: ${SAMANVAY_SECRETS_PROVIDER:env}
+    dir: ${SAMANVAY_SECRETS_DIR:}
   notifications:
     email:
       from: ${SAMANVAY_NOTIFICATIONS_EMAIL_FROM:no-reply@samanvay.local}
