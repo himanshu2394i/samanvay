@@ -58,7 +58,8 @@ class JourneyCatalogService implements JourneyCatalog {
                 e.getBpmnRef(),
                 cats,
                 new JourneyPolicy(acceptStale, sla, requester, purpose, prefix, Map.copyOf(sources)),
-                e.getStatus());
+                e.getStatus(),
+                e.getAcademicYearStartMonth());
     }
 
     private static String text(JsonNode policy, String field, String fallback) {

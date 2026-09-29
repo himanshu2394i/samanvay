@@ -167,6 +167,14 @@ honestly.
 `Denied(NO_CONSENT, remedy)` includes the `ConsentRequest` the citizen can act on. A wall
 that says only "no" produces a support ticket; a wall that says "ask them" produces a flow.
 
+### Purposes are catalog data; one purpose per consent record
+
+A consent record names exactly one catalog purpose and copies that purpose's data types at
+grant time; its lifetime is capped by the purpose's max duration. Purpose attributes
+(labels, data types, requester rule, duration, frequency, separate opt-in) live in
+`catalog_purpose`, not in Java. Records are retained for 7 years after they end (a platform
+policy, not a legal claim). Details: [LLD §7.3](../lld/05-consent.md).
+
 ## 7. Failure modes
 
 | Failure | Behaviour |

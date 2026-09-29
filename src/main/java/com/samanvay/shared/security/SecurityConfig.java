@@ -93,7 +93,7 @@ class SecurityConfig {
                         // consent: only the citizen grants/revokes (own record, checked in controller)
                         .requestMatchers(POST, "/api/consent/requests").hasAnyRole(CITIZEN, OFFICER, DEPARTMENT)
                         .requestMatchers(POST, "/api/consent/requests/*/grant").hasRole(CITIZEN)
-                        .requestMatchers(POST, "/api/consent/*/revoke").hasRole(CITIZEN)
+                        .requestMatchers(POST, "/api/consent/*/revoke", "/api/consent/me/*/revoke").hasRole(CITIZEN)
                         .requestMatchers(GET, "/api/consent/citizens/*").hasAnyRole(CITIZEN, OFFICER)
                         // orchestration: officers own the exception queue and retries
                         .requestMatchers(POST, "/api/journeys/*/start").hasAnyRole(CITIZEN, OFFICER, DEPARTMENT)

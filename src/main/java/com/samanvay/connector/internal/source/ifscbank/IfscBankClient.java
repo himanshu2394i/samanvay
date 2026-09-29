@@ -9,6 +9,7 @@ import com.samanvay.connector.api.SourceOutcome.SourceFault;
 import com.samanvay.connector.api.SourceOutcome.SourceTimeout;
 import com.samanvay.connector.internal.source.SourceCredentials;
 import com.samanvay.connector.internal.source.SourceCredentials.Credential;
+import com.samanvay.connector.internal.source.SourceMode;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -41,9 +42,10 @@ import tools.jackson.databind.json.JsonMapper;
  * nothing of our REST layer. Failures carry fixed codes only: no body, no parser
  * message, no cause. Logs carry the operation and the outcome codes.
  *
- * <p>The simulator marker is only REPORTED, never acted on. Its planned use, in
- * the mode-switch PR, is that a marked response in {@code live} mode is refused,
- * audited and alarmed.
+ * <p>In simulator/sandbox mode the marker is only REPORTED. In {@code live} mode
+ * a marked response is refused ({@link ReasonCode#MARKER_IN_LIVE_MODE}) and
+ * alarmed here (ERROR log); {@code ConnectorRuntime.bankCheck} writes the audit
+ * row. The answer is thrown away and never returned.
  */
 public class IfscBankClient implements BankCheckAdapter {
 
@@ -73,11 +75,11 @@ public class IfscBankClient implements BankCheckAdapter {
     @Override
     public SourceOutcome<IfscAnswer> lookupIfsc(String ifsc) {
         URI uri = resolve(props.ifscBaseUrl(), "/" + ifsc.trim().toUpperCase(Locale.ROOT));
-        return logged("ifsc-lookup", exchange(HttpRequest.newBuilder(uri).GET(), (status, body, marker) -> switch (status) {
+        return logged("ifsc-lookup", guardLiveMarker(exchange(HttpRequest.newBuilder(uri).GET(), (status, body, marker) -> switch (status) {
             case 200 -> parse(body, marker, b -> new IfscAnswer(Optional.of(branch(b))));
             case 404 -> new Answered<>(new IfscAnswer(Optional.empty()), marker);
             default -> statusFault(status, marker);
-        }));
+        })));
     }
 
     /** {@code POST {baseUrl}/v1/bank-checks}: one call, verdict only. */
@@ -96,11 +98,24 @@ public class IfscBankClient implements BankCheckAdapter {
                 .header("Content-Type", "application/json")
                 .header("Authorization", basicAuth(credential.get()))
                 .POST(HttpRequest.BodyPublishers.ofString(payload));
-        return logged("bank-check", exchange(builder, (status, body, marker) -> switch (status) {
+        return logged("bank-check", guardLiveMarker(exchange(builder, (status, body, marker) -> switch (status) {
             case 200 -> parse(body, marker, this::answer);
             case 400 -> new RequestRejected<>(rejectedFields(body), marker);
             default -> statusFault(status, marker);
-        }));
+        })));
+    }
+
+    /**
+     * A LIVE source must never carry the simulator marker. If it does, the answer
+     * is thrown away and refused as {@link ReasonCode#MARKER_IN_LIVE_MODE}; the
+     * ERROR-level alarm is raised in {@link #logged}. In any other mode the marker
+     * is expected and the outcome is returned untouched.
+     */
+    private <T> SourceOutcome<T> guardLiveMarker(SourceOutcome<T> outcome) {
+        if (props.mode() == SourceMode.LIVE && outcome.simulatorMarker()) {
+            return new SourceFault<>(ReasonCode.MARKER_IN_LIVE_MODE, true);
+        }
+        return outcome;
     }
 
     @FunctionalInterface
@@ -217,6 +232,8 @@ public class IfscBankClient implements BankCheckAdapter {
                     log.debug("ifsc-bank {}: accountStatus={} nameMatch={}", operation, b.accountStatus(), b.nameMatch());
             case Answered<T> a -> log.debug("ifsc-bank {}: answered", operation);
             case SourceTimeout<T> t -> log.warn("ifsc-bank {} failed: SourceTimeout", operation);
+            case SourceFault<T> f when f.reasonCode() == ReasonCode.MARKER_IN_LIVE_MODE ->
+                    log.error("ifsc-bank {} ALARM: a LIVE source returned the simulator marker; refusing the answer", operation);
             case SourceFault<T> f -> log.warn("ifsc-bank {} failed: SourceFault {}", operation, f.reasonCode());
             case RequestRejected<T> r -> log.warn("ifsc-bank {} failed: RequestRejected {}", operation, r.rejectedFields());
         }

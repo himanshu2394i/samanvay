@@ -5,12 +5,14 @@ import com.samanvay.consent.api.ConsentArtifact;
 import com.samanvay.consent.api.ConsentRequest;
 import com.samanvay.catalog.api.Purpose;
 import com.samanvay.catalog.api.PurposeCatalog;
+import com.samanvay.consent.api.ConsentNotFoundException;
 import com.samanvay.consent.api.ConsentRequestDraft;
 import com.samanvay.consent.api.UnknownPurposeException;
 import com.samanvay.shared.security.Caller;
 import com.samanvay.consent.api.ConsentService;
 import com.samanvay.shared.security.Callers;
 import com.samanvay.shared.security.CitizenAccess;
+import com.samanvay.shared.security.CitizenOwnership;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,11 +36,14 @@ class ConsentController {
     private final ConsentService consents;
     private final CitizenAccess citizenAccess;
     private final PurposeCatalog purposes;
+    private final CitizenOwnership ownership;
 
-    ConsentController(ConsentService consents, CitizenAccess citizenAccess, PurposeCatalog purposes) {
+    ConsentController(
+            ConsentService consents, CitizenAccess citizenAccess, PurposeCatalog purposes, CitizenOwnership ownership) {
         this.consents = consents;
         this.citizenAccess = citizenAccess;
         this.purposes = purposes;
+        this.ownership = ownership;
     }
 
     /**
@@ -65,23 +70,51 @@ class ConsentController {
                 throw new AccessDeniedException("token carries no department; cannot request consent");
             }
         }
-        return consents.request(new ConsentRequestDraft(body.citizenId(), requester, purpose.code()));
+        return consents.request(new ConsentRequestDraft(body.citizenId(), requester, purpose.code(), caller.principal()));
     }
 
     @PostMapping("/requests/{id}/grant")
     ConsentArtifact grant(@PathVariable UUID id, @RequestBody GrantBody body) {
         citizenAccess.requireMayActOn(body.citizenId());
-        String sessionProof = Callers.require().sessionId();
+        Caller caller = Callers.require();
+        String sessionProof = caller.sessionId();
         if (sessionProof == null || sessionProof.isBlank()) {
             throw new AccessDeniedException("token has no jti; cannot prove the granting session");
         }
-        return consents.grant(id, body.citizenId(), new AuthProof(sessionProof));
+        return consents.grant(id, body.citizenId(), new AuthProof(sessionProof), caller.principal());
     }
 
+    /**
+     * Older revoke route (citizen named in the body). A consent that is not the signed-in
+     * citizen's own is a 404, whichever citizenId the body names, so a consent id reveals nothing.
+     */
     @PostMapping("/{id}/revoke")
     void revoke(@PathVariable UUID id, @RequestBody RevokeBody body) {
-        citizenAccess.requireMayActOn(body.citizenId());
-        consents.revoke(id, body.citizenId(), body.reason());
+        Caller caller = Callers.require();
+        UUID owner = ownedByCaller(id, caller);
+        if (!owner.equals(body.citizenId())) {
+            throw new ConsentNotFoundException();
+        }
+        consents.revoke(id, owner, body.reason(), caller.principal());
+    }
+
+    /**
+     * The signed-in citizen withdraws one of their own consents; the citizen comes from the
+     * token, never the body. Someone else's consent (or no such consent) is a 404, so a
+     * consent id reveals nothing. Afterwards every fetch under it is refused.
+     */
+    @PostMapping("/me/{id}/revoke")
+    void revokeMine(@PathVariable UUID id, @RequestBody(required = false) MyRevokeBody body) {
+        Caller caller = Callers.require();
+        UUID owner = ownedByCaller(id, caller);
+        consents.revoke(id, owner, body == null ? null : body.reason(), caller.principal());
+    }
+
+    /** The consent's citizen if that record is bound to the caller's token; otherwise 404. */
+    private UUID ownedByCaller(UUID consentId, Caller caller) {
+        return consents.ownerOf(consentId)
+                .filter(citizen -> ownership.isBoundTo(citizen, caller.subject()))
+                .orElseThrow(ConsentNotFoundException::new);
     }
 
     @GetMapping("/citizens/{citizenId}")
@@ -95,4 +128,6 @@ class ConsentController {
     record GrantBody(UUID citizenId) {}
 
     record RevokeBody(UUID citizenId, String reason) {}
+
+    record MyRevokeBody(String reason) {}
 }

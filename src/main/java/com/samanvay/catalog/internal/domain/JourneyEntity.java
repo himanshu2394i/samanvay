@@ -21,6 +21,8 @@ public class JourneyEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     private String policy;
     private String status;
+    @Column(name = "academic_year_start_month")
+    private Integer academicYearStartMonth;
 
     public String getCode() {
         return code;
@@ -44,5 +46,9 @@ public class JourneyEntity {
 
     public String getStatus() {
         return status;
+    }
+
+    public Integer getAcademicYearStartMonth() {
+        return academicYearStartMonth;
     }
 }
