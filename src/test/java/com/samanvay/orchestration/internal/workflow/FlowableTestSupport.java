@@ -3,7 +3,7 @@ package com.samanvay.orchestration.internal.workflow;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -19,7 +19,12 @@ final class FlowableTestSupport {
         return "jdbc:h2:mem:flowable-" + DB_SEQ.incrementAndGet() + ";DB_CLOSE_DELAY=-1";
     }
 
-    @Configuration(proxyBeanMethods = false)
+    /**
+     * Must be a {@code @TestConfiguration}, never a plain {@code @Configuration}: SamanvayApplication's
+     * component scan covers the test classpath, and a scanned plain {@code @Configuration} that defines
+     * a {@code DataSource} would replace the app's real one in every full-context IT.
+     */
+    @TestConfiguration(proxyBeanMethods = false)
     static class H2Config {
 
         @Bean
