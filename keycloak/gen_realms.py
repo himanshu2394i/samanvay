@@ -54,10 +54,12 @@ KEYCLOAK_DEV_URL = "http://localhost:8180"
 # Broker mapper -> user-session note -> citizen access-token claim. A session
 # note (not a user attribute) so the claims exist ONLY in the session that was
 # actually brokered in, and vanish with it; nothing here is user-editable.
-BROKER_CLAIMS = [  # (department token claim, session note, citizen token claim)
-    ("department", "dept_idp_department", "dept_code"),
-    ("local_id_type", "dept_idp_local_id_type", "dept_local_id_type"),
-    ("local_id", "dept_idp_local_id", "dept_local_id"),
+# Keycloak's "oidc-user-session-note-idp-mapper" names each note after the
+# department-token claim it copies, so the note name IS the claim name.
+BROKER_CLAIMS = [  # (department token claim = session note name, citizen token claim)
+    ("department", "dept_code"),
+    ("local_id_type", "dept_local_id_type"),
+    ("local_id", "dept_local_id"),
 ]
 BROKER_ALIAS_NOTE = ("dept_idp_alias", "dept_idp")  # (session note, citizen token claim)
 BROKER_SCOPE = "department-idp"
@@ -255,7 +257,7 @@ def broker_claims_scope():
                       introspection_token_claim="true")
     return scope(BROKER_SCOPE, "claims of a department-brokered sign-in (from the broker's session notes)", [
         note_claim("dept idp alias", *BROKER_ALIAS_NOTE),
-        *[note_claim(out, note, out) for _, note, out in BROKER_CLAIMS],
+        *[note_claim(out, note, out) for note, out in BROKER_CLAIMS],
     ], in_token_scope=False)
 
 
@@ -295,8 +297,10 @@ def broker_mappers():
           template="${ALIAS}.${CLAIM.sub}"),
         m("department alias", "hardcoded-user-session-attribute-idp-mapper", syncMode="FORCE",
           attribute=BROKER_ALIAS_NOTE[0], attribute_value=BROKER_ALIAS),
-        *[m("claim " + claim + " to session note", "oidc-user-session-note-idp-mapper", syncMode="FORCE",
-            claim=claim, attribute=note) for claim, note, _ in BROKER_CLAIMS],
+        # Map config = JSON list of {key: claim, value: allowed-value regex}; ".*" = any value.
+        m("department claims to session notes", "oidc-user-session-note-idp-mapper", syncMode="FORCE",
+          are_claim_values_regex="true",
+          claims=json.dumps([{"key": claim, "value": ".*"} for claim, _ in BROKER_CLAIMS], separators=(",", ":"))),
     ]
 
 

@@ -220,7 +220,7 @@
           "protocolMapper": "oidc-usersessionmodel-note-mapper",
           "consentRequired": false,
           "config": {
-            "user.session.note": "dept_idp_department",
+            "user.session.note": "department",
             "claim.name": "dept_code",
             "jsonType.label": "String",
             "access.token.claim": "true",
@@ -234,7 +234,7 @@
           "protocolMapper": "oidc-usersessionmodel-note-mapper",
           "consentRequired": false,
           "config": {
-            "user.session.note": "dept_idp_local_id_type",
+            "user.session.note": "local_id_type",
             "claim.name": "dept_local_id_type",
             "jsonType.label": "String",
             "access.token.claim": "true",
@@ -248,7 +248,7 @@
           "protocolMapper": "oidc-usersessionmodel-note-mapper",
           "consentRequired": false,
           "config": {
-            "user.session.note": "dept_idp_local_id",
+            "user.session.note": "local_id",
             "claim.name": "dept_local_id",
             "jsonType.label": "String",
             "access.token.claim": "true",
@@ -577,33 +577,13 @@
       }
     },
     {
-      "name": "claim department to session note",
+      "name": "department claims to session notes",
       "identityProviderAlias": "dept-idp",
       "identityProviderMapper": "oidc-user-session-note-idp-mapper",
       "config": {
         "syncMode": "FORCE",
-        "claim": "department",
-        "attribute": "dept_idp_department"
-      }
-    },
-    {
-      "name": "claim local_id_type to session note",
-      "identityProviderAlias": "dept-idp",
-      "identityProviderMapper": "oidc-user-session-note-idp-mapper",
-      "config": {
-        "syncMode": "FORCE",
-        "claim": "local_id_type",
-        "attribute": "dept_idp_local_id_type"
-      }
-    },
-    {
-      "name": "claim local_id to session note",
-      "identityProviderAlias": "dept-idp",
-      "identityProviderMapper": "oidc-user-session-note-idp-mapper",
-      "config": {
-        "syncMode": "FORCE",
-        "claim": "local_id",
-        "attribute": "dept_idp_local_id"
+        "are.claim.values.regex": "true",
+        "claims": "[{\"key\":\"department\",\"value\":\".*\"},{\"key\":\"local_id_type\",\"value\":\".*\"},{\"key\":\"local_id\",\"value\":\".*\"}]"
       }
     }
   ],

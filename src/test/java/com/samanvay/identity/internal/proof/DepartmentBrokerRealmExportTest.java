@@ -77,15 +77,19 @@ class DepartmentBrokerRealmExportTest {
 
     @Test
     void brokerMappersCarryDepartmentAndLocalIdIntoSessionNotesTheProviderReadsAsClaims() {
-        // department token claim -> session note (broker mappers)
-        Map<String, String> claimToNote = new TreeMap<>();
+        // department token claim -> session note (broker mapper); Keycloak names the note after the claim
         for (JsonNode m : citizen.get("identityProviderMappers")) {
             assertThat(m.get("identityProviderAlias").asString()).isEqualTo("dept-idp");
-            if ("oidc-user-session-note-idp-mapper".equals(m.get("identityProviderMapper").asString())) {
-                claimToNote.put(m.get("config").get("claim").asString(), m.get("config").get("attribute").asString());
-            }
         }
-        assertThat(claimToNote.keySet()).containsExactly("department", "local_id", "local_id_type");
+        JsonNode noteMapper = mapper("department claims to session notes");
+        assertThat(noteMapper.get("identityProviderMapper").asString()).isEqualTo("oidc-user-session-note-idp-mapper");
+        assertThat(noteMapper.get("config").get("are.claim.values.regex").asString()).isEqualTo("true");
+        List<String> noteNames = new ArrayList<>();
+        for (JsonNode pair : JSON.readTree(noteMapper.get("config").get("claims").asString())) {
+            assertThat(pair.get("value").asString()).as("any value").isEqualTo(".*");
+            noteNames.add(pair.get("key").asString());
+        }
+        assertThat(noteNames).containsExactly("department", "local_id_type", "local_id");
         JsonNode alias = mapper("department alias");
         assertThat(alias.get("identityProviderMapper").asString()).isEqualTo("hardcoded-user-session-attribute-idp-mapper");
         assertThat(alias.get("config").get("attribute.value").asString()).isEqualTo("dept-idp");
@@ -108,9 +112,9 @@ class DepartmentBrokerRealmExportTest {
         assertThat(client(citizen, "samanvay-citizen-ui").get("defaultClientScopes").toString()).contains("department-idp");
         assertThat(noteToClaim)
                 .containsEntry(alias.get("config").get("attribute").asString(), DepartmentBrokerLinkProofProvider.CLAIM_IDP)
-                .containsEntry(claimToNote.get("department"), DepartmentBrokerLinkProofProvider.CLAIM_DEPARTMENT)
-                .containsEntry(claimToNote.get("local_id_type"), DepartmentBrokerLinkProofProvider.CLAIM_LOCAL_ID_TYPE)
-                .containsEntry(claimToNote.get("local_id"), DepartmentBrokerLinkProofProvider.CLAIM_LOCAL_ID)
+                .containsEntry("department", DepartmentBrokerLinkProofProvider.CLAIM_DEPARTMENT)
+                .containsEntry("local_id_type", DepartmentBrokerLinkProofProvider.CLAIM_LOCAL_ID_TYPE)
+                .containsEntry("local_id", DepartmentBrokerLinkProofProvider.CLAIM_LOCAL_ID)
                 .hasSize(4);
         // and it is a note (set server-side per session), never a user attribute the citizen could edit
         assertThat(mapperTypes()).doesNotContain("oidc-user-attribute-idp-mapper", "hardcoded-attribute-idp-mapper");

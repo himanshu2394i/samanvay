@@ -150,7 +150,7 @@ class KeycloakRealmExportIT {
         for (JsonNode m : mappers) {
             java.util.TreeMap<String, String> mapperConfig = new java.util.TreeMap<>();
             m.get("config").properties().forEach(e -> {
-                if (List.of("claim", "attribute", "attribute.value", "template", "target").contains(e.getKey())) {
+                if (List.of("claims", "are.claim.values.regex", "attribute", "attribute.value", "template", "target").contains(e.getKey())) {
                     mapperConfig.put(e.getKey(), e.getValue().asString());
                 }
             });
@@ -159,9 +159,11 @@ class KeycloakRealmExportIT {
         assertThat(lines).containsExactlyInAnyOrder(
                 "oidc-username-idp-mapper [target=LOCAL, template=${ALIAS}.${CLAIM.sub}]",
                 "hardcoded-user-session-attribute-idp-mapper [attribute=dept_idp_alias, attribute.value=dept-idp]",
-                "oidc-user-session-note-idp-mapper [attribute=dept_idp_department, claim=department]",
-                "oidc-user-session-note-idp-mapper [attribute=dept_idp_local_id_type, claim=local_id_type]",
-                "oidc-user-session-note-idp-mapper [attribute=dept_idp_local_id, claim=local_id]");
+                // Keycloak names each session note after the claim it copies (any value: regex ".*")
+                "oidc-user-session-note-idp-mapper [are.claim.values.regex=true, claims="
+                        + "[{\"key\":\"department\",\"value\":\".*\"},"
+                        + "{\"key\":\"local_id_type\",\"value\":\".*\"},"
+                        + "{\"key\":\"local_id\",\"value\":\".*\"}]]");
 
         // ...and the citizen UI client releases exactly those notes as access-token claims
         JsonNode ui = admin("/admin/realms/" + CITIZEN + "/clients?clientId=samanvay-citizen-ui").get(0);
@@ -182,9 +184,9 @@ class KeycloakRealmExportIT {
         }
         assertThat(claims).containsExactlyInAnyOrder(
                 "dept_idp_alias->dept_idp",
-                "dept_idp_department->dept_code",
-                "dept_idp_local_id_type->dept_local_id_type",
-                "dept_idp_local_id->dept_local_id");
+                "department->dept_code",
+                "local_id_type->dept_local_id_type",
+                "local_id->dept_local_id");
     }
 
     @Test

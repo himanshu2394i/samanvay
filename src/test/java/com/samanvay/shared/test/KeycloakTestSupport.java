@@ -361,7 +361,7 @@ public final class KeycloakTestSupport {
 
         /** Follows Keycloak-internal redirects (not the final one back to the UI). */
         public BrowserLogin follow() throws Exception {
-            for (int hops = 0; last.statusCode() == 302 && !finished(); hops++) {
+            for (int hops = 0; isRedirect() && !finished(); hops++) {
                 assertThat(hops).as("redirect loop; last Location " + last.headers().firstValue("Location")).isLessThan(25);
                 String location = last.headers().firstValue("Location").orElseThrow();
                 if (location.startsWith(UI_REDIRECT)) {
@@ -373,13 +373,24 @@ public final class KeycloakTestSupport {
             return this;
         }
 
+        /**
+         * Keycloak answers with 302 in places and 303 See Other in others (the identity-provider redirector
+         * and the broker endpoints use 303), so any redirect status counts.
+         */
+        private boolean isRedirect() {
+            return switch (last.statusCode()) {
+                case 301, 302, 303, 307, 308 -> true;
+                default -> false;
+            };
+        }
+
         public HttpResponse<String> page() {
             return last;
         }
 
         /** True once Keycloak redirected back to the UI with an authorization code. */
         public boolean finished() {
-            return last.statusCode() == 302
+            return isRedirect()
                     && last.headers().firstValue("Location").orElse("").startsWith(UI_REDIRECT)
                     && last.headers().firstValue("Location").orElse("").contains("code=");
         }
