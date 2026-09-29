@@ -55,6 +55,9 @@ export function CitizenLayout() {
           Samanvay connects you to government departments only with your consent. Development build: departments and
           sign-in providers are mocks.
         </p>
+        <p>
+          <a href="#/staff">Staff consoles</a> (officers, reviewers and administrators sign in separately)
+        </p>
       </footer>
     </>
   )

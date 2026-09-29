@@ -23,16 +23,17 @@ export function parseAuthConfig(body: unknown, realm: RealmKey): OidcConfig {
 /**
  * Where the SPA learns which Keycloak realm and client to use. Default: ask the API
  * (GET /ui/auth-config, public), the same way the static portals do, so the SPA carries
- * no IdP address of its own. VITE_OIDC_AUTHORITY + VITE_OIDC_CLIENT_ID override it.
+ * no IdP address of its own. VITE_OIDC_AUTHORITY + VITE_OIDC_CLIENT_ID override the citizen
+ * realm; VITE_STAFF_OIDC_AUTHORITY + VITE_STAFF_OIDC_CLIENT_ID override the staff realm.
  */
 export async function loadOidcConfig(
   realm: RealmKey = 'citizen',
   opts: { fetchImpl?: typeof fetch; env?: Record<string, string | undefined> } = {},
 ): Promise<OidcConfig> {
   const env = opts.env ?? (import.meta.env as Record<string, string | undefined>)
-  if (env.VITE_OIDC_AUTHORITY && env.VITE_OIDC_CLIENT_ID) {
-    return { authority: env.VITE_OIDC_AUTHORITY, clientId: env.VITE_OIDC_CLIENT_ID }
-  }
+  const authority = realm === 'staff' ? env.VITE_STAFF_OIDC_AUTHORITY : env.VITE_OIDC_AUTHORITY
+  const clientId = realm === 'staff' ? env.VITE_STAFF_OIDC_CLIENT_ID : env.VITE_OIDC_CLIENT_ID
+  if (authority && clientId) return { authority, clientId }
   const doFetch = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => globalThis.fetch(...a))
   let res: Response
   try {

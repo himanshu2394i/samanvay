@@ -2,19 +2,31 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { loadOidcConfig } from './auth/config'
-import { createUserManager } from './auth/oidc'
+import { createUserManager, isCallbackUrl } from './auth/oidc'
+import { detectRealm, realmFromHash } from './auth/realm'
 import { Loading } from './ui/Loading'
 import './index.css'
 
 const root = createRoot(document.getElementById('root')!)
 
+let crossingListener = false
+
 async function start() {
   root.render(<Loading label="Starting" />)
   try {
-    const manager = createUserManager(await loadOidcConfig('citizen'))
+    // The realm is fixed for this page load; moving between the citizen and staff areas
+    // (a hash change across the boundary) reloads so the other realm's sign-in is used.
+    const realm = detectRealm(window.location, isCallbackUrl(window.location.search))
+    const manager = createUserManager(await loadOidcConfig(realm))
+    if (!crossingListener) {
+      crossingListener = true
+      window.addEventListener('hashchange', () => {
+        if (realmFromHash(window.location.hash) !== realm) window.location.reload()
+      })
+    }
     root.render(
       <StrictMode>
-        <App manager={manager} />
+        <App manager={manager} realm={realm} />
       </StrictMode>,
     )
   } catch (e) {

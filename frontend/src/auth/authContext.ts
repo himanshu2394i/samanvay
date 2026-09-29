@@ -5,6 +5,13 @@ export interface AuthUser {
   sub: string
   /** Display name: name, preferred_username or email, whichever the token carries. */
   name: string
+  /**
+   * Realm roles from the access token, upper-cased (OFFICER, REVIEWER, ADMIN, CITIZEN).
+   * For deciding what to show only: the API re-checks every call against the verified token.
+   */
+  roles: string[]
+  /** Staff only: the catalog department claim of the token, if any. */
+  department: string | null
 }
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'

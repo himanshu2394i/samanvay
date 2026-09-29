@@ -4,6 +4,7 @@ import { vi } from 'vitest'
 import { ApiProvider } from '../api/ApiProvider'
 import { AuthContext, type AuthContextValue } from '../auth/authContext'
 import { CitizenApp } from '../surfaces/citizen/CitizenApp'
+import { StaffApp } from '../surfaces/staff/StaffApp'
 import { writeCitizenId } from '../surfaces/citizen/lib/citizenStore'
 
 export const SUB = 'sub-citizen-1'
@@ -64,7 +65,7 @@ export function mockFetch(routes: Route[]) {
 export function signedInAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
     status: 'authenticated',
-    user: { sub: SUB, name: 'Asha Patil' },
+    user: { sub: SUB, name: 'Asha Patil', roles: ['CITIZEN'], department: null },
     notice: null,
     signIn: vi.fn(async () => {}),
     signOut: vi.fn(async () => {}),
@@ -100,6 +101,29 @@ export function renderCitizen({ route, fetchImpl, auth = signedInAuth(), registe
         <ApiProvider fetchImpl={fetchImpl}>
           <MemoryRouter initialEntries={[route]}>
             <CitizenApp />
+          </MemoryRouter>
+        </ApiProvider>
+      </AuthContext.Provider>,
+    ),
+  }
+}
+
+/** A signed-in staff session whose token carries `roles` (lower-case, as Keycloak names them, or any case). */
+export function staffAuth(roles: string[], overrides: Partial<AuthContextValue> = {}): AuthContextValue {
+  return signedInAuth({
+    user: { sub: 'sub-staff-1', name: 'Om Kulkarni', roles: roles.map((r) => r.toUpperCase()), department: 'SCHOLARSHIP' },
+    ...overrides,
+  })
+}
+
+export function renderStaff({ route, fetchImpl, auth }: { route: string; fetchImpl: typeof fetch; auth: AuthContextValue }) {
+  return {
+    auth,
+    ...render(
+      <AuthContext.Provider value={auth}>
+        <ApiProvider fetchImpl={fetchImpl}>
+          <MemoryRouter initialEntries={[route]}>
+            <StaffApp />
           </MemoryRouter>
         </ApiProvider>
       </AuthContext.Provider>,

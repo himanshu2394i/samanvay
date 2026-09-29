@@ -32,11 +32,12 @@ import json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 UI_ORIGIN = "http://localhost:8080"
-# The React SPA's Vite dev server (frontend/, `npm run dev`). It signs in with the citizen
-# realm's existing browser client, so its tokens keep azp=samanvay-citizen-ui and the API's
-# allowed-clients list needs no change; this origin is only added to that client's redirect,
+# The React SPA's Vite dev server (frontend/, `npm run dev`). It signs in with each realm's
+# EXISTING browser client (citizen surface: samanvay-citizen-ui; officer/admin/reviewer
+# surfaces: samanvay-staff-ui), so its tokens keep those azp values and the API's
+# allowed-clients lists need no change; this origin is only added to those clients' redirect,
 # CORS (web origin) and post-logout allow-lists. The production build is served by Spring from
-# UI_ORIGIN (/app/), which the client already allows.
+# UI_ORIGIN (/app/), which the clients already allow.
 SPA_DEV_ORIGIN = "http://localhost:5173"
 # Data sources the dev department client may fetch from: one scope per source.
 DEPT_SOURCES = ["revenue-rest-mock", "education-soap-mock", "dbt-rest-mock"]
@@ -419,7 +420,8 @@ def staff_realm():
         "defaultDefaultClientScopes": ["basic", "roles", "profile", "web-origins", "acr"],
         "defaultOptionalClientScopes": [],
         "clients": [
-            ui_client("samanvay-staff-ui", "Samanvay staff consoles (dev)", extra_scopes=["department"]),
+            ui_client("samanvay-staff-ui", "Samanvay staff consoles (dev)", extra_scopes=["department"],
+                      extra_origins=[SPA_DEV_ORIGIN]),
             {"clientId": "dept-scholarship-dev", "name": "DEV department client (scholarship sources)",
              "enabled": True, "publicClient": False, "clientAuthenticatorType": "client-secret",
              "protocol": "openid-connect", "standardFlowEnabled": False, "implicitFlowEnabled": False,
