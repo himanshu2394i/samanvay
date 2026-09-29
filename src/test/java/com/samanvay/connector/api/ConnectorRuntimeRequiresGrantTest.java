@@ -9,11 +9,13 @@ import org.junit.jupiter.api.Test;
 
 class ConnectorRuntimeRequiresGrantTest {
 
+    /** Every way into a department source goes through a grant: no ConnectorRuntime method without one. */
     @Test
-    void executeAlwaysRequiresAccessGrant() {
+    void everyRuntimeMethodRequiresAccessGrant() {
         Method[] methods = ConnectorRuntime.class.getDeclaredMethods();
-        assertThat(methods).hasSize(1);
-        assertThat(methods[0].getName()).isEqualTo("execute");
-        assertThat(Arrays.asList(methods[0].getParameterTypes())).contains(AccessGrant.class);
+        assertThat(methods).extracting(Method::getName).containsExactlyInAnyOrder("execute", "bankCheck");
+        for (Method method : methods) {
+            assertThat(Arrays.asList(method.getParameterTypes())).as(method.getName()).first().isEqualTo(AccessGrant.class);
+        }
     }
 }
