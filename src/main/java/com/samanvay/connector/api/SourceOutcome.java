@@ -14,7 +14,9 @@ import java.util.List;
  * statuses is the API layer's job (connector.internal.web.SourceOutcomeProblems).
  *
  * <p>{@code simulatorMarker} reports whether the response carried the simulator
- * marker. It is reported only and never acted on (see the bank-check contract).
+ * marker. In simulator/sandbox mode it is reported only; in LIVE mode a marked
+ * response is refused as {@link ReasonCode#MARKER_IN_LIVE_MODE} (see the
+ * bank-check contract and the source mode-switch).
  */
 public sealed interface SourceOutcome<T>
         permits SourceOutcome.Answered, SourceOutcome.SourceTimeout, SourceOutcome.SourceFault, SourceOutcome.RequestRejected {
@@ -58,6 +60,8 @@ public sealed interface SourceOutcome<T>
         /** No credential in SecretStore for this source; the call was not made. */
         CREDENTIAL_MISSING,
         /** No adapter is registered for the requested source code. */
-        NOT_CONFIGURED
+        NOT_CONFIGURED,
+        /** A LIVE source returned the simulator marker: refused, audited and alarmed. */
+        MARKER_IN_LIVE_MODE
     }
 }

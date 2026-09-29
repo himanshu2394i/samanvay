@@ -422,3 +422,28 @@ not catch them. See [LLD.md §4.3](../LLD.md#43-what-is-never-caught-and-swallow
 | `SubmitIdempotencyIT extends PostgresIntegrationTest` | Calling `submit()` twice with the same grant produces one `SUCCEEDED` `connector_submission_attempt` row and the second call returns the first's `external_reference`, not a new one |
 | `BatchReDeliveryIT extends PostgresIntegrationTest` | Ingesting the same file twice (same checksum) processes it once; a job killed mid-file resumes from `row_offset`, not from zero |
 | `ConnectorContractTest` (WireMock, per connector, no live mock department) | A recorded department response maps to the exact expected canonical output — catches a department silently renaming a field |
+
+## 11. Source mode and the live-mode marker cross-check
+
+Every external source has a `mode` (`samanvay.sources.<code>.mode`:
+`sandbox | simulator | live`). Two things depend on it:
+
+- A `LIVE` source must have its credential in SecretStore, or the boot fails
+  (introduced with the department-simulator PR).
+- **A `LIVE` source must never return the simulator marker.** The simulator
+  stamps every response with `X-Samanvay-Simulator: true` (and a
+  `samanvay_simulator` body field). In simulator/sandbox mode this is only
+  reported (`SourceOutcome.simulatorMarker()`). In `live` mode a marked response
+  is a sign the traffic reached a stand-in instead of the real department, so:
+  - the adapter throws the answer away and returns
+    `SourceFault(MARKER_IN_LIVE_MODE)` — the answer is never returned to a caller;
+  - the adapter raises an ERROR-level alarm in its logs;
+  - `ConnectorRuntime.bankCheck` writes one `LIVE_SOURCE_MARKER_REJECTED` audit
+    row (`Outcome.DENIED`), the durable trail.
+
+Still deferred (they need a config/UI target): selecting the base URL per mode,
+and a mode badge in the ops view. Today the base URL is set directly.
+
+| Test | Proves |
+|---|---|
+| `BankCheckLiveMarkerGuardTest` | A LIVE source returning the marker is refused (`MARKER_IN_LIVE_MODE`) and audited once (`LIVE_SOURCE_MARKER_REJECTED`); a simulator-mode marked response and a live unmarked response both pass through, unaudited |
