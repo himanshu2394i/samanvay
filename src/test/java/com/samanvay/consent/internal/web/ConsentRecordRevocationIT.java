@@ -452,7 +452,10 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
                 "rev-domicile@1",
                 PurposeCode.of(purpose),
                 null,
-                new PrincipalRef(PrincipalRef.Kind.OFFICER, "officer-p2-fetch"));
+                new PrincipalRef(PrincipalRef.Kind.OFFICER, "officer-p2-fetch"),
+                // SCH_ELIGIBILITY_CHECK allows one check per document per application (V189),
+                // so a fetch without an application id is refused APPLICATION_REQUIRED.
+                "app-p2-" + UUID.randomUUID());
     }
 
     /** Registry pointers arrive asynchronously after linking. */
