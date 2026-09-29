@@ -7,7 +7,12 @@ import { useAuth } from './authContext'
  * that sign-in is needed (no automatic redirect, so a failed sign-in cannot loop) and
  * offers a button that returns the citizen to this same page afterwards.
  */
-export function RequireAuth({ children }: { children: ReactNode }) {
+export function RequireAuth({ children, hint, audience = 'use this part of Samanvay' }: {
+  children: ReactNode
+  /** Sign-in guidance shown under the prompt; defaults to the citizen realm's methods. */
+  hint?: ReactNode
+  audience?: string
+}) {
   const { status, signIn, notice } = useAuth()
   const location = useLocation()
 
@@ -17,8 +22,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return (
     <section className="card narrow" aria-labelledby="signin-required">
       <h1 id="signin-required">Sign in to continue</h1>
-      {notice ? <p role="alert">{notice}</p> : <p>You need to sign in to use this part of Samanvay.</p>}
-      <p className="hint">You sign in with a one-time code sent to your email, or with a passkey. There is no password.</p>
+      {notice ? <p role="alert">{notice}</p> : <p>You need to sign in to {audience}.</p>}
+      <p className="hint">
+        {hint ?? 'You sign in with a one-time code sent to your email, or with a passkey. There is no password.'}
+      </p>
       <button type="button" className="btn primary" onClick={() => void signIn(returnTo)}>
         Sign in
       </button>

@@ -66,7 +66,9 @@ export class ApiClient {
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
     }
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    // FormData (passbook upload) is sent as-is so the browser sets the multipart boundary.
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+    if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
 
     const doFetch = this.opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => globalThis.fetch(...a))
     let res: Response
@@ -74,7 +76,7 @@ export class ApiClient {
       res = await doFetch(buildUrl(this.opts.baseUrl ?? '', path, query), {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
       })
     } catch {
       throw new ApiError(0, 'The service could not be reached.')

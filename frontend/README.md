@@ -1,9 +1,14 @@
 # Samanvay web app (`frontend/`)
 
-A React single-page app for the Samanvay platform. It starts with the **citizen surface**:
-browse services, connect department accounts, give consent, submit an application and track it,
-all against the real REST API and the citizen Keycloak realm. Officer and admin surfaces are
-not built yet; the code is laid out so they can be added beside the citizen one.
+A React single-page app for the Samanvay platform with two areas that share one build:
+
+- the **citizen surface** (`#/...`): browse services, connect department accounts, give consent,
+  submit an application and track it, on the citizen Keycloak realm;
+- the **staff surfaces** (`#/staff/...`): the officer desk, ops dashboards, admin catalog and
+  onboarding, and the reviewer queue, on the staff Keycloak realm.
+
+Both use the real REST API. Each area signs in to its own realm and shows only what the roles in
+the token allow (the API enforces the same roles on every call).
 
 The existing static portals under `src/main/resources/static/` are untouched and keep working.
 
@@ -44,9 +49,15 @@ Sign in as **`dev-citizen`**: enter the username, then read the one-time code in
 <http://localhost:8025>. (Or register a new citizen in Keycloak's sign-in page; or use a passkey.
 There are no passwords.)
 
-If you already had Keycloak running before this change, **re-import the citizen realm**: the
-`samanvay-citizen-ui` client gained `http://localhost:5173` as an allowed redirect, web origin and
-post-logout URI. Easiest is `docker compose down -v && docker compose up -d` (dev data only).
+For the staff surfaces open <http://localhost:5173/#/staff> and use **Staff sign in**. The dev staff
+users are `dev-officer`, `dev-admin` and `dev-reviewer`; each has a temporary password
+(`<username>-change-me`) that Keycloak makes you change, and an authenticator (TOTP) you enrol on
+first sign-in. A passkey also works. Keycloak hosts that whole sign-in; the SPA never sees a password.
+
+If you already had Keycloak running before these changes, **re-import the realms**: the
+`samanvay-citizen-ui` (citizen realm) and `samanvay-staff-ui` (staff realm) clients gained
+`http://localhost:5173` as an allowed redirect, web origin and post-logout URI. Easiest is
+`docker compose down -v && docker compose up -d` (dev data only).
 
 ### How the dev server is wired
 
@@ -56,9 +67,10 @@ post-logout URI. Easiest is `docker compose down -v && docker compose up -d` (de
   is configured with (`http://localhost:8180/realms/samanvay-citizen`), and compose pins Keycloak's
   public hostname to that URL. The browser therefore talks to Keycloak directly; the realm client
   allows this origin for redirects and CORS.
-- The SPA learns the realm issuer and client id from the API's public `GET /ui/auth-config`
+- The SPA learns each realm's issuer and client id from the API's public `GET /ui/auth-config`
   (the same source the static portals use), so it embeds no IdP address. To bypass that, set
-  `VITE_OIDC_AUTHORITY` and `VITE_OIDC_CLIENT_ID` (see `.env.example`).
+  `VITE_OIDC_AUTHORITY` + `VITE_OIDC_CLIENT_ID` (citizen) and/or `VITE_STAFF_OIDC_AUTHORITY` +
+  `VITE_STAFF_OIDC_CLIENT_ID` (staff); see `.env.example`.
 
 ## Scripts
 
@@ -91,7 +103,41 @@ Routes (hash-based, e.g. `http://localhost:5173/#/services`):
 | `/applications/:ref` | Status, department checks and the records fetched now (not stored by Samanvay); refreshes itself while in progress | `GET /api/applications/{ref}`, `GET /api/applications/{ref}/steps`, `GET /api/applications/{ref}/issued-records` |
 | `/consents` | My consents; withdraw | `GET /api/consent/citizens/{id}`, `POST /api/consent/me/{id}/revoke` |
 
-Design notes that follow from the contract:
+## What the staff surfaces do
+
+Routes (hash-based, e.g. `http://localhost:5173/#/staff/officer/exceptions`). A route opens only
+for the roles listed; anyone else sees an explanation page and the route makes no API call.
+
+| Route | Roles | Page | Real endpoints |
+|---|---|---|---|
+| `/staff` | any staff role | Home: the consoles your roles may use | none |
+| `/staff/officer/exceptions` | OFFICER | Exception queue; retry a stopped journey; show its step outcomes | `GET /api/journeys/exceptions`, `POST /api/journeys/instances/{id}/retry`, `GET /api/journeys/instances/{id}` |
+| `/staff/officer/bank-reviews` | OFFICER | Bank-account reviews: passbook upload, ask for a document, approve, reject (reason required). Never shows a holder name | `GET /api/officer/bank-reviews`, `POST .../{id}/passbook` (multipart, 256 KB), `.../request-document`, `.../approve`, `.../reject` |
+| `/staff/officer/applications` | OFFICER | Recent applications across citizens; filter by service and open/closed; SLA flags; open by number | `GET /api/applications?size=` |
+| `/staff/officer/applications/:ref` | OFFICER | Case review: status, department checks, records received (live preview), this application's open exceptions with retry | `GET /api/applications/{ref}`, `.../steps`, `.../issued-records`, `GET /api/journeys/exceptions`, `POST /api/journeys/instances/{id}/retry` |
+| `/staff/ops/metrics` | OFFICER, ADMIN | The four ops dashboards: SLA, exception queue, connector health, consent decisions | `GET /api/ops/metrics` |
+| `/staff/ops/audit` | OFFICER, ADMIN | Audit ledger, read only: head, latest checkpoint, verify the chain, browse and filter entries | `GET /api/audit/head`, `/checkpoint`, `/verify`, `/entries` |
+| `/staff/admin/catalog` | ADMIN | Journeys, departments, connectors | `GET /api/catalog/journeys`, `/departments`, `/connectors` |
+| `/staff/admin/onboarding` | ADMIN | Six-step wizard: department, data source, draft connector, OpenAPI import and approve field matches, test, publish | `POST /api/catalog/departments`, `/data-sources`, `/connectors`, `/import/openapi`, `/mappings`, `/connectors/{ref}/test`, `/connectors/{ref}/publish`, `GET /api/catalog/schemas` |
+| `/staff/reviewer/queue` | REVIEWER | Identity review queue: confirm or reject candidate account links | `GET /api/identity/review-queue`, `POST /api/identity/candidates/{id}/confirm`, `/reject` |
+
+These follow `SecurityConfig` route by route. Things worth knowing:
+
+- **Approving an application is a marked TODO.** No application approval endpoint exists on `main` at
+  this commit (only bank-account reviews have approve/reject), and this app does not invent endpoints.
+  The case page shows a disabled "Approve application" control that says so (`data-testid="approve-todo"`),
+  and `ApplicationReviewPage.tsx` / `api/staffApi.ts` carry a `TODO(approve)`. Open PR #55 proposes
+  `POST /api/journeys/instances/{instanceId}/approve` (OFFICER only, VERIFIED applications only, `instanceId`
+  as on the application view). When it merges: add `approveApplication` to `staffApi.ts`, its case to
+  `staffApi.test.ts` (which currently pins that no such call exists), and enable the button for VERIFIED
+  applications.
+- The importer only **previews**. Only the rows a person ticks become mapping rules, nothing is ticked
+  by default, and publishing needs the passing test report from the step before.
+- Officer-only data (applications, exceptions, bank reviews) is not offered to ADMIN, matching the API.
+- The demo-profile-only controls of the static consoles (connector chaos kill/revive, audit tamper) are
+  not reproduced; they exist only under `--spring.profiles.active=demo`.
+
+Design notes that follow from the contract (citizen surface):
 
 - **The API has no "who am I" endpoint.** A citizen token is bound to a citizen record by
   `POST /api/identity/citizens`, which returns the record id and is idempotent for the same token
@@ -111,6 +157,29 @@ Design notes that follow from the contract:
 
 ## Auth
 
+### Staff realm (officer, admin, reviewer)
+
+- **Client:** the existing staff-realm public client `samanvay-staff-ui` (Authorization Code + PKCE
+  S256, no secret, no direct grants, `samanvay-api` audience mapper, `department` claim scope). No new
+  client was added and the API's `allowed-clients` are unchanged, so audience, `azp` and role checks are
+  exactly as before. The only Keycloak change is in `keycloak/gen_realms.py`: that client also allows
+  `http://localhost:5173` (redirect URI, web origin, post-logout URI), as the citizen client already
+  does; the staff realm JSON was regenerated.
+- **Sign-in** is the standard OIDC redirect to Keycloak, which hosts passkey or password + TOTP.
+- **One realm per page load.** The realm is chosen at start-up: a `#/staff...` route uses the staff
+  realm, anything else the citizen realm. The IdP redirect back carries no route, so the realm being
+  signed in to is remembered in `sessionStorage` just before the redirect (`auth/realm.ts`); a lost
+  marker fails closed to the citizen realm. Moving between the two areas reloads the page so the other
+  realm's session is used. Each realm has its own `UserManager`, so tokens never mix.
+- **Role gating** (`surfaces/staff/guards.tsx`): `RequireStaff` requires a signed-in session whose
+  access token has at least one of `officer`, `reviewer`, `admin` in `realm_access.roles`; `RequireRole`
+  then gates each route family (table above). A citizen token, or a staff-realm account with no staff
+  role, gets "No staff access". The roles are read from the access token payload **without verifying it**
+  (`auth/roles.ts`), which is only for deciding what to show: the API verifies the token and re-checks the
+  role on every request, so this is never a security boundary.
+
+### Citizen realm
+
 - **Client:** the existing citizen-realm public client `samanvay-citizen-ui` (Authorization Code +
   PKCE S256, no secret, no direct grants, `samanvay-api` audience mapper). The SPA reuses it rather
   than adding a second client, because the API only accepts tokens whose `azp` is on its
@@ -129,19 +198,21 @@ Design notes that follow from the contract:
 
 ```
 src/
-  auth/            OIDC config + UserManager, AuthProvider, RequireAuth   (shared by every surface)
-  api/             ApiClient (bearer, JSON, problem+json), wire types, citizen endpoints
-  ui/              Loading, ErrorNotice, Field, Badge, useAsync, error wording  (shared)
+  auth/            OIDC config + UserManager, AuthProvider, RequireAuth, realm choice, token roles  (shared)
+  api/             ApiClient (bearer, JSON/multipart, problem+json), wire types,
+                   citizenApi.ts (citizen endpoints), staffApi.ts + staffTypes.ts (staff endpoints)
+  ui/              Loading, ErrorNotice, Field, TextArea, Tile, Badge, useAsync, useAction, format  (shared)
   surfaces/
-    citizen/       layout, guards, pages/, lib/ (pure flow logic)   <- built
-    # officer/     staff realm, its own layout + guards              <- later
-    # admin/       ditto                                             <- later
-  test/            fetch mock + render helpers
+    citizen/       layout, guards, pages/, lib/ (pure flow logic)
+    staff/         officer + admin + reviewer: layout, role guards, nav (single source for nav and home
+                   cards), pages/, lib/ (status wording, onboarding helpers)
+  test/            fetch mock, JWT helper, staff fixtures, render helpers
 ```
 
-To add the officer surface: create `src/surfaces/officer/`, load the `staff` realm with
-`loadOidcConfig('staff')`, add an officer API module next to `api/citizenApi.ts`, and mount it from
-`App.tsx`.
+The two surfaces share only `auth/`, `api/` and `ui/`; nothing under `surfaces/citizen` imports from
+`surfaces/staff` or the reverse. One `ApiProvider` exposes both typed APIs (`useCitizenApi`,
+`useStaffApi`) over one client, whichever realm's token is signed in; the server decides what each token
+may call.
 
 ## Serving in production
 
@@ -168,7 +239,10 @@ committed. Notes for when it is:
 
 ## Known gaps
 
-- Officer and admin surfaces are not built (staff realm sign-in, review queue, bank reviews, audit).
+- Approving an application from the officer case page (no API endpoint yet, see above).
+- Staff sessions end when the 5-minute access token expires (no refresh token), like citizen ones.
+- After staff sign-out Keycloak returns to the page's bare URL, which opens the citizen landing page;
+  use the "Staff sign in" link or `#/staff` to come back.
 - The static portals' DigiLocker document picker (`GET /api/connector/issued-documents`) is not
   reproduced; linking uses the proof kinds above directly.
 - `DEPT_IDP` link proof is not offered (see above).
