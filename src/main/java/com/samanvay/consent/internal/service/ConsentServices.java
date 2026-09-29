@@ -43,6 +43,8 @@ import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.registry.api.DiscoveryRegistry;
 import com.samanvay.registry.api.Sensitivity;
 import com.samanvay.shared.DataCategory;
+import com.samanvay.shared.OpsMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.samanvay.shared.PrincipalRef;
 import com.samanvay.shared.SamanvayException;
 import com.samanvay.shared.PurposeCode;
@@ -80,6 +82,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
     private final AuditService audit;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final MeterRegistry meters;
     private final SecureRandom random = new SecureRandom();
 
     /** Consent lifetime when the catalog purpose sets no max (the pre-V186 behaviour). */
@@ -100,7 +103,8 @@ class ConsentServices implements ConsentService, AccessAuthority {
             GrantSigner signer,
             AuditService audit,
             ApplicationEventPublisher events,
-            Clock clock) {
+            Clock clock,
+            MeterRegistry meters) {
         this.requests = requests;
         this.artifacts = artifacts;
         this.eventsLog = eventsLog;
@@ -116,6 +120,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
         this.audit = audit;
         this.events = events;
         this.clock = clock;
+        this.meters = meters;
     }
 
     /**
@@ -328,6 +333,23 @@ class ConsentServices implements ConsentService, AccessAuthority {
     @Override
     @Transactional
     public AccessDecision authorize(AccessRequest req) {
+        AccessDecision decision = decide(req);
+        recordDecision(decision);
+        return decision;
+    }
+
+    /**
+     * Ops metric: one count per authorize decision, by outcome and (for a denial) reason. Counted
+     * when the decision is made; the counter carries no citizen, consent or grant identifier.
+     */
+    private void recordDecision(AccessDecision decision) {
+        String outcome = decision instanceof AccessDecision.Denied ? OpsMetrics.OUTCOME_DENIED : OpsMetrics.OUTCOME_GRANTED;
+        String reason = decision instanceof AccessDecision.Denied denied ? denied.reason().name() : OpsMetrics.REASON_NONE;
+        meters.counter(OpsMetrics.CONSENT_AUTHORIZE, OpsMetrics.TAG_OUTCOME, outcome, OpsMetrics.TAG_REASON, reason)
+                .increment();
+    }
+
+    private AccessDecision decide(AccessRequest req) {
         if (req.purpose() == null || !purposes.isActive(req.purpose().code())) {
             return deny(req, DenialReason.UNKNOWN_PURPOSE, null);
         }

@@ -1092,6 +1092,16 @@ a single citizen's application is traceable end to end.
 
 Connector health is derived from breaker state, error rate and last-success time.
 
+**As built (Workstream E).** Micrometer meters (`samanvay.connector.exchange` timer with p50/p95,
+`samanvay.connector.calls`, `samanvay.consent.authorize`, `samanvay.exceptions.open` and
+`samanvay.exceptions.oldest.age` gauges) feed `GET /api/ops/metrics`, which also reads SLA rows
+(`tracking_application.sla_due_at` against now) and the exception queue from PostgreSQL. The
+endpoint is staff-only (OFFICER, ADMIN) and is the only way metrics leave the process: no
+actuator, Prometheus or other metrics endpoint is served over HTTP. The dashboards are
+`/metrics.html` in the staff console. Meters are per node (counters since start, latency over a
+rolling 10 minutes); breaker state, p99, batch freshness lag, revocation counts and the identity
+review queue are not yet on the dashboards.
+
 ---
 
 ## 11. Frontend Architecture

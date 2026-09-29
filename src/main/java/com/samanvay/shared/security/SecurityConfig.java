@@ -113,6 +113,9 @@ class SecurityConfig {
                         // audit
                         .requestMatchers(POST, "/api/audit/demo/**").hasRole(ADMIN) // @Profile("demo") only
                         .requestMatchers(GET, "/api/audit/**").hasAnyRole(OFFICER, ADMIN)
+                        // ops dashboards (connector health, SLA, consent/access, exception queue): staff only.
+                        // The only route that exposes metrics; no actuator/Prometheus endpoint is served.
+                        .requestMatchers(GET, "/api/ops/**").hasAnyRole(OFFICER, ADMIN)
                         // fail closed for anything new under /api
                         .requestMatchers("/api", "/api/**").denyAll()
                         // static pages, citizen portal skins, error page

@@ -283,7 +283,8 @@ class RealSourcesOnboardingTest {
         DepartmentChaos chaos = mock(DepartmentChaos.class);
         return new ConnectorRuntimeImpl(
                 verifier, catalog, schemas, adapters, new ResilienceRegistries(1, Duration.ofMillis(10)),
-                new MappingExecutor(), audit, chaos, Duration.ofSeconds(10), code -> java.util.Optional.empty());
+                new MappingExecutor(), audit, chaos, Duration.ofSeconds(10), code -> java.util.Optional.empty(),
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 
     static MappingDefinition mappingDefinition(Map<String, String> mappingRow) {

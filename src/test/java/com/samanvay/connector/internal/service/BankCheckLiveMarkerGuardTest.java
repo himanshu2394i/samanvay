@@ -81,7 +81,7 @@ class BankCheckLiveMarkerGuardTest {
                 code -> Optional.<BankCheckAdapter>of(client).filter(a -> a.sourceCode().equals(code));
         return new ConnectorRuntimeImpl(
                 verifier, mock(ConnectorCatalog.class), mock(SchemaCatalog.class), List.of(),
-                mock(ResilienceRegistries.class), mock(MappingExecutor.class), audit, mock(DepartmentChaos.class), Duration.ofSeconds(10), registry);
+                mock(ResilienceRegistries.class), mock(MappingExecutor.class), audit, mock(DepartmentChaos.class), Duration.ofSeconds(10), registry, new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 
     @AfterEach
