@@ -83,8 +83,9 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
 
     /**
      * Grant first, adapter second: a grant that fails verification never reaches
-     * the adapter lookup, so no call leaves the platform. (Minimal wiring for the
-     * skeleton; the DATA_ACCESSED audit row for bank checks comes with the journey PR.)
+     * the adapter lookup, so no call leaves the platform. When the source answers,
+     * one {@code DATA_ACCESSED} row records the access; a failed call (timeout,
+     * fault, rejected, not-configured) records nothing, since no data was accessed.
      */
     @Override
     public SourceOutcome<BankCheckAnswer> bankCheck(AccessGrant grant, String sourceCode, BankCheckRequest request) {
@@ -93,11 +94,34 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                 .forSource(sourceCode)
                 .<SourceOutcome<BankCheckAnswer>>map(adapter -> adapter.check(request))
                 .orElseGet(() -> new SourceOutcome.SourceFault<>(SourceOutcome.ReasonCode.NOT_CONFIGURED, false));
-        if (outcome instanceof SourceOutcome.SourceFault<BankCheckAnswer> fault
+        if (outcome instanceof SourceOutcome.Answered<BankCheckAnswer>) {
+            auditBankCheckAccessed(grant, sourceCode);
+        } else if (outcome instanceof SourceOutcome.SourceFault<BankCheckAnswer> fault
                 && fault.reasonCode() == SourceOutcome.ReasonCode.MARKER_IN_LIVE_MODE) {
             auditMarkerInLiveMode(grant, sourceCode);
         }
         return outcome;
+    }
+
+    /**
+     * The source answered, so bank data was accessed. The row records that the
+     * check happened for this grant; the answer (account status, name-match
+     * verdict) carries no personal data and the holder's name never leaves the
+     * adapter, so none of it is put here.
+     */
+    private void auditBankCheckAccessed(AccessGrant grant, String sourceCode) {
+        audit.record(new AuditEntry(
+                actorType(grant),
+                actorId(grant),
+                "DATA_ACCESSED",
+                grant.subject().citizenId().toString(),
+                sourceCode,
+                grant.departmentCode(),
+                grant.consentId(),
+                grant.id(),
+                Outcome.ALLOWED,
+                null,
+                attribution(grant)));
     }
 
     /**
