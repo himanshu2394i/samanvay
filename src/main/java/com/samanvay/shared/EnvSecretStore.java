@@ -30,9 +30,25 @@ public class EnvSecretStore implements SecretStore {
         return cache.computeIfAbsent(key, this::loadOrGenerate);
     }
 
+    /** Provisioned secrets only: {@code SAMANVAY_SECRET_<KEY>} (base64), with no generated fallback. */
+    @Override
+    public java.util.Optional<Secret> find(String key) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("secret key is required");
+        }
+        String encoded = System.getenv(envName(key));
+        if (encoded == null || encoded.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(new Secret(Base64.getDecoder().decode(encoded.trim())));
+    }
+
+    static String envName(String key) {
+        return "SAMANVAY_SECRET_" + key.toUpperCase().replace('-', '_');
+    }
+
     private Secret loadOrGenerate(String key) {
-        String envName = "SAMANVAY_SECRET_" + key.toUpperCase().replace('-', '_');
-        String encoded = System.getenv(envName);
+        String encoded = System.getenv(envName(key));
         if (encoded != null && !encoded.isBlank()) {
             return new Secret(Base64.getDecoder().decode(encoded));
         }

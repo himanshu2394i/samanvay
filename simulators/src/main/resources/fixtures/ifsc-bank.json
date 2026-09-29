@@ -1,0 +1,190 @@
+{
+  "_provenance": {
+    "branches": "REAL public data: RBI IFSC master list as republished by the open-source razorpay/ifsc dataset, captured verbatim from https://ifsc.razorpay.com/<IFSC> on 2026-09-28. Branch records only; no personal data.",
+    "accounts": "SYNTHETIC: invented account numbers (14 digits starting 0000, except the canary account number 73019586420417). holder_name values are CANARY strings ('SIMULATED Canary <tag>'): they exist only here and must never appear in any Samanvay response, log, audit row, exception, metric or problem detail (BankCheckCanaryLeakIT). account_status/name_match are FIXED per account: the simulator does no name matching and ignores applicantName.",
+    "fault_triggers": "SYNTHETIC: bank code SAMS is not an RBI-allotted code (ifsc.razorpay.com returns 404 for these). Well-formed, so they pass the RBI format check and reach the fault path.",
+    "canary_account_number": "The account flagged canary_account_number: true has a distinctive number. The full number must never appear in any Samanvay response, log, audit row or problem detail (BankCheckCanaryLeakIT). Only a future 'account ending' copy may show its last four digits."
+  },
+  "branches": [
+    {
+      "BANK": "State Bank of India",
+      "IFSC": "SBIN0000300",
+      "BRANCH": "MUMBAI MAIN",
+      "CENTRE": "MUMBAI",
+      "DISTRICT": "MUMBAI",
+      "STATE": "MAHARASHTRA",
+      "ADDRESS": "MUMBAI",
+      "CONTACT": "",
+      "IMPS": true,
+      "CITY": "GREATER BOMBAY",
+      "UPI": true,
+      "MICR": "400002010",
+      "RTGS": true,
+      "NEFT": true,
+      "SWIFT": "SBININBB110",
+      "ISO3166": "IN-MH",
+      "BANKCODE": "SBIN"
+    },
+    {
+      "BANK": "State Bank of India",
+      "IFSC": "SBIN0001593",
+      "BRANCH": "BACKBAY RECLAMATION",
+      "CENTRE": "MUMBAI",
+      "DISTRICT": "MUMBAI",
+      "STATE": "MAHARASHTRA",
+      "ADDRESS": "MUMBAI",
+      "CONTACT": "",
+      "IMPS": true,
+      "CITY": "GREATER BOMBAY",
+      "UPI": true,
+      "MICR": "400002004",
+      "RTGS": true,
+      "NEFT": true,
+      "SWIFT": "SBININBB107",
+      "ISO3166": "IN-MH",
+      "BANKCODE": "SBIN"
+    },
+    {
+      "BANK": "Bank of Maharashtra",
+      "IFSC": "MAHB0000001",
+      "BRANCH": "PUNE-BAJIRAO ROAD",
+      "CENTRE": "PUNE",
+      "DISTRICT": "PUNE",
+      "STATE": "MAHARASHTRA",
+      "ADDRESS": "1177, BAJIRAO ROAD, BUDHWAR PETH, PUNE",
+      "CONTACT": "+917030924080",
+      "IMPS": true,
+      "CITY": "PUNE",
+      "UPI": true,
+      "MICR": "411014010",
+      "RTGS": true,
+      "NEFT": true,
+      "SWIFT": null,
+      "ISO3166": "IN-MH",
+      "BANKCODE": "MAHB"
+    },
+    {
+      "BANK": "HDFC Bank",
+      "IFSC": "HDFC0000001",
+      "BRANCH": "TULSIANI CHMBRS - NARIMAN PT",
+      "CENTRE": "MUMBAI",
+      "DISTRICT": "MUMBAI",
+      "STATE": "MAHARASHTRA",
+      "ADDRESS": "101-104 TULSIANI CHAMBERSFREE PRESS JOURNAL MARGNARIMAN POINTMUMBAI MAHARASHTRA 400 021",
+      "CONTACT": "+919890603333",
+      "IMPS": true,
+      "CITY": "GREATER MUMBAI",
+      "UPI": true,
+      "MICR": "400240003",
+      "RTGS": true,
+      "NEFT": true,
+      "SWIFT": "HDFCINBB",
+      "ISO3166": "IN-MH",
+      "BANKCODE": "HDFC"
+    },
+    {
+      "BANK": "Bank of India",
+      "IFSC": "BKID0000150",
+      "BRANCH": "MUMBAI OVERSEAS",
+      "CENTRE": "MUMBAI",
+      "DISTRICT": "MUMBAI",
+      "STATE": "MAHARASHTRA",
+      "ADDRESS": "MUMBAI OVERSEAS BR MEZANINE FLOOR7080 MGROAD FORT MUMBAI 400001",
+      "CONTACT": "+912269696622",
+      "IMPS": true,
+      "CITY": "MUMBAI",
+      "UPI": true,
+      "MICR": "400013088",
+      "RTGS": true,
+      "NEFT": true,
+      "SWIFT": null,
+      "ISO3166": "IN-MH",
+      "BANKCODE": "BKID"
+    },
+    {
+      "BANK": "Axis Bank",
+      "IFSC": "UTIB0000004",
+      "BRANCH": "MUMBAI BRANCH",
+      "CENTRE": "MUMBAI",
+      "DISTRICT": "MUMBAI",
+      "STATE": "MAHARASHTRA",
+      "ADDRESS": "UNIVERSAL INSURANCE BUILDING,GROUND FLOOR  SIR P M ROAD, FORT,MAHARASHTRA,400001",
+      "CONTACT": "",
+      "IMPS": true,
+      "CITY": "GREATER MUMBAI",
+      "UPI": true,
+      "MICR": "400211002",
+      "RTGS": true,
+      "NEFT": true,
+      "SWIFT": null,
+      "ISO3166": "IN-MH",
+      "BANKCODE": "UTIB"
+    }
+  ],
+  "accounts": [
+    {
+      "ifsc": "SBIN0000300",
+      "account_number": "00001000000001",
+      "holder_name": "SIMULATED Canary Zq7",
+      "account_status": "VALID",
+      "name_match": "MATCH"
+    },
+    {
+      "ifsc": "MAHB0000001",
+      "account_number": "00001000000002",
+      "holder_name": "SIMULATED Canary Kp4",
+      "account_status": "VALID",
+      "name_match": "PARTIAL"
+    },
+    {
+      "ifsc": "HDFC0000001",
+      "account_number": "00001000000003",
+      "holder_name": "SIMULATED Canary Wx9",
+      "account_status": "VALID",
+      "name_match": "NO_MATCH"
+    },
+    {
+      "ifsc": "SBIN0001593",
+      "account_number": "00001000000006",
+      "holder_name": "SIMULATED Canary Jm2",
+      "account_status": "VALID",
+      "name_match": "NOT_CHECKED",
+      "_note": "stands for a holder name the bank holds in another script"
+    },
+    {
+      "ifsc": "BKID0000150",
+      "account_number": "00001000000004",
+      "holder_name": "SIMULATED Canary Rt5",
+      "account_status": "CLOSED",
+      "name_match": "NOT_CHECKED"
+    },
+    {
+      "ifsc": "UTIB0000004",
+      "account_number": "00001000000005",
+      "holder_name": "SIMULATED Canary Hv8",
+      "account_status": "INVALID",
+      "name_match": "NOT_CHECKED",
+      "_note": "the bank reports this account number invalid"
+    },
+    {
+      "ifsc": "SBIN0000300",
+      "account_number": "73019586420417",
+      "holder_name": "SIMULATED Canary Qn6",
+      "account_status": "VALID",
+      "name_match": "MATCH",
+      "canary_account_number": true
+    }
+  ],
+  "fault_triggers": {
+    "ifsc": {
+      "SAMS0000408": "timeout",
+      "SAMS0000500": "server_error",
+      "SAMS0000422": "malformed"
+    },
+    "account_number": {
+      "00009000000408": "timeout",
+      "00009000000500": "server_error",
+      "00009000000422": "malformed"
+    }
+  }
+}
