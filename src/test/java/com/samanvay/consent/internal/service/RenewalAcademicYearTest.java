@@ -120,6 +120,7 @@ class RenewalAcademicYearTest {
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},
-                Clock.fixed(now, ZoneOffset.UTC));
+                Clock.fixed(now, ZoneOffset.UTC),
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 }

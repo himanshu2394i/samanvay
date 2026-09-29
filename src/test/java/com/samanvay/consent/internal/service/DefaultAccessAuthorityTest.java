@@ -65,7 +65,8 @@ class DefaultAccessAuthorityTest {
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},
-                Clock.fixed(Instant.parse("2026-09-13T12:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-09-13T12:00:00Z"), ZoneOffset.UTC),
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     }
 
     private static AccessRequest req() {
