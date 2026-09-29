@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
+import org.springframework.util.ClassUtils;
 
 /**
  * DEV/DEMO ONLY: where a data source's REAL REST/SOAP call goes when it has been pointed at the
@@ -45,11 +46,16 @@ class DepartmentServiceOverrides {
         return Optional.ofNullable(baseUrls.get(dataSourceCode));
     }
 
+    /** Test seam: honoured only when JUnit is on the classpath, so it cannot loosen a deployed jar. */
+    static final String ALLOW_IN_TESTS = "samanvay.sources.department-service.allow-in-tests";
+
     private static Map<String, String> validated(Map<String, String> urls, Environment environment) {
         if (urls.isEmpty()) {
             return Map.of();
         }
-        if (!environment.acceptsProfiles(Profiles.of("dev", "demo"))) {
+        boolean testRuntime = ClassUtils.isPresent("org.junit.jupiter.api.Test", DepartmentServiceOverrides.class.getClassLoader());
+        boolean allowInTests = testRuntime && environment.getProperty(ALLOW_IN_TESTS, Boolean.class, false);
+        if (!environment.acceptsProfiles(Profiles.of("dev", "demo")) && !allowInTests) {
             throw new IllegalStateException(
                     "samanvay.sources.department-service.urls points real connector calls at a fake department "
                             + "service and is only allowed under the dev or demo profile");

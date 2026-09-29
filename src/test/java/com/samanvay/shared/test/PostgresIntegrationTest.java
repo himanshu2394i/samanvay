@@ -19,5 +19,10 @@ public abstract class PostgresIntegrationTest extends PostgresContainerSupport {
         // These contexts run outside dev/demo with the in-process EnvSecretStore's ephemeral keys; the production
         // secrets boot guard honours this only because JUnit is on the classpath (see SecretStoreStartupCheck).
         registry.add("samanvay.secrets.allow-ephemeral-keys", () -> "true");
+        // V199 repointed five journey categories to real department services. Point them at the in-process
+        // RealDepartments fixtures so every journey IT fetches over real transport; the department-service
+        // URL override is allowed here only because this is a test runtime (see DepartmentServiceOverrides).
+        registry.add("samanvay.sources.department-service.allow-in-tests", () -> "true");
+        RealDepartments.register(registry);
     }
 }

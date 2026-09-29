@@ -11,7 +11,7 @@ import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.identity.api.ProfileDraft;
 import com.samanvay.orchestration.api.JourneyInstance;
 import com.samanvay.orchestration.api.JourneyService;
-import com.samanvay.shared.test.RealDepartmentsIT;
+import com.samanvay.shared.test.PostgresIntegrationTest;
 import com.samanvay.tracking.api.ApplicationTracking;
 import com.samanvay.tracking.api.ApplicationView;
 import java.time.LocalDate;
@@ -25,7 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest(classes = SamanvayApplication.class)
-class ScholarshipJourneyIT extends RealDepartmentsIT {
+class ScholarshipJourneyIT extends PostgresIntegrationTest {
 
     @Autowired
     CitizenProfiles profiles;

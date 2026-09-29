@@ -85,6 +85,8 @@ class LicencePortalIT extends PostgresIntegrationTest {
                     .body(Map.class);
             assertThat(link.get("status")).isEqualTo("ACTIVE");
         }
+        // The real POLLUTION service (JDBC) keys by premise id; register this citizen's premise as held.
+        com.samanvay.shared.test.RealDepartments.seedPremise("LICENCE-POLLUTION-" + suffix);
 
         Map<?, ?> request = http.post()
                 .uri(url("/api/consent/requests"))
