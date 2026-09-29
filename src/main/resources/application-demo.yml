@@ -8,6 +8,14 @@ samanvay:
     citizen:
       issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:http://localhost:8180/realms/samanvay-citizen}
   sources:
+    # DEV/DEMO ONLY. Points the V193 sandbox REST/SOAP sources at the standalone department service
+    # (the simulators/ app: `docker compose up department-service`, or ./mvnw -f simulators/pom.xml
+    # spring-boot:run) instead of their unresolvable *.example hosts. Calls still go through the REAL
+    # RestAdapter/SoapAdapter over the network. Refused at boot outside the dev/demo profiles.
+    department-service:
+      urls:
+        sandbox-income-rest: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
+        sandbox-marks-soap: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
     sftp:
       sources:
         # Real-transport SFTP source seeded by V193 (catalog data source of the same code).

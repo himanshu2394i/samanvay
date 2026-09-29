@@ -25,18 +25,32 @@ class SoapAdapter implements ProtocolAdapter {
     private final MockDepartmentBackend mocks;
     private final DeadlineHttp http;
     private final String scheme;
+    private final DepartmentServiceOverrides overrides;
 
     /** Real department calls are SOAP 1.1 over HTTPS, bounded by {@link DeadlineHttp}'s total deadline. */
-    @Autowired
     SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http) {
-        this(mocks, http, "https");
+        this(mocks, http, "https", DepartmentServiceOverrides.NONE);
+    }
+
+    /**
+     * Production wiring. {@code overrides} is empty unless the dev/demo profile points a source at the
+     * standalone department service; the call is still the real HTTP exchange either way.
+     */
+    @Autowired
+    SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http, DepartmentServiceOverrides overrides) {
+        this(mocks, http, "https", overrides);
     }
 
     /** Test seam: lets a test point the adapter at a plain-HTTP in-JVM server. */
     SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http, String scheme) {
+        this(mocks, http, scheme, DepartmentServiceOverrides.NONE);
+    }
+
+    SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http, String scheme, DepartmentServiceOverrides overrides) {
         this.mocks = mocks;
         this.http = http;
         this.scheme = scheme;
+        this.overrides = overrides;
         dbf = DocumentBuilderFactory.newInstance();
         try {
             dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -62,7 +76,8 @@ class SoapAdapter implements ProtocolAdapter {
             raw = mocks.soapMarks();
         } else {
             String endpoint = request.endpoint() == null ? "" : request.endpoint();
-            raw = http.post(URI.create(scheme + "://" + request.host() + endpoint), envelope, CONTENT_TYPE);
+            String origin = overrides.baseUrl(request.dataSourceCode()).orElse(scheme + "://" + request.host());
+            raw = http.post(URI.create(origin + endpoint), envelope, CONTENT_TYPE);
             if (raw == null) {
                 raw = "";
             }

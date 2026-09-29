@@ -2,6 +2,7 @@ package com.samanvay.connector.internal.protocol;
 
 import com.samanvay.connector.api.ProtocolAdapter;
 import com.samanvay.connector.internal.source.sftp.SftpCsvClient;
+import java.util.Map;
 
 /**
  * Test-only door to the package-private real adapters, so a test in another package (the connector
@@ -21,6 +22,20 @@ public final class RealAdapters {
 
     public static ProtocolAdapter soap(DeadlineHttp http) {
         return new SoapAdapter(new MockDepartmentBackend(), http, "http");
+    }
+
+    /**
+     * The REST adapter as production wires it (https by default) with dev/demo department-service
+     * overrides, keyed by data-source code to a base URL. Proves the override alone decides where the
+     * real call goes: the catalog host of such a source is never contacted.
+     */
+    public static ProtocolAdapter rest(DeadlineHttp http, Map<String, String> departmentServiceUrls) {
+        return new RestAdapter(new MockDepartmentBackend(), http, DepartmentServiceOverrides.of(departmentServiceUrls));
+    }
+
+    /** As {@link #rest(DeadlineHttp, Map)}, for SOAP. */
+    public static ProtocolAdapter soap(DeadlineHttp http, Map<String, String> departmentServiceUrls) {
+        return new SoapAdapter(new MockDepartmentBackend(), http, DepartmentServiceOverrides.of(departmentServiceUrls));
     }
 
     public static ProtocolAdapter sftp(SftpCsvClient client) {

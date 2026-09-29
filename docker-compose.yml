@@ -50,5 +50,18 @@ services:
       # SMTP for the app running on the host (dev profile: spring.mail.host=localhost).
       - "1025:1025"
 
+  # DEV/DEMO-ONLY standalone department service: a separate Spring Boot app (simulators/, built by
+  # simulators/Dockerfile) that serves FAKE data over real network endpoints, on http://localhost:8090:
+  #   REST  GET  /v1/income?rationCard=RC-1001   -> JSON {annualIncome, holderName, ...}
+  #   SOAP  POST /marks/service (SOAP 1.1, text/xml) with <studentId> -> GetMarksResponse {percentage, board, exam}
+  # With the dev or demo profile, the app points the V193 sandbox sources (sandbox-income-rest,
+  # sandbox-marks-soap) here (samanvay.sources.department-service.urls), so a fetch through the connector
+  # runtime crosses the network via the real RestAdapter/SoapAdapter, not the in-process mock backend.
+  # Never a real government system. See README "Department simulators".
+  department-service:
+    build: ./simulators
+    ports:
+      - "8090:8090"
+
 volumes:
   samanvay-postgres-data:
