@@ -1,6 +1,7 @@
 package com.samanvay.consent.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -125,6 +126,15 @@ class ConsentLifecycleJobsTest {
         verify(artifacts, never()).deleteAll();
         verify(artifacts, never()).deleteById(any());
         verify(artifacts).deleteEndedBefore(eq(NOW.minus(Duration.ofDays(30))));
+    }
+
+    @Test
+    void purgeRefusesRetentionBelowTheOneDayFloor() {
+        // A mis-set retention (zero/negative) must never turn the purge into "delete all ended rows".
+        assertThatThrownBy(() -> service.purgeEndedRecords(Duration.ZERO)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.purgeEndedRecords(Duration.ofDays(-1))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.purgeEndedRecords(null)).isInstanceOf(IllegalArgumentException.class);
+        verify(artifacts, never()).deleteEndedBefore(any());
     }
 
     @Test

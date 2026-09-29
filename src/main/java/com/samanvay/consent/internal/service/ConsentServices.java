@@ -333,13 +333,23 @@ class ConsentServices implements ConsentService, AccessAuthority {
         return due.size();
     }
 
+    /** Smallest retention the purge accepts: a mis-set (zero/negative) window must never delete recently-ended rows. */
+    static final Duration MIN_RETENTION = Duration.ofDays(1);
+
     /**
      * Deletes consent records that ended (revoked or expired) more than {@code retention} ago,
      * with their events, access grants and usage claims. Audit rows are never touched: they are
      * the permanent record. Returns the number of consents deleted.
+     *
+     * <p>Refuses a retention below {@link #MIN_RETENTION}: with a zero or negative window the cutoff
+     * would be now (or the future), turning the purge into "delete every ended record".
      */
     @Transactional
     public int purgeEndedRecords(Duration retention) {
+        if (retention == null || retention.compareTo(MIN_RETENTION) < 0) {
+            throw new IllegalArgumentException(
+                    "consent retention floor is " + MIN_RETENTION + ", refusing to purge with " + retention);
+        }
         Instant cutoff = clock.instant().minus(retention);
         artifacts.deleteUsageOfEndedBefore(cutoff);
         artifacts.deleteGrantsOfEndedBefore(cutoff);
