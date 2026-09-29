@@ -78,7 +78,8 @@ describe('status wording', () => {
   it('maps application statuses to tone and finality', () => {
     expect(applicationStatus('SUBMITTED')).toMatchObject({ tone: 'warn', final: false })
     expect(applicationStatus('PARTIALLY_VERIFIED')).toMatchObject({ tone: 'warn', final: false })
-    expect(applicationStatus('VERIFIED')).toMatchObject({ tone: 'ok', final: true })
+    expect(applicationStatus('VERIFIED')).toMatchObject({ tone: 'ok', final: false })
+    expect(applicationStatus('APPROVED')).toMatchObject({ tone: 'ok', final: true })
     expect(applicationStatus('REJECTED')).toMatchObject({ tone: 'bad', final: true })
     expect(applicationStatus('SOMETHING_NEW')).toMatchObject({ tone: 'warn', final: false })
   })

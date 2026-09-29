@@ -221,16 +221,55 @@ describe('officer: application review', () => {
     expect(await screen.findByText('No application with that number was found.')).toBeInTheDocument()
   })
 
-  it('marks approval as a TODO: the disabled button calls nothing, because the endpoint does not exist', async () => {
-    const m = mockFetch(detailRoutes())
+  it('keeps approval disabled until the application is verified, and calls nothing', async () => {
+    const m = mockFetch(detailRoutes()) // applicationView is PARTIALLY_VERIFIED
     renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
-    const todo = await screen.findByTestId('approve-todo')
-    expect(todo).toHaveTextContent('TODO')
-    expect(todo).toHaveTextContent('no application approval endpoint')
-    const button = within(todo).getByRole('button', { name: 'Approve application' })
+    const button = await screen.findByRole('button', { name: 'Approve application' })
     expect(button).toBeDisabled()
+    expect(screen.getByText('Available once every department record is verified')).toBeInTheDocument()
     await userEvent.click(button)
-    expect(m.calls.filter((c) => c.method === 'POST')).toHaveLength(0)
+    expect(m.find('POST', `/api/journeys/instances/${INSTANCE_ID}/approve`)).toHaveLength(0)
+  })
+
+  it('approves a verified application and reloads the case', async () => {
+    let view = { ...applicationView, status: 'VERIFIED' }
+    const m = mockFetch([
+      { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: () => ({ body: view }) },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/journeys/exceptions', reply: { body: [] } },
+      {
+        method: 'POST',
+        path: `/api/journeys/instances/${INSTANCE_ID}/approve`,
+        reply: () => {
+          view = { ...view, status: 'APPROVED' }
+          return { body: { instanceId: INSTANCE_ID, status: 'APPROVED' } }
+        },
+      },
+    ])
+    renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve application' }))
+    expect(await screen.findByText('Application approved.')).toBeInTheDocument()
+    expect(m.find('POST', `/api/journeys/instances/${INSTANCE_ID}/approve`)).toHaveLength(1)
+    // After the reload the case is APPROVED, so the button is no longer offered.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Approve application' })).toBeDisabled())
+  })
+
+  it('shows a plain message when approval is refused with a 409', async () => {
+    const m = mockFetch([
+      { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: { ...applicationView, status: 'VERIFIED' } } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/journeys/exceptions', reply: { body: [] } },
+      {
+        method: 'POST',
+        path: `/api/journeys/instances/${INSTANCE_ID}/approve`,
+        reply: { status: 409, body: { title: 'Conflict', status: 409, reason: 'APPLICATION_NOT_APPROVABLE', detail: 'not verified' } },
+      },
+    ])
+    renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve application' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("This application can't be approved yet — a department record is still pending.")
   })
 
   it('opens an application by its number from the list page', async () => {

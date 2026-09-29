@@ -14,6 +14,7 @@ describe('staff API endpoints', () => {
     ['listExceptions', (a) => a.listExceptions(), 'GET', '/api/journeys/exceptions', undefined],
     ['getInstance', (a) => a.getInstance(ID), 'GET', `/api/journeys/instances/${ID}`, undefined],
     ['retryInstance', (a) => a.retryInstance(ID), 'POST', `/api/journeys/instances/${ID}/retry`, undefined],
+    ['approveApplication', (a) => a.approveApplication(ID), 'POST', `/api/journeys/instances/${ID}/approve`, undefined],
     ['listBankReviews', (a) => a.listBankReviews(), 'GET', '/api/officer/bank-reviews', undefined],
     ['requestDocument', (a) => a.requestDocument(ID), 'POST', `/api/officer/bank-reviews/${ID}/request-document`, undefined],
     ['approveBankReview', (a) => a.approveBankReview(ID, 'looks right'), 'POST', `/api/officer/bank-reviews/${ID}/approve`, { reason: 'looks right' }],
@@ -106,8 +107,8 @@ describe('staff API endpoints', () => {
     expect(s.contentType).toBeNull()
   })
 
-  it('has no application approve call: that endpoint does not exist on the API yet', () => {
+  it('exposes both approve calls: the bank-account review and the application', () => {
     const api = createStaffApi(new ApiClient({ getToken: async () => 't', fetchImpl: mockFetch([]).fetchImpl }))
-    expect(Object.keys(api).filter((k) => /approve/i.test(k))).toEqual(['approveBankReview'])
+    expect(Object.keys(api).filter((k) => /approve/i.test(k)).sort()).toEqual(['approveApplication', 'approveBankReview'])
   })
 })

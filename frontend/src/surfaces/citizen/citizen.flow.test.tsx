@@ -448,7 +448,7 @@ describe('track applications', () => {
 
     const row = (await screen.findByRole('link', { name: 'SCH-2026-0001' })).closest('tr') as HTMLElement
     expect(within(row).getByText('Post-matric scholarship')).toBeInTheDocument()
-    expect(within(row).getByText('Verified')).toBeInTheDocument()
+    expect(within(row).getByText(/Records verified/)).toBeInTheDocument()
     expect(within(row).getByText('2 Oct 2026')).toBeInTheDocument()
   })
 
@@ -497,7 +497,7 @@ describe('track applications', () => {
     expect(await screen.findByRole('heading', { name: 'Application not found' })).toBeInTheDocument()
   })
 
-  it('keeps refreshing an in-progress application and stops once it is final', async () => {
+  it('keeps refreshing while VERIFIED awaits the officer, and stops once APPROVED', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       let status = 'PARTIALLY_VERIFIED'
@@ -511,11 +511,17 @@ describe('track applications', () => {
       expect(await screen.findByText(/some department records are still awaited/)).toBeInTheDocument()
       expect(find('GET', '/api/applications/SCH-2026-0001')).toHaveLength(1)
 
+      // VERIFIED is not final for the citizen: the page keeps polling for the officer's decision.
       status = 'VERIFIED'
       await vi.advanceTimersByTimeAsync(REFRESH_MS + 100)
-      expect(await screen.findByText(/Verified: department records were received/)).toBeInTheDocument()
+      expect(await screen.findByText(/awaiting the officer's decision/)).toBeInTheDocument()
+      expect(find('GET', '/api/applications/SCH-2026-0001').length).toBeGreaterThanOrEqual(2)
+
+      // APPROVED is final: polling stops.
+      status = 'APPROVED'
+      await vi.advanceTimersByTimeAsync(REFRESH_MS + 100)
+      expect(await screen.findByText(/your application was approved/)).toBeInTheDocument()
       const afterFinal = find('GET', '/api/applications/SCH-2026-0001').length
-      expect(afterFinal).toBe(2)
 
       await vi.advanceTimersByTimeAsync(REFRESH_MS * 3)
       expect(find('GET', '/api/applications/SCH-2026-0001')).toHaveLength(afterFinal)

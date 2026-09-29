@@ -5,6 +5,7 @@ import { ApiError } from '../../../api/client'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { Loading } from '../../../ui/Loading'
+import { StatusStepper } from '../../../ui/StatusStepper'
 import { useAsync } from '../../../ui/useAsync'
 import { formatDate, humanize } from '../lib/format'
 import { applicationStatus, stepStatus } from '../lib/status'
@@ -66,6 +67,7 @@ export function ApplicationPage() {
       <h1 id="app-h">
         Application <span className="mono">{application.referenceNo}</span>
       </h1>
+      <StatusStepper status={application.status} />
       <p className={`notice ${st.tone}`} role="status">
         {st.label}
       </p>
