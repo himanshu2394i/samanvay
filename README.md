@@ -181,8 +181,10 @@ export SAMANVAY_SECRET_SOURCE_SANDBOX_POLLUTION_JDBC_CREDENTIAL="$(printf 'pcb_r
 # SFTP credential            (fixtureuser:fixturepass)
 export SAMANVAY_SECRET_SOURCE_SANDBOX_PROPERTY_SFTP_CREDENTIAL="$(printf 'fixtureuser:fixturepass' | base64)"
 
-# SFTP host key is pinned (no trust-on-first-use). Capture the running server's fingerprint once:
-export SAMANVAY_SANDBOX_SFTP_HOSTKEY="$(ssh-keyscan -t ed25519 -p 2222 localhost 2>/dev/null \
+# SFTP host key is pinned (no trust-on-first-use). Capture the running server's fingerprint once.
+# Use the RSA key: the SftpCsvClient (Apache MINA sshd) negotiates rsa-sha2 with atmoz/sftp, so the
+# pin must be that key's fingerprint (an ed25519 pin would fail with "Server key did not validate").
+export SAMANVAY_SANDBOX_SFTP_HOSTKEY="$(ssh-keyscan -t rsa -p 2222 localhost 2>/dev/null \
   | ssh-keygen -lf - | awk '{print $2}')"
 
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo
