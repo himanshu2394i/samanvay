@@ -35,7 +35,7 @@ class FetchDataDelegateTest {
     void mapsResultsAndDenials() {
         AccessAuthority authority = mock(AccessAuthority.class);
         ConnectorRuntime runtime = mock(ConnectorRuntime.class);
-        FetchDataDelegate delegate = new FetchDataDelegate(authority, runtime);
+        FetchDataDelegate delegate = new FetchDataDelegate(authority, runtime, mock(com.samanvay.consent.api.ConsentUsage.class));
         AccessRequest req = new AccessRequest(
                 new SubjectRef(UUID.randomUUID()),
                 new RequesterRef("SCHOLARSHIP"),

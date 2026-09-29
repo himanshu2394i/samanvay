@@ -65,6 +65,7 @@ class JdbcAuditService implements AuditService {
             throw new IllegalStateException("audit append requires an active transaction");
         }
         jdbc.query("SELECT pg_advisory_xact_lock(?)", rs -> null, CHAIN_LOCK_KEY);
+        com.samanvay.audit.api.AuditChainLock.markHeldByCurrentTransaction();
 
         byte[] prevHash = entries.findLatestHash().orElse(GENESIS_HASH);
         String canonical = canonicalJson.serialize(entry);

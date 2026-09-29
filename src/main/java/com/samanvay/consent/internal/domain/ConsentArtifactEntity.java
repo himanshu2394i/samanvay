@@ -47,6 +47,7 @@ public class ConsentArtifactEntity {
     private Instant revokedAt;
     @Column(name = "revoked_by")
     private String revokedBy;
+    private String frequency;
 
     public UUID getId() {
         return id;
@@ -186,5 +187,13 @@ public class ConsentArtifactEntity {
 
     public void setRevokedBy(String revokedBy) {
         this.revokedBy = revokedBy;
+    }
+
+    public String getFrequency() {
+        return frequency;
+    }
+
+    public void setFrequency(String frequency) {
+        this.frequency = frequency;
     }
 }

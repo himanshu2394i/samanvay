@@ -12,6 +12,9 @@ import com.samanvay.consent.api.AccessGrant;
 import com.samanvay.consent.api.AccessGrantVerifier;
 import com.samanvay.consent.api.InvalidGrantException;
 import com.samanvay.connector.api.AdapterRequest;
+import com.samanvay.connector.api.BankCheckAdapter.BankCheckAnswer;
+import com.samanvay.connector.api.BankCheckAdapter.BankCheckRequest;
+import com.samanvay.connector.api.BankCheckAdapters;
 import com.samanvay.connector.api.Capability;
 import com.samanvay.connector.api.ConnectorResult;
 import com.samanvay.connector.api.ConnectorRuntime;
@@ -20,7 +23,10 @@ import com.samanvay.connector.api.ExecutionInputs;
 import com.samanvay.connector.api.FailureKind;
 import com.samanvay.connector.api.ProtocolAdapter;
 import com.samanvay.connector.api.Provenance;
+import com.samanvay.connector.api.SourceOutcome;
+import com.samanvay.shared.DataCategory;
 import com.samanvay.connector.internal.mapping.MappingExecutor;
+import com.samanvay.connector.internal.protocol.ExchangeDeadline;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +46,8 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
     private final MappingExecutor mapping;
     private final AuditService audit;
     private final DepartmentChaos chaos;
+    private final java.time.Duration totalTimeout;
+    private final BankCheckAdapters bankCheckAdapters;
     private final JsonMapper json = JsonMapper.builder().build();
 
     ConnectorRuntimeImpl(
@@ -50,7 +58,11 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             ResilienceRegistries resilience,
             MappingExecutor mapping,
             AuditService audit,
-            DepartmentChaos chaos) {
+            DepartmentChaos chaos,
+            @org.springframework.beans.factory.annotation.Value("${samanvay.connector.total-timeout:PT10S}")
+                    java.time.Duration totalTimeout,
+            BankCheckAdapters bankCheckAdapters) {
+        this.totalTimeout = totalTimeout;
         this.grantVerifier = grantVerifier;
         this.connectors = connectors;
         this.schemas = schemas;
@@ -60,12 +72,32 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
         this.mapping = mapping;
         this.audit = audit;
         this.chaos = chaos;
+        this.bankCheckAdapters = bankCheckAdapters;
     }
 
     @Override
     public ConnectorResult execute(AccessGrant grant, Capability capability, ExecutionInputs inputs) {
+        verifyOrAuditAndThrow(grant, inputs.expectedCategory(), grant.connectorRef());
+        return executeVerified(grant, capability, inputs);
+    }
+
+    /**
+     * Grant first, adapter second: a grant that fails verification never reaches
+     * the adapter lookup, so no call leaves the platform. (Minimal wiring for the
+     * skeleton; the DATA_ACCESSED audit row for bank checks comes with the journey PR.)
+     */
+    @Override
+    public SourceOutcome<BankCheckAnswer> bankCheck(AccessGrant grant, String sourceCode, BankCheckRequest request) {
+        verifyOrAuditAndThrow(grant, DataCategory.BANK_ACCOUNT, sourceCode);
+        return bankCheckAdapters
+                .forSource(sourceCode)
+                .<SourceOutcome<BankCheckAnswer>>map(adapter -> adapter.check(request))
+                .orElseGet(() -> new SourceOutcome.SourceFault<>(SourceOutcome.ReasonCode.NOT_CONFIGURED, false));
+    }
+
+    private void verifyOrAuditAndThrow(AccessGrant grant, DataCategory category, String connectorRef) {
         try {
-            grantVerifier.verifyOrThrow(grant, inputs.expectedCategory(), grant.connectorRef());
+            grantVerifier.verifyOrThrow(grant, category, connectorRef);
         } catch (InvalidGrantException e) {
             audit.record(new AuditEntry(
                     actorType(grant),
@@ -81,6 +113,9 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                     attribution(grant)));
             throw e;
         }
+    }
+
+    private ConnectorResult executeVerified(AccessGrant grant, Capability capability, ExecutionInputs inputs) {
         ConnectorDefinition connector = connectors.byRef(grant.connectorRef());
         DataSourceDefinition dataSource = connectors.dataSourceFor(connector);
         Map<String, String> bound = bindInputs(connector.inputsJson(), inputs);
@@ -107,7 +142,11 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             if (adapter == null) {
                 return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
             }
-            var raw = resilience.execute(dataSource.code(), () -> adapter.execute(request));
+            com.samanvay.connector.api.AdapterResponse raw;
+            // One total deadline for the whole exchange, every retry attempt included.
+            try (ExchangeDeadline deadline = ExchangeDeadline.start(totalTimeout)) {
+                raw = resilience.execute(dataSource.code(), () -> adapter.execute(request));
+            }
             var mapped = mappingRef == null ? raw.body() : mapping.apply(connectors.mapping(mappingRef), raw.body());
             if (outputSchema != null) {
                 var vr = schemas.validate(outputSchema, mapped);
