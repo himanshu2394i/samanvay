@@ -190,6 +190,73 @@
           }
         }
       ]
+    },
+    {
+      "name": "department-idp",
+      "description": "claims of a department-brokered sign-in (from the broker's session notes)",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "dept idp alias",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "dept_idp_alias",
+            "claim.name": "dept_idp",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "dept_code",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "dept_idp_department",
+            "claim.name": "dept_code",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "dept_local_id_type",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "dept_idp_local_id_type",
+            "claim.name": "dept_local_id_type",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "dept_local_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "dept_idp_local_id",
+            "claim.name": "dept_local_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "defaultDefaultClientScopes": [
@@ -226,7 +293,8 @@
         "roles",
         "profile",
         "web-origins",
-        "acr"
+        "acr",
+        "department-idp"
       ],
       "optionalClientScopes": [],
       "protocolMappers": [
@@ -279,7 +347,7 @@
   "authenticationFlows": [
     {
       "alias": "citizen browser",
-      "description": "Email one-time code, or passkey",
+      "description": "Email one-time code, or passkey, or a department IdP",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -290,6 +358,13 @@
           "userSetupAllowed": false,
           "autheticatorFlow": false,
           "authenticator": "auth-cookie"
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 15,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "identity-provider-redirector"
         },
         {
           "requirement": "ALTERNATIVE",
@@ -410,6 +485,22 @@
           "authenticator": "registration-terms-and-conditions"
         }
       ]
+    },
+    {
+      "alias": "citizen first broker login",
+      "description": "Create a new citizen for a new department identity",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "idp-create-user-if-unique"
+        }
+      ]
     }
   ],
   "authenticatorConfig": [
@@ -432,6 +523,90 @@
   "browserFlow": "citizen browser",
   "directGrantFlow": "citizen direct grant disabled",
   "registrationFlow": "citizen registration",
+  "firstBrokerLoginFlow": "citizen first broker login",
+  "identityProviders": [
+    {
+      "alias": "dept-idp",
+      "displayName": "Revenue Department sign-in (mock)",
+      "providerId": "oidc",
+      "enabled": true,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "linkOnly": false,
+      "trustEmail": true,
+      "firstBrokerLoginFlowAlias": "citizen first broker login",
+      "config": {
+        "clientId": "samanvay-citizen-broker",
+        "clientSecret": "dev-only-department-broker-secret",
+        "clientAuthMethod": "client_secret_post",
+        "authorizationUrl": "http://localhost:8180/realms/samanvay-department/protocol/openid-connect/auth",
+        "tokenUrl": "http://localhost:8180/realms/samanvay-department/protocol/openid-connect/token",
+        "jwksUrl": "http://localhost:8180/realms/samanvay-department/protocol/openid-connect/certs",
+        "logoutUrl": "http://localhost:8180/realms/samanvay-department/protocol/openid-connect/logout",
+        "issuer": "http://localhost:8180/realms/samanvay-department",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "pkceEnabled": "true",
+        "pkceMethod": "S256",
+        "defaultScope": "openid",
+        "disableUserInfo": "true",
+        "backchannelSupported": "false",
+        "syncMode": "IMPORT"
+      }
+    }
+  ],
+  "identityProviderMappers": [
+    {
+      "name": "unique brokered username",
+      "identityProviderAlias": "dept-idp",
+      "identityProviderMapper": "oidc-username-idp-mapper",
+      "config": {
+        "syncMode": "IMPORT",
+        "target": "LOCAL",
+        "template": "${ALIAS}.${CLAIM.sub}"
+      }
+    },
+    {
+      "name": "department alias",
+      "identityProviderAlias": "dept-idp",
+      "identityProviderMapper": "hardcoded-user-session-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute": "dept_idp_alias",
+        "attribute.value": "dept-idp"
+      }
+    },
+    {
+      "name": "claim department to session note",
+      "identityProviderAlias": "dept-idp",
+      "identityProviderMapper": "oidc-user-session-note-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "department",
+        "attribute": "dept_idp_department"
+      }
+    },
+    {
+      "name": "claim local_id_type to session note",
+      "identityProviderAlias": "dept-idp",
+      "identityProviderMapper": "oidc-user-session-note-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "local_id_type",
+        "attribute": "dept_idp_local_id_type"
+      }
+    },
+    {
+      "name": "claim local_id to session note",
+      "identityProviderAlias": "dept-idp",
+      "identityProviderMapper": "oidc-user-session-note-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "local_id",
+        "attribute": "dept_idp_local_id"
+      }
+    }
+  ],
   "requiredActions": [
     {
       "alias": "CONFIGURE_TOTP",

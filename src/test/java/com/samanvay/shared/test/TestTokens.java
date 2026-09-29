@@ -179,6 +179,42 @@ public final class TestTokens {
                 .build());
     }
 
+    /**
+     * A citizen token as the citizen realm issues it after a sign-in brokered through a
+     * department IdP: the broker's session-note claims plus {@code auth_time} of that login.
+     */
+    public static String citizenBrokered(
+            String subject, String idpAlias, String department, String localIdType, String localId, Instant authTime) {
+        return brokered(CITIZEN_KEY, subject, idpAlias, department, localIdType, localId, authTime);
+    }
+
+    /** {@link #citizenBrokered} claims, signed with a key the app does not trust. */
+    public static String forgedCitizenBrokered(
+            String subject, String idpAlias, String department, String localIdType, String localId, Instant authTime) {
+        return brokered(ROGUE_KEY, subject, idpAlias, department, localIdType, localId, authTime);
+    }
+
+    private static String brokered(
+            KeyPair key,
+            String subject,
+            String idpAlias,
+            String department,
+            String localIdType,
+            String localId,
+            Instant authTime) {
+        return sign(key, base(CITIZEN_ISSUER, subject)
+                .claim("azp", CITIZEN_UI_CLIENT)
+                .claim("preferred_username", "dept-idp." + subject)
+                .claim("realm_access", Map.of("roles", List.of("citizen")))
+                .claim("scope", "openid profile email")
+                .claim("auth_time", authTime.getEpochSecond())
+                .claim("dept_idp", idpAlias)
+                .claim("dept_code", department)
+                .claim("dept_local_id_type", localIdType)
+                .claim("dept_local_id", localId)
+                .build());
+    }
+
     /** Parses the {@code jti} back out of a token minted here. */
     public static String jti(String token) {
         try {
