@@ -2,17 +2,23 @@ package com.samanvay.catalog.internal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.samanvay.catalog.api.MappingSuggestion;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MappingSuggestorTest {
 
     private final MappingSuggestor suggestor = new MappingSuggestor();
 
+    private Optional<MappingSuggestion> forTarget(List<MappingSuggestion> all, String target) {
+        return all.stream().filter(s -> s.target().equals(target)).findFirst();
+    }
+
     @Test
     void lexicalMatchPrefersNormalizedSynonyms() {
         var suggestions = suggestor.suggest(
-                java.util.List.of("annual_income", "holder_name", "unrelated_xyz"),
-                java.util.List.of("annualIncome", "holderName"));
+                List.of("annual_income", "holder_name", "unrelated_xyz"), List.of("annualIncome", "holderName"));
         assertThat(suggestions).hasSize(2);
         assertThat(suggestions.get(0).source()).isEqualTo("annual_income");
         assertThat(suggestions.get(0).target()).isEqualTo("annualIncome");
@@ -22,8 +28,44 @@ class MappingSuggestorTest {
     }
 
     @Test
-    void suggestionsAreAdvisoryAndDoNotMutateCatalog() {
-        assertThat(suggestor.suggest(java.util.List.of("dob"), java.util.List.of("dateOfBirth")))
-                .allMatch(s -> s.rationale().contains("lexical"));
+    void semanticPassMatchesDomainSynonymsLexicalScoringMisses() {
+        var suggestions = suggestor.suggest(
+                List.of("dob", "acct_no", "mobile", "favourite_colour"),
+                List.of("dateOfBirth", "accountNumber", "phone"));
+
+        assertThat(suggestions).hasSize(3);
+        for (var target : List.of("dateOfBirth", "accountNumber", "phone")) {
+            var s = forTarget(suggestions, target).orElseThrow();
+            assertThat(s.rationale()).isEqualTo("semantic");
+            assertThat(s.approved()).isFalse();
+            assertThat(s.confidence()).isGreaterThanOrEqualTo(0.9);
+        }
+        assertThat(forTarget(suggestions, "dateOfBirth").orElseThrow().source()).isEqualTo("dob");
+        assertThat(forTarget(suggestions, "accountNumber").orElseThrow().source()).isEqualTo("acct_no");
+        assertThat(forTarget(suggestions, "phone").orElseThrow().source()).isEqualTo("mobile");
+        // an unrelated source is never proposed for any target
+        assertThat(suggestions).noneMatch(s -> s.source().equals("favourite_colour"));
+    }
+
+    @Test
+    void lexicalWinsTieAndKeepsItsRationale() {
+        var suggestions = suggestor.suggest(List.of("annualIncome"), List.of("annualIncome"));
+        assertThat(suggestions).hasSize(1);
+        assertThat(suggestions.get(0).rationale()).isEqualTo("lexical");
+        assertThat(suggestions.get(0).confidence()).isEqualTo(1.0);
+    }
+
+    @Test
+    void unrelatedFieldIsNotProposed() {
+        assertThat(suggestor.suggest(List.of("favourite_colour"), List.of("dateOfBirth")))
+                .isEmpty();
+    }
+
+    @Test
+    void suggestionsAreAdvisoryAndDoNotAutoApprove() {
+        assertThat(suggestor.suggest(List.of("dob"), List.of("dateOfBirth")))
+                .isNotEmpty()
+                .allMatch(s -> !s.approved())
+                .allMatch(s -> !s.rationale().isBlank());
     }
 }

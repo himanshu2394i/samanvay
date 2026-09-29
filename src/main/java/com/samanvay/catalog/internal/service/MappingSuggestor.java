@@ -3,29 +3,61 @@ package com.samanvay.catalog.internal.service;
 import com.samanvay.catalog.api.MappingSuggestion;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
+/**
+ * Proposes source→target field mappings for the onboarding importer. Two passes, both advisory:
+ *
+ * <ul>
+ *   <li><b>lexical</b> — normalise, then substring / Levenshtein similarity (catches spelling
+ *       variants like {@code annual_income} ↔ {@code annualIncome});</li>
+ *   <li><b>semantic</b> — a curated domain concept dictionary, so abbreviations and synonyms that are
+ *       lexically distant but mean the same thing still match (e.g. {@code dob} ↔ {@code dateOfBirth},
+ *       {@code acct_no} ↔ {@code accountNumber}, {@code mobile} ↔ {@code phone}).</li>
+ * </ul>
+ *
+ * Per target the higher-scoring pass wins (lexical wins ties, being the more transparent). Every
+ * suggestion is propose-only: {@code approved=false} and nothing in the catalog is mutated — a person
+ * still ticks each row before it becomes a rule.
+ */
 class MappingSuggestor {
+
+    private static final double THRESHOLD = 0.45;
+    private static final double SEMANTIC_SCORE = 0.92;
 
     List<MappingSuggestion> suggest(List<String> sources, List<String> targets) {
         List<MappingSuggestion> out = new ArrayList<>();
         for (String target : targets) {
             String bestSource = null;
+            String bestRationale = "lexical";
             double best = 0;
             for (String source : sources) {
-                double score = score(source, target);
-                if (score > best) {
-                    best = score;
+                double lex = score(source, target);
+                double sem = semanticScore(source, target);
+                double combined = sem > lex ? sem : lex;
+                String rationale = sem > lex ? "semantic" : "lexical";
+                if (combined > best) {
+                    best = combined;
                     bestSource = source;
+                    bestRationale = rationale;
                 }
             }
-            if (bestSource != null && best >= 0.45) {
-                out.add(new MappingSuggestion(bestSource, target, round(best), "lexical", false));
+            if (bestSource != null && best >= THRESHOLD) {
+                out.add(new MappingSuggestion(bestSource, target, round(best), bestRationale, false));
             }
         }
         out.sort(Comparator.comparingDouble(MappingSuggestion::confidence).reversed());
         return List.copyOf(out);
+    }
+
+    /** 0.92 when both field names resolve to the same domain concept, else 0. */
+    private static double semanticScore(String source, String target) {
+        String cs = CONCEPTS.get(norm(source));
+        String ct = CONCEPTS.get(norm(target));
+        return cs != null && cs.equals(ct) ? SEMANTIC_SCORE : 0.0;
     }
 
     private static double score(String source, String target) {
@@ -53,6 +85,50 @@ class MappingSuggestor {
             sb.append(Character.toLowerCase(c));
         }
         return sb.toString().replace(" ", "").toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Curated, deterministic dictionary of domain concepts for the departments Samanvay onboards
+     * (identity, finance/DBT, address, education). Keyed by the normalised alias so it composes with
+     * {@link #norm}. Intentionally small and easy to extend as new departments arrive; no ML/LLM and
+     * no external service (HLD §1.5). Whole-field aliases only — no generic-token expansion — so it
+     * stays precise and auditable.
+     */
+    private static final Map<String, String> CONCEPTS = buildConcepts();
+
+    private static Map<String, String> buildConcepts() {
+        Map<String, String> m = new HashMap<>();
+        register(m, "DATE_OF_BIRTH", "dob", "dateOfBirth", "birthDate", "dateBirth", "birthDay");
+        register(m, "FULL_NAME", "name", "fullName", "holderName", "applicantName", "beneficiaryName", "accountHolderName");
+        register(m, "ANNUAL_INCOME", "income", "annualIncome", "yearlyIncome", "incomeAmount");
+        register(m, "AMOUNT", "amount", "amt", "value");
+        register(
+                m,
+                "ACCOUNT_NUMBER",
+                "accountNumber",
+                "accountNo",
+                "acctNo",
+                "acNo",
+                "accNo",
+                "bankAccountNumber",
+                "accountNumberMasked");
+        register(m, "IFSC", "ifsc", "ifscCode", "branchCode");
+        register(m, "BANK_NAME", "bank", "bankName");
+        register(m, "PHONE", "phone", "mobile", "mobileNo", "mobileNumber", "contactNumber", "phoneNumber", "contact");
+        register(m, "EMAIL", "email", "emailId", "mail", "emailAddress");
+        register(m, "ADDRESS", "address", "addr", "residence", "residentialAddress");
+        register(m, "POSTAL_CODE", "pincode", "pin", "postalCode", "zip", "zipCode");
+        register(m, "GENDER", "gender", "sex");
+        register(m, "CASTE_CATEGORY", "caste", "category", "socialCategory", "casteCategory");
+        register(m, "MARKS", "marks", "score", "percentage", "grade", "cgpa", "marksObtained");
+        register(m, "ACADEMIC_YEAR", "academicYear", "yearOfStudy");
+        return Map.copyOf(m);
+    }
+
+    private static void register(Map<String, String> m, String concept, String... aliases) {
+        for (String alias : aliases) {
+            m.put(norm(alias), concept);
+        }
     }
 
     private static int levenshtein(String a, String b) {
