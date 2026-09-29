@@ -23,6 +23,8 @@
         <keycloak.version>26.4.7</keycloak.version>
         <!-- Not managed by the Spring Boot BOM, so pinned here. Latest stable 2.x. -->
         <sshd.version>2.18.0</sshd.version>
+        <!-- Flowable 8.x is the Spring 7 / Boot 4 generation (Jackson 3, jakarta). Not managed by the Boot BOM. -->
+        <flowable.version>8.0.0</flowable.version>
     </properties>
 
     <dependencyManagement>
@@ -125,7 +127,27 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Flowable BPMN engine behind the WorkflowEngine port (opt-in, samanvay.workflow.engine=flowable).
+             Wired programmatically in FlowableEngineConfiguration; the flowable-spring-boot-starter is
+             deliberately NOT used because its autoconfiguration would boot the engine (and create ACT_*
+             tables) in the default in-process mode. -->
+        <dependency>
+            <groupId>org.flowable</groupId>
+            <artifactId>flowable-engine</artifactId>
+            <version>${flowable.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.flowable</groupId>
+            <artifactId>flowable-spring</artifactId>
+            <version>${flowable.version}</version>
+        </dependency>
+
         <!-- Testing -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
