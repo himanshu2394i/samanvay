@@ -32,6 +32,12 @@ import json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 UI_ORIGIN = "http://localhost:8080"
+# The React SPA's Vite dev server (frontend/, `npm run dev`). It signs in with the citizen
+# realm's existing browser client, so its tokens keep azp=samanvay-citizen-ui and the API's
+# allowed-clients list needs no change; this origin is only added to that client's redirect,
+# CORS (web origin) and post-logout allow-lists. The production build is served by Spring from
+# UI_ORIGIN (/app/), which the client already allows.
+SPA_DEV_ORIGIN = "http://localhost:5173"
 # Data sources the dev department client may fetch from: one scope per source.
 DEPT_SOURCES = ["revenue-rest-mock", "education-soap-mock", "dbt-rest-mock"]
 # Every token the API accepts must name it in `aud` (checked by the resource
@@ -220,12 +226,15 @@ def required_actions(staff):
     ]
 
 
-def ui_client(client_id, name, extra_scopes=()):
+def ui_client(client_id, name, extra_scopes=(), extra_origins=()):
+    origins = [UI_ORIGIN, *extra_origins]
     return {"clientId": client_id, "name": name, "enabled": True, "publicClient": True,
             "protocol": "openid-connect", "standardFlowEnabled": True, "implicitFlowEnabled": False,
             "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
-            "redirectUris": [UI_ORIGIN + "/*"], "webOrigins": [UI_ORIGIN],
-            "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": UI_ORIGIN + "/*"},
+            "redirectUris": [o + "/*" for o in origins], "webOrigins": origins,
+            # Keycloak separates several post-logout redirect URIs with "##".
+            "attributes": {"pkce.code.challenge.method": "S256",
+                           "post.logout.redirect.uris": "##".join(o + "/*" for o in origins)},
             "defaultClientScopes": ["basic", "roles", "profile", "web-origins", "acr", *extra_scopes],
             "optionalClientScopes": [],
             "protocolMappers": [api_audience_mapper()]}
@@ -493,7 +502,8 @@ def citizen_realm():
         "defaultDefaultClientScopes": ["basic", "roles", "profile", "web-origins", "acr"],
         "defaultOptionalClientScopes": [],
         "clients": [
-            ui_client("samanvay-citizen-ui", "Samanvay citizen portals (dev)", extra_scopes=[BROKER_SCOPE]),
+            ui_client("samanvay-citizen-ui", "Samanvay citizen portals (dev)", extra_scopes=[BROKER_SCOPE],
+                      extra_origins=[SPA_DEV_ORIGIN]),
             # Built-in client, redefined so its password grant is off in this realm.
             {"clientId": "admin-cli", "name": "${client_admin-cli}", "enabled": True, "publicClient": True,
              "protocol": "openid-connect", "standardFlowEnabled": False, "implicitFlowEnabled": False,
