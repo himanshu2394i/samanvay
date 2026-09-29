@@ -18,15 +18,26 @@ samanvay:
         sandbox-marks-soap: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
     sftp:
       sources:
-        # Real-transport SFTP source seeded by V193 (catalog data source of the same code).
-        # Sandbox values only: the host never resolves, and the pinned key is a placeholder to
-        # replace with the fingerprint printed by `ssh-keygen -lf` for the real sandbox server.
+        # Real-transport SFTP source seeded by V193, pointed at the deployable department-sftp
+        # container (docker compose up department-sftp). The client PINS the host key, so after the
+        # first `up` capture the fingerprint and export SAMANVAY_SANDBOX_SFTP_HOSTKEY (see README);
+        # until then the placeholder makes any real fetch fail closed rather than trust blindly.
         # The credential is NOT here: it resolves from SecretStore key
-        # source-sandbox-property-sftp-credential (value username:password).
+        # source-sandbox-property-sftp-credential (value fixtureuser:fixturepass in demo).
         # mode SANDBOX does not require the credential at boot (LIVE would).
         sandbox-property-sftp:
           mode: sandbox
-          host: sftp.sandbox.samanvay.example
-          port: 22
+          host: ${SAMANVAY_SANDBOX_SFTP_HOST:localhost}
+          port: ${SAMANVAY_SANDBOX_SFTP_PORT:2222}
           remote-path: /outbound/property.csv
-          host-key-sha256: "SHA256:REPLACE_WITH_SANDBOX_SERVER_FINGERPRINT"
+          host-key-sha256: ${SAMANVAY_SANDBOX_SFTP_HOSTKEY:SHA256:REPLACE_WITH_SANDBOX_SERVER_FINGERPRINT}
+    jdbc:
+      sources:
+        # Real-transport JDBC source onboarded by V198, pointed at the deployable department-db
+        # container (docker compose up department-db). Calls go through the REAL JdbcQueryClient
+        # (parameterized SELECT only). The credential is NOT here: it resolves from SecretStore key
+        # source-sandbox-pollution-jdbc-credential (value pcb_ro:pcb_ro_demo in demo).
+        # mode SANDBOX does not require the credential at boot (LIVE would).
+        sandbox-pollution-jdbc:
+          mode: sandbox
+          jdbc-url: ${SAMANVAY_SANDBOX_JDBC_URL:jdbc:postgresql://localhost:5433/deptdb}

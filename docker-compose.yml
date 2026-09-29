@@ -63,5 +63,37 @@ services:
     ports:
       - "8090:8090"
 
+  # DEV/DEMO-ONLY department DATABASE for the JDBC connector path (fourth protocol). A plain Postgres
+  # seeded with FAKE pollution-control-board rows (docker/department-db/init.sql) and a read-only role
+  # pcb_ro. On :5433 so it never clashes with the app's own postgres above. With the dev/demo profile
+  # the app points the V198 JDBC source (sandbox-pollution-jdbc) here via
+  # samanvay.sources.jdbc.sources.*.jdbc-url, so a fetch crosses the network through the real
+  # JdbcQueryClient (parameterized SELECT only), not the in-process mock backend. Never a real system.
+  # The connector's credential is source-sandbox-pollution-jdbc-credential = pcb_ro:pcb_ro_demo (see README).
+  department-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: deptdb
+      POSTGRES_USER: dept_admin
+      POSTGRES_PASSWORD: dept_admin_demo
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./docker/department-db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  # DEV/DEMO-ONLY department SFTP server for the SFTP_CSV connector path. Serves a FAKE property CSV
+  # (docker/department-sftp/property.csv) over real SFTP on :2222. With the dev/demo profile the app
+  # points the V193 SFTP source (sandbox-property-sftp) here, so a fetch crosses the network through
+  # the real SftpCsvClient. The client PINS the server host key (no trust-on-first-use), so after the
+  # first `up` capture the fingerprint and export SAMANVAY_SANDBOX_SFTP_HOSTKEY (see README). Login is
+  # the DEV credential source-sandbox-property-sftp-credential = fixtureuser:fixturepass. Never real.
+  department-sftp:
+    image: atmoz/sftp:alpine
+    command: ["fixtureuser:fixturepass:::outbound"]
+    ports:
+      - "2222:22"
+    volumes:
+      - ./docker/department-sftp/property.csv:/home/fixtureuser/outbound/property.csv:ro
+
 volumes:
   samanvay-postgres-data:
