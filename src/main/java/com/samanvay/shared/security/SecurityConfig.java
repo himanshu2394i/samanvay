@@ -98,6 +98,8 @@ class SecurityConfig {
                         // orchestration: officers own the exception queue and retries
                         .requestMatchers(POST, "/api/journeys/*/start").hasAnyRole(CITIZEN, OFFICER, DEPARTMENT)
                         .requestMatchers(POST, "/api/journeys/instances/*/retry").hasRole(OFFICER)
+                        // officer approval step: VERIFIED -> APPROVED (fires the disbursement)
+                        .requestMatchers(POST, "/api/journeys/instances/*/approve").hasRole(OFFICER)
                         .requestMatchers(GET, "/api/journeys/exceptions", "/api/journeys/instances/*").hasRole(OFFICER)
                         // officer bank-account review (no holder name is ever returned)
                         .requestMatchers(GET, "/api/officer/bank-reviews").hasRole(OFFICER)
