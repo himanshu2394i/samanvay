@@ -24,6 +24,7 @@ import com.samanvay.orchestration.api.StepPendingSource;
 import com.samanvay.registry.api.PointerUpserted;
 import com.samanvay.tracking.api.ApplicationReferenceIssued;
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -184,11 +185,17 @@ class NotificationDispatcher {
 
     void dispatch(String eventType, String recipientId, String sourceEventId, Map<String, String> vars) {
         EnumSet<Channel> chosen = EnumSet.noneOf(Channel.class);
+        // Contact address per channel, taken from the recipient's own subscription (EMAIL/SMS only).
+        Map<Channel, String> addresses = new EnumMap<>(Channel.class);
         if (MANDATORY.contains(eventType)) {
             chosen.add(Channel.IN_APP);
         }
         for (SubscriptionEntity sub : subscriptions.findByRecipientIdAndEventTypeAndEnabledTrue(recipientId, eventType)) {
-            chosen.add(Channel.valueOf(sub.getChannel()));
+            Channel subscribed = Channel.valueOf(sub.getChannel());
+            chosen.add(subscribed);
+            if (sub.getAddress() != null) {
+                addresses.put(subscribed, sub.getAddress());
+            }
         }
         String locale = subscriptions.findByRecipientId(recipientId).stream()
                 .map(SubscriptionEntity::getLocale)
@@ -196,7 +203,7 @@ class NotificationDispatcher {
                 .orElse("en");
         for (Channel channel : chosen) {
             try {
-                deliver(eventType, recipientId, sourceEventId, vars, channel, locale);
+                deliver(eventType, recipientId, sourceEventId, vars, channel, locale, addresses.get(channel));
             } catch (RuntimeException ex) {
                 // never rethrown — a failed SMS must not fail the business TX
             }
@@ -209,7 +216,8 @@ class NotificationDispatcher {
             String sourceEventId,
             Map<String, String> vars,
             Channel channel,
-            String locale) {
+            String locale,
+            String address) {
         String dedupeKey = eventType + ":" + sourceEventId;
         if (deliveries.existsByRecipientIdAndChannelAndDedupeKey(recipientId, channel.name(), dedupeKey)) {
             return;
@@ -233,7 +241,7 @@ class NotificationDispatcher {
             if (impl == null) {
                 throw new IllegalStateException("no channel " + channel);
             }
-            var outcome = impl.send(new RenderedMessage(recipientId, body));
+            var outcome = impl.send(new RenderedMessage(recipientId, body, address, "Samanvay notification: " + eventType));
             if (!outcome.sent()) {
                 throw new IllegalStateException(outcome.error());
             }
@@ -242,10 +250,14 @@ class NotificationDispatcher {
             deliveries.save(row);
         } catch (Exception e) {
             row.setStatus("FAILED");
-            row.setLastError(e.getMessage());
+            row.setLastError(truncate(e.getMessage()));
             deliveries.save(row);
             events.publishEvent(new DeliveryFailed(row.getId(), channel, e.getMessage()));
         }
+    }
+
+    private static String truncate(String error) {
+        return error == null || error.length() <= 500 ? error : error.substring(0, 500);
     }
 
     private String renderWithFallback(String templateRef, Map<String, String> vars, String locale, String eventType) {
