@@ -26,6 +26,7 @@ import com.samanvay.connector.api.Provenance;
 import com.samanvay.connector.api.SourceOutcome;
 import com.samanvay.shared.DataCategory;
 import com.samanvay.connector.internal.mapping.MappingExecutor;
+import com.samanvay.connector.internal.protocol.ExchangeDeadline;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +46,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
     private final MappingExecutor mapping;
     private final AuditService audit;
     private final DepartmentChaos chaos;
+    private final java.time.Duration totalTimeout;
     private final BankCheckAdapters bankCheckAdapters;
     private final JsonMapper json = JsonMapper.builder().build();
 
@@ -57,7 +59,10 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             MappingExecutor mapping,
             AuditService audit,
             DepartmentChaos chaos,
+            @org.springframework.beans.factory.annotation.Value("${samanvay.connector.total-timeout:PT10S}")
+                    java.time.Duration totalTimeout,
             BankCheckAdapters bankCheckAdapters) {
+        this.totalTimeout = totalTimeout;
         this.grantVerifier = grantVerifier;
         this.connectors = connectors;
         this.schemas = schemas;
@@ -185,7 +190,11 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             if (adapter == null) {
                 return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
             }
-            var raw = resilience.execute(dataSource.code(), () -> adapter.execute(request));
+            com.samanvay.connector.api.AdapterResponse raw;
+            // One total deadline for the whole exchange, every retry attempt included.
+            try (ExchangeDeadline deadline = ExchangeDeadline.start(totalTimeout)) {
+                raw = resilience.execute(dataSource.code(), () -> adapter.execute(request));
+            }
             var mapped = mappingRef == null ? raw.body() : mapping.apply(connectors.mapping(mappingRef), raw.body());
             if (outputSchema != null) {
                 var vr = schemas.validate(outputSchema, mapped);
