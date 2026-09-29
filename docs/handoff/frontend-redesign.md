@@ -14,6 +14,27 @@ It is technical underneath, but the surface must not feel technical. Name things
 does ("Review applications", "Connect your records", "Approve"), never by how the system is built
 ("connector runtime", "JDBC source", "BPMN instance").
 
+## Use the `frontend-design` skill (install it first)
+
+This work is meant to be done with the Claude Code **`frontend-design`** skill (design-led, anti-slop).
+Install it before starting:
+
+```
+# In the Claude Code session, add the official marketplace (if not already added) and install:
+/plugin marketplace add anthropics/claude-plugins-official
+/plugin install frontend-design@claude-plugins-official
+```
+
+Then invoke it with the slash command **`/frontend-design:frontend-design`** followed by the brief
+(you can paste the "Design direction" section below as the brief). If your harness cannot run
+`/plugin`, the plugin is a Git marketplace — `anthropics/claude-plugins-official`, plugin
+`frontend-design` — so you can also add it through the `/plugin` UI, or just follow the design
+process described in that skill: **brainstorm a direction → define color/type/layout/signature tokens
+→ critique against the brief → build → critique again**, spending boldness on one signature element.
+
+Also consider the **`superpowers:brainstorming`** skill (same marketplace, plugin `superpowers`) to
+pin requirements before building, and `superpowers:writing-plans` to break the rebuild into tasks.
+
 ## What Samanvay is (domain context)
 
 Samanvay is a **middle interoperability layer** between citizen-facing government services and the
