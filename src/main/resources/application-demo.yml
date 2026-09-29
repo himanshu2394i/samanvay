@@ -7,3 +7,18 @@ samanvay:
       issuer-uri: ${SAMANVAY_STAFF_ISSUER_URI:http://localhost:8180/realms/samanvay-staff}
     citizen:
       issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:http://localhost:8180/realms/samanvay-citizen}
+  sources:
+    sftp:
+      sources:
+        # Real-transport SFTP source seeded by V193 (catalog data source of the same code).
+        # Sandbox values only: the host never resolves, and the pinned key is a placeholder to
+        # replace with the fingerprint printed by `ssh-keygen -lf` for the real sandbox server.
+        # The credential is NOT here: it resolves from SecretStore key
+        # source-sandbox-property-sftp-credential (value username:password).
+        # mode SANDBOX does not require the credential at boot (LIVE would).
+        sandbox-property-sftp:
+          mode: sandbox
+          host: sftp.sandbox.samanvay.example
+          port: 22
+          remote-path: /outbound/property.csv
+          host-key-sha256: "SHA256:REPLACE_WITH_SANDBOX_SERVER_FINGERPRINT"
