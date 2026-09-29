@@ -40,6 +40,14 @@ public class ConsentArtifactEntity {
     private Instant createdAt;
     @Column(name = "updated_at")
     private Instant updatedAt;
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "data_types", columnDefinition = "text[]")
+    private String[] dataTypes = new String[0];
+    @Column(name = "revoked_at")
+    private Instant revokedAt;
+    @Column(name = "revoked_by")
+    private String revokedBy;
+    private String frequency;
 
     public UUID getId() {
         return id;
@@ -145,11 +153,47 @@ public class ConsentArtifactEntity {
         this.citizenAuthRef = citizenAuthRef;
     }
 
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String[] getDataTypes() {
+        return dataTypes;
+    }
+
+    public void setDataTypes(String[] dataTypes) {
+        this.dataTypes = dataTypes;
+    }
+
+    public Instant getRevokedAt() {
+        return revokedAt;
+    }
+
+    public void setRevokedAt(Instant revokedAt) {
+        this.revokedAt = revokedAt;
+    }
+
+    public String getRevokedBy() {
+        return revokedBy;
+    }
+
+    public void setRevokedBy(String revokedBy) {
+        this.revokedBy = revokedBy;
+    }
+
+    public String getFrequency() {
+        return frequency;
+    }
+
+    public void setFrequency(String frequency) {
+        this.frequency = frequency;
     }
 }

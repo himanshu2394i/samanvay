@@ -64,4 +64,16 @@ class ApiAccessAuditFilterTest {
         assertThat(published).isEmpty();
         assertThat(meters.getMeters()).isEmpty();
     }
+
+    @Test
+    void refusalAlreadyAuditedByItsModuleIsNotPublishedAgain() throws Exception {
+        filter.doFilter(new MockHttpServletRequest("POST", "/api/consent/requests"), new MockHttpServletResponse(),
+                (rq, rs) -> {
+                    rq.setAttribute(ApiAccessAuditFilter.CALLER_ATTRIBUTE,
+                            new Caller("off-1", "j", Set.of("OFFICER"), Set.of(), "REVENUE"));
+                    rq.setAttribute(ApiAccessRefused.AUDITED_ATTRIBUTE, Boolean.TRUE);
+                    ((MockHttpServletResponse) rs).setStatus(403);
+                });
+        assertThat(published).isEmpty();
+    }
 }

@@ -69,6 +69,7 @@ final class ApiAccessMatrix {
         allow("POST /api/consent/requests", CITIZEN, OFFICER, DEPARTMENT);
         allow("POST /api/consent/requests/{id}/grant", CITIZEN);
         allow("POST /api/consent/{id}/revoke", CITIZEN);
+        allow("POST /api/consent/me/{id}/revoke", CITIZEN);
         allow("GET /api/consent/citizens/{citizenId}", CITIZEN, OFFICER);
         // orchestration
         allow("POST /api/journeys/{code}/start", CITIZEN, OFFICER, DEPARTMENT);

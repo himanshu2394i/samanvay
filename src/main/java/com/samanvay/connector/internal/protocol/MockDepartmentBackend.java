@@ -30,6 +30,13 @@ class MockDepartmentBackend {
             n.put("certificateNo", "CASTE-DEMO-441");
             return n;
         }
+        if (path.contains("domicile")) {
+            n.put("district", "Pune");
+            n.put("issueDate", "2024-06-15");
+            n.put("issuerOffice", "Tahsildar, Haveli");
+            n.put("verified", true);
+            return n;
+        }
         if (path.contains("marks") || path.contains("soap")) {
             n.put("percentage", "81");
             n.put("exam", "HSC 2024");

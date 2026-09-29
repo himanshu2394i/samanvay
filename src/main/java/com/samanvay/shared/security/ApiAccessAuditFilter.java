@@ -25,7 +25,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *       chain rows nor lock time.
  *   <li><b>403</b> (a validated caller refused - by the route rules, an
  *       own-record check or a module's 403): {@link ApiAccessRefused}, which
- *       {@code audit} writes to the hash chain attributed to that caller.
+ *       {@code audit} writes to the hash chain attributed to that caller - unless
+ *       the module that refused it has already audited it (request attribute
+ *       {@link ApiAccessRefused#AUDITED_ATTRIBUTE}): one audit row per refusal.
  * </ul>
  *
  * <p>Both record the matched <em>route template</em> (e.g.
@@ -86,6 +88,10 @@ final class ApiAccessAuditFilter extends OncePerRequestFilter {
             if (status == 401) {
                 meters.counter(UNAUTHENTICATED_METRIC, "route", route, "reason", reason).increment();
                 log.info("refused unauthenticated API call: {} reason={}", route, reason);
+                return;
+            }
+            if (Boolean.TRUE.equals(request.getAttribute(ApiAccessRefused.AUDITED_ATTRIBUTE))) {
+                log.debug("refused API call already audited by its module: {} reason={}", route, reason);
                 return;
             }
             String actorKind = ApiAccessRefused.ANONYMOUS;

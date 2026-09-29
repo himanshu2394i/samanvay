@@ -36,6 +36,20 @@ spring:
         enabled: true
 
 samanvay:
+  connector:
+    # Connect timeout for outbound department calls. A one-check consent usage
+    # claim still PENDING after 2x this (the stale window) is treated as
+    # released (V189 consent_usage) and the next check may take it over.
+    timeout: PT10S
+    # One deadline over the WHOLE exchange: every retry attempt, connect, send
+    # and the full body. On expiry the HTTP exchange is cancelled (DeadlineHttp).
+    total-timeout: PT10S
+    # Startup refuses a stale window that is not greater than
+    # total-timeout (+ one retry wait when retries are on) + stale-margin.
+    stale-margin: PT5S
+    retry:
+      max-attempts: 3
+      wait: PT0.5S
   security:
     # The two trusted Keycloak realms. Tokens from any other issuer are
     # rejected with 401. Keys are fetched lazily by OIDC discovery, so the app

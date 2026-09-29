@@ -26,6 +26,7 @@ import com.samanvay.connector.api.Provenance;
 import com.samanvay.connector.api.SourceOutcome;
 import com.samanvay.shared.DataCategory;
 import com.samanvay.connector.internal.mapping.MappingExecutor;
+import com.samanvay.connector.internal.protocol.ExchangeDeadline;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +46,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
     private final MappingExecutor mapping;
     private final AuditService audit;
     private final DepartmentChaos chaos;
+    private final java.time.Duration totalTimeout;
     private final BankCheckAdapters bankCheckAdapters;
     private final JsonMapper json = JsonMapper.builder().build();
 
@@ -57,7 +59,10 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             MappingExecutor mapping,
             AuditService audit,
             DepartmentChaos chaos,
+            @org.springframework.beans.factory.annotation.Value("${samanvay.connector.total-timeout:PT10S}")
+                    java.time.Duration totalTimeout,
             BankCheckAdapters bankCheckAdapters) {
+        this.totalTimeout = totalTimeout;
         this.grantVerifier = grantVerifier;
         this.connectors = connectors;
         this.schemas = schemas;
@@ -78,16 +83,64 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
 
     /**
      * Grant first, adapter second: a grant that fails verification never reaches
-     * the adapter lookup, so no call leaves the platform. (Minimal wiring for the
-     * skeleton; the DATA_ACCESSED audit row for bank checks comes with the journey PR.)
+     * the adapter lookup, so no call leaves the platform. When the source answers,
+     * one {@code DATA_ACCESSED} row records the access; a failed call (timeout,
+     * fault, rejected, not-configured) records nothing, since no data was accessed.
      */
     @Override
     public SourceOutcome<BankCheckAnswer> bankCheck(AccessGrant grant, String sourceCode, BankCheckRequest request) {
         verifyOrAuditAndThrow(grant, DataCategory.BANK_ACCOUNT, sourceCode);
-        return bankCheckAdapters
+        SourceOutcome<BankCheckAnswer> outcome = bankCheckAdapters
                 .forSource(sourceCode)
                 .<SourceOutcome<BankCheckAnswer>>map(adapter -> adapter.check(request))
                 .orElseGet(() -> new SourceOutcome.SourceFault<>(SourceOutcome.ReasonCode.NOT_CONFIGURED, false));
+        if (outcome instanceof SourceOutcome.Answered<BankCheckAnswer>) {
+            auditBankCheckAccessed(grant, sourceCode);
+        } else if (outcome instanceof SourceOutcome.SourceFault<BankCheckAnswer> fault
+                && fault.reasonCode() == SourceOutcome.ReasonCode.MARKER_IN_LIVE_MODE) {
+            auditMarkerInLiveMode(grant, sourceCode);
+        }
+        return outcome;
+    }
+
+    /**
+     * The source answered, so bank data was accessed. The row records that the
+     * check happened for this grant; the answer (account status, name-match
+     * verdict) carries no personal data and the holder's name never leaves the
+     * adapter, so none of it is put here.
+     */
+    private void auditBankCheckAccessed(AccessGrant grant, String sourceCode) {
+        audit.record(new AuditEntry(
+                actorType(grant),
+                actorId(grant),
+                "DATA_ACCESSED",
+                grant.subject().citizenId().toString(),
+                sourceCode,
+                grant.departmentCode(),
+                grant.consentId(),
+                grant.id(),
+                Outcome.ALLOWED,
+                null,
+                attribution(grant)));
+    }
+
+    /**
+     * A LIVE source returned the simulator marker. The adapter has already thrown
+     * the answer away (alarming in its logs); here we leave the durable trail.
+     */
+    private void auditMarkerInLiveMode(AccessGrant grant, String sourceCode) {
+        audit.record(new AuditEntry(
+                actorType(grant),
+                actorId(grant),
+                "LIVE_SOURCE_MARKER_REJECTED",
+                grant.subject().citizenId().toString(),
+                sourceCode,
+                grant.departmentCode(),
+                grant.consentId(),
+                grant.id(),
+                Outcome.DENIED,
+                "live source returned the simulator marker",
+                attribution(grant)));
     }
 
     private void verifyOrAuditAndThrow(AccessGrant grant, DataCategory category, String connectorRef) {
@@ -137,7 +190,11 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             if (adapter == null) {
                 return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
             }
-            var raw = resilience.execute(dataSource.code(), () -> adapter.execute(request));
+            com.samanvay.connector.api.AdapterResponse raw;
+            // One total deadline for the whole exchange, every retry attempt included.
+            try (ExchangeDeadline deadline = ExchangeDeadline.start(totalTimeout)) {
+                raw = resilience.execute(dataSource.code(), () -> adapter.execute(request));
+            }
             var mapped = mappingRef == null ? raw.body() : mapping.apply(connectors.mapping(mappingRef), raw.body());
             if (outputSchema != null) {
                 var vr = schemas.validate(outputSchema, mapped);
