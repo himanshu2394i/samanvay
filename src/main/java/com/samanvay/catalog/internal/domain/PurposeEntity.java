@@ -22,6 +22,26 @@ public class PurposeEntity {
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
     @Column(name = "data_categories", columnDefinition = "text[]")
     private String[] dataCategories;
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.ARRAY)
+    @Column(name = "data_types", columnDefinition = "text[]")
+    private String[] dataTypes;
+    @Column(name = "requester_rule")
+    private String requesterRule;
+    @Column(name = "max_duration_days")
+    private Integer maxDurationDays;
+    @Column(name = "duration_rule")
+    private String durationRule;
+    private String frequency;
+    @Column(name = "label_en")
+    private String labelEn;
+    @Column(name = "label_mr")
+    private String labelMr;
+    @Column(name = "label_en_status")
+    private String labelEnStatus;
+    @Column(name = "label_mr_status")
+    private String labelMrStatus;
+    @Column(name = "separate_opt_in")
+    private boolean separateOptIn;
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -55,5 +75,45 @@ public class PurposeEntity {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String[] getDataTypes() {
+        return dataTypes;
+    }
+
+    public String getRequesterRule() {
+        return requesterRule;
+    }
+
+    public Integer getMaxDurationDays() {
+        return maxDurationDays;
+    }
+
+    public String getDurationRule() {
+        return durationRule;
+    }
+
+    public String getFrequency() {
+        return frequency;
+    }
+
+    public String getLabelEn() {
+        return labelEn;
+    }
+
+    public String getLabelMr() {
+        return labelMr;
+    }
+
+    public String getLabelEnStatus() {
+        return labelEnStatus;
+    }
+
+    public String getLabelMrStatus() {
+        return labelMrStatus;
+    }
+
+    public boolean isSeparateOptIn() {
+        return separateOptIn;
     }
 }

@@ -334,11 +334,81 @@ The `version = version + 1` happens in the `UPDATE` statement itself (not
 read-modify-write in Java), so two concurrent revoke attempts on the same row serialize
 correctly at the database level with no application-level locking needed.
 
+### 7.3 Phase 2: the consent record, catalog purposes and revocation (V186, V187)
+
+**Purposes are catalog data.** `catalog_purpose` (V181, V184, V186) carries everything a
+consent screen and a consent record need: `text`, `data_categories` (drive fetches),
+`data_types` (the DEPA descriptors shown to the citizen), `requester_department`,
+`requester_rule`, `max_duration_days`, `duration_rule`, `frequency`, `label_en` / `label_mr`
+with a `MISSING|DRAFT|APPROVED` status each, and `separate_opt_in`. Java only checks that a
+requested code exists and is `ACTIVE` (else `UnknownPurposeException`, 400) and interprets
+`requester_rule`; there is no purpose enum, so a new journey adds purpose rows with no Java
+change. The four `SCH_*` scholarship purposes are seeded by V186 next to the scholarship
+journey seed (V21), because demo seeds are not yet separated from schema migrations.
+
+**The record.** One purpose per consent. `consent_artifact` holds the citizen, the requester
+(from the token or the catalog rule, never a request body), the purpose code,
+`data_categories` and `data_types` copied from the catalog **at grant time**, `valid_from`
+(created) and `valid_until` (expires: `min(365 days, max_duration_days)`), `status`
+(`ACTIVE|REVOKED|EXPIRED`), `revoked_at` and `revoked_by` (token subject).
+
+**Requester rules.**
+
+| `requester_rule` | Requester |
+|---|---|
+| `CATALOG_DEPARTMENT` | `requester_department`; an officer/department client of any other department is refused (403, audited) |
+| `PRIOR_AWARD_DEPARTMENT` | The department that approved the citizen's award: an `APPROVED` tracking application decided in the **academic year immediately before the current one** (Asia/Kolkata). The academic year's start month is scheme configuration, `catalog_journey.academic_year_start_month` (V188; scholarship = 6, June), read from the award's own journey; a scheme without it never yields a prior award. The deciding department is that journey's policy `requester`. No such award: `NoPriorAwardException` (409). Award decided by another department: `NotAwardingDepartmentException` (403). It must also be `requester_department`. |
+
+`tracking` answers the award question through the `consent.api.ApprovedAwards` port (tracking
+already depends on consent, so consent cannot call tracking). Separate opt-in and award-gated
+purposes are never raised automatically as a fetch "remedy"; they are only asked for explicitly.
+
+**Revocation.** `POST /api/consent/me/{id}/revoke` (citizen token; the citizen is the token's
+bound record) or the older `POST /api/consent/{id}/revoke` (body `citizenId`). On both, a
+consent that is not the signed-in citizen's own is a **404** (never 403), whatever the body says. Revoking sets `REVOKED`, `revoked_at`, `revoked_by`, bumps
+the version (in-flight grants fail verification) and removes discovery. Revoking a consent that
+is no longer active changes nothing. After that, `authorize()` under the consent returns
+`Denied(CONSENT_REVOKED)` whose `message()` is *"You withdrew this permission, so this
+department can no longer check this document."*; an expired consent returns
+`Denied(CONSENT_EXPIRED)` with *"This permission ended on [date], so this department can no
+longer check this document. If your application still needs it, you can give permission
+again."* Both strings, and the status labels, live in one table,
+`src/main/resources/consent/citizen-copy_en.properties` (checked by `ConsentCopyTableTest`
+and the banned-phrase scan).
+
+**Status at read time.** The citizen's permissions list (`GET /api/consent/citizens/{id}`)
+works status out when it is read: an `ACTIVE` row past `valid_until` is reported as `EXPIRED`
+with label "Ended", so an expired consent is never shown as Active. `REVOKED` reads
+"Withdrawn by you".
+
+**Audit** (same transaction, via `AuditService.record`): `CONSENT_GRANTED` and
+`CONSENT_REVOKED` (actor = the token principal, `consent_id`, meta `purpose`, `principalType`,
+`principalId`); `GRANT_DENIED` for refused fetches (reason, `consent_id`, meta `purpose`,
+principal, plain `message`), in the caller's transaction (a denial is a return value, and the
+caller may already hold the chain lock); `CONSENT_REQUEST_REFUSED` for refused requests of a
+known purpose, written in its **own** transaction (REQUIRES_NEW through `AuditService.record`)
+so it survives the request's rollback. **One audit row per refusal:** the refusal exception is
+marked audited, `ApiExceptionHandler` sets `ApiAccessRefused.AUDITED_ATTRIBUTE`, and the 403
+filter then skips its generic `API_FORBIDDEN` row. Every other 403 (e.g. a Spring Security
+role denial) still gets exactly one `API_FORBIDDEN` row.
+
+**Retention.** Consent records are kept for 7 years after they end (revoked or expired). This
+is a platform policy, not a legal claim; no purge job exists yet.
+
+**Follow-ups that block Phase 2 acceptance:** enforcing `frequency` (usage rows) and a
+domicile data category. **Deferred:** department scoping (Phase 2 step 9), the offline
+verifier (Phase 2 PR 2), a job that marks rows `EXPIRED` (expiry is enforced at `authorize()`
+and at read time from `valid_until`), and the retention purge job.
+
 ## 8. Error handling
 
 | Exception (`consent.api`) | Raised when | HTTP mapping |
 |---|---|---|
 | `ConsentNotFoundException` | Revoke/grant targets a consent the caller doesn't own | 404 |
+| `UnknownPurposeException` | Purpose code unknown or not `ACTIVE` (at request or grant time) | 400 |
+| `RequesterNotEntitledException` | Requester is not the purpose's department | 403 (audited) |
+| `NoPriorAwardException` | `PRIOR_AWARD_DEPARTMENT` purpose, no prior-year award | 409 (audited) |
+| `NotAwardingDepartmentException` | Prior-year award was decided by another department | 403 (audited) |
 | `InvalidGrantException` | Any `verifyOrThrow` failure (expired, reused nonce, bad signature, stale consent version) | Not exposed over HTTP — this is `connector`-internal; surfaces as `ConnectorResult.Unavailable` to the workflow, never as an API error to a citizen |
 | `GrantSigningException` | Signing key unresolvable | 503 — see [hld/05-consent.md §7](../hld/05-consent.md#7-failure-modes): fail closed, no grants issued |
 

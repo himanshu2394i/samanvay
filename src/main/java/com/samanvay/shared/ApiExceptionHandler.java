@@ -20,6 +20,10 @@ class ApiExceptionHandler {
         if (ex.status() == 401 || ex.status() == 403) {
             // so the refused-call audit entry names the specific reason
             request.setAttribute(com.samanvay.shared.security.ApiAccessRefused.REASON_ATTRIBUTE, ex.reason());
+            if (ex.audited()) {
+                // the module already wrote this refusal's audit entry; one row per refusal
+                request.setAttribute(com.samanvay.shared.security.ApiAccessRefused.AUDITED_ATTRIBUTE, Boolean.TRUE);
+            }
         }
         ex.properties().forEach(detail::setProperty);
         return detail;

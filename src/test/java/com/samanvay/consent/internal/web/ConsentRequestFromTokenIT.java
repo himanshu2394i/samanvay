@@ -83,9 +83,12 @@ class ConsentRequestFromTokenIT extends PostgresIntegrationTest {
                 Map.of("citizenId", citizen, "purposeCode", "SCHOLARSHIP_ELIGIBILITY", "requesterId", "SCHOLARSHIP"));
         assertThat(status).isEqualTo(403);
         assertNoRequestFor(citizen);
-        Map<String, Object> audit = jdbc.queryForMap(
-                "SELECT actor_type, actor_id, outcome, reason FROM audit.audit_entry WHERE action = 'API_FORBIDDEN' AND actor_id = ?",
-                officer);
+        // Exactly one audit row for the refusal: consent's own, not also the generic API_FORBIDDEN.
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT action, actor_type, actor_id, outcome, reason FROM audit.audit_entry WHERE actor_id = ?", officer);
+        assertThat(rows).hasSize(1);
+        Map<String, Object> audit = rows.get(0);
+        assertThat(audit.get("action")).isEqualTo("CONSENT_REQUEST_REFUSED");
         assertThat(audit.get("actor_type")).isEqualTo("OFFICER");
         assertThat(audit.get("outcome")).isEqualTo("DENIED");
         assertThat(audit.get("reason")).isEqualTo("REQUESTER_NOT_ENTITLED");

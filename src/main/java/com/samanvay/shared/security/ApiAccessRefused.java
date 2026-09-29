@@ -25,4 +25,11 @@ public record ApiAccessRefused(int status, String route, String actorKind, Strin
 
     /** Request attribute naming the machine reason of a 401/403, recorded on its audit entry. */
     public static final String REASON_ATTRIBUTE = ApiAccessRefused.class.getName() + ".reason";
+
+    /**
+     * Request attribute set (to {@code Boolean.TRUE}) when the module that refused the call has
+     * already written its own audit entry for it; the generic {@code API_FORBIDDEN} entry is then
+     * skipped, so each refusal is exactly one audit row.
+     */
+    public static final String AUDITED_ATTRIBUTE = ApiAccessRefused.class.getName() + ".audited";
 }
