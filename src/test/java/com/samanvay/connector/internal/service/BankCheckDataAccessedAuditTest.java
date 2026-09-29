@@ -56,7 +56,7 @@ class BankCheckDataAccessedAuditTest {
         BankCheckAdapters registry = code -> Optional.of(adapter).filter(a -> a.sourceCode().equals(code));
         return new ConnectorRuntimeImpl(
                 verifier, mock(ConnectorCatalog.class), mock(SchemaCatalog.class), List.of(),
-                mock(ResilienceRegistries.class), mock(MappingExecutor.class), audit, mock(DepartmentChaos.class), registry);
+                mock(ResilienceRegistries.class), mock(MappingExecutor.class), audit, mock(DepartmentChaos.class), java.time.Duration.ofSeconds(10), registry);
     }
 
     static AccessGrant grant() {
