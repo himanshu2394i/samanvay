@@ -23,17 +23,22 @@ green throughout. Branch: `claude/busy-galileo-x22v5f`.
 4. **Docs** — commit the design direction doc + spec + this plan.
 5. **Commit, push, open draft PR**, subscribe to PR activity.
 
-## Slice 2 — Shared shell + identity (follow-up)
-`CitizenLayout` / `StaffLayout`: official masthead with the demo identity, citizen⇄staff link, footer.
-Keep the `Citizen services` brand text (App.test pins it). Update/extend tests for any new landmarks.
+## Slice 2 — Shared shell + identity ✅ (done)
+`CitizenLayout` / `StaffLayout`: an official "Government of Maharashtra · Demo build" masthead identity
+strip on both surfaces (same `.identity` line + signature stripe), tying them together. Kept the
+`Citizen services` brand text and the `Staff consoles` footer link the App test pins.
 
-## Slice 3 — Staff operational dashboard (follow-up)
-`StaffHomePage`: "needs attention now" stat tiles (open exceptions, bank reviews, SLA) linking into
-queues, above the console cards. New tests for the tiles + role gating.
+## Slice 3 — Staff operational dashboard ✅ (done)
+`StaffHomePage` now opens with a **Needs attention now** strip (`StaffAttention.tsx`): live open
+exceptions, SLA breached, due soon (from ops metrics) and bank reviews waiting (officer), each a tile
+linking into the console that resolves it. Role-scoped (reviewers see none) and degrades to a quiet
+line when figures can't load. Covered by `StaffAttention.test.tsx` (tiles + role gating); `App.test`
+stubs fetch offline for its routing assertions.
 
-## Slice 4 — Citizen flow polish (follow-up)
-End-to-end shared stepper + status pills across landing→services→apply→track; stronger empty/error
-states; optional Marathi copy toggle. Tests per page.
+## Slice 4 — Citizen flow polish ✅ (done)
+Eyebrow section labels for consistency with staff; the empty **My applications** state is now an
+inviting card with a clear CTA. The shared stepper + status pills already span landing→services→
+apply→track via the slice-1 design system. (Marathi copy toggle remains a future nicety.)
 
 ## Verification commands
 ```bash

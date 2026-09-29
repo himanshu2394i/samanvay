@@ -14,6 +14,10 @@ export function StaffLayout() {
         Skip to main content
       </a>
       <header className="site-header staff">
+        <div className="wrap wide identity">
+          <span className="eyebrow">Government of Maharashtra</span>
+          <span className="demo-tag">Demo build</span>
+        </div>
         <div className="wrap wide bar">
           <NavLink to="/staff" className="brand" end>
             Samanvay <span>Staff consoles</span>
