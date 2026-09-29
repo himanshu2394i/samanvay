@@ -4,9 +4,11 @@ import com.samanvay.connector.api.AdapterRequest;
 import com.samanvay.connector.api.AdapterResponse;
 import com.samanvay.connector.api.ProtocolAdapter;
 import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -18,10 +20,23 @@ import tools.jackson.databind.node.ObjectNode;
 class SoapAdapter implements ProtocolAdapter {
 
     private final DocumentBuilderFactory dbf;
-    private final MockDepartmentBackend mocks;
+    private static final String CONTENT_TYPE = "text/xml; charset=utf-8";
 
-    SoapAdapter(MockDepartmentBackend mocks) {
+    private final MockDepartmentBackend mocks;
+    private final DeadlineHttp http;
+    private final String scheme;
+
+    /** Real department calls are SOAP 1.1 over HTTPS, bounded by {@link DeadlineHttp}'s total deadline. */
+    @Autowired
+    SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http) {
+        this(mocks, http, "https");
+    }
+
+    /** Test seam: lets a test point the adapter at a plain-HTTP in-JVM server. */
+    SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http, String scheme) {
         this.mocks = mocks;
+        this.http = http;
+        this.scheme = scheme;
         dbf = DocumentBuilderFactory.newInstance();
         try {
             dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -46,7 +61,11 @@ class SoapAdapter implements ProtocolAdapter {
         if (MockDepartmentBackend.HOST.equals(request.host())) {
             raw = mocks.soapMarks();
         } else {
-            raw = envelope;
+            String endpoint = request.endpoint() == null ? "" : request.endpoint();
+            raw = http.post(URI.create(scheme + "://" + request.host() + endpoint), envelope, CONTENT_TYPE);
+            if (raw == null) {
+                raw = "";
+            }
         }
         Document doc = parseSafely(raw.getBytes(StandardCharsets.UTF_8));
         return new AdapterResponse(xmlToJson(doc), raw.length());
