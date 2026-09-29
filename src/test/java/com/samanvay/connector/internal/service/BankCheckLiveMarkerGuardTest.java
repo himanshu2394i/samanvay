@@ -118,7 +118,8 @@ class BankCheckLiveMarkerGuardTest {
 
         assertThat(outcome).isInstanceOf(SourceOutcome.Answered.class);
         assertThat(outcome.simulatorMarker()).isTrue();
-        verify(audit, never()).record(org.mockito.ArgumentMatchers.any());
+        // The answer passes through: it is a normal access (DATA_ACCESSED), not a marker refusal.
+        assertThat(onlyAuditAction()).isEqualTo("DATA_ACCESSED");
     }
 
     @Test
@@ -128,6 +129,12 @@ class BankCheckLiveMarkerGuardTest {
 
         assertThat(outcome).isInstanceOf(SourceOutcome.Answered.class);
         assertThat(outcome.simulatorMarker()).isFalse();
-        verify(audit, never()).record(org.mockito.ArgumentMatchers.any());
+        assertThat(onlyAuditAction()).isEqualTo("DATA_ACCESSED");
+    }
+
+    private String onlyAuditAction() {
+        ArgumentCaptor<AuditEntry> captor = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit).record(captor.capture());
+        return captor.getValue().action();
     }
 }
