@@ -28,8 +28,17 @@ class NotificationServices implements SubscriptionService, NotificationHistory {
     }
 
     @Override
-    @Transactional
     public Subscription subscribe(RecipientRef recipient, String eventType, Channel channel, String locale) {
+        return subscribe(recipient, eventType, channel, locale, null);
+    }
+
+    @Override
+    @Transactional
+    public Subscription subscribe(
+            RecipientRef recipient, String eventType, Channel channel, String locale, String address) {
+        if ((channel == Channel.EMAIL || channel == Channel.SMS) && (address == null || address.isBlank())) {
+            throw new IllegalArgumentException(channel + " subscription requires a contact address");
+        }
         SubscriptionEntity e = new SubscriptionEntity();
         e.setId(UUID.randomUUID());
         e.setRecipientId(recipient.id());
@@ -37,6 +46,7 @@ class NotificationServices implements SubscriptionService, NotificationHistory {
         e.setChannel(channel.name());
         e.setLocale(locale == null ? "en" : locale);
         e.setEnabled(true);
+        e.setAddress(address == null || address.isBlank() ? null : address.trim());
         subscriptions.save(e);
         return toSub(e);
     }

@@ -34,6 +34,14 @@ spring:
       # that has to match its JPA entity exactly across versions.
       jdbc-schema-initialization:
         enabled: true
+  mail:
+    # No spring.mail.host here on purpose: Boot then creates no JavaMailSender, the default context boots without
+    # any SMTP server, and the EMAIL channel reports a failed DeliveryOutcome. The dev profile points at Mailpit.
+    # Timeouts apply to whichever host is configured, so an unreachable SMTP server can never hang the dispatcher.
+    properties:
+      mail.smtp.connectiontimeout: 3000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
   servlet:
     multipart:
       # Passbook / cancelled-cheque uploads; the app also validates content and size (PassbookUpload).
@@ -41,6 +49,9 @@ spring:
       max-request-size: 512KB
 
 samanvay:
+  notifications:
+    email:
+      from: ${SAMANVAY_NOTIFICATIONS_EMAIL_FROM:no-reply@samanvay.local}
   identity:
     department-idp:
       # Accept a department-brokered Keycloak sign-in as a link proof (LinkProofKind.DEPT_IDP,

@@ -1,6 +1,12 @@
 # Profile "dev": local docker-compose Keycloak over plain http (see
 # docker-compose.yml). Only dev/demo may use http issuers or show the
 # dev sign-in tools (paste-token bar, /shared/auth-dev.js).
+spring:
+  mail:
+    # DEV-ONLY Mailpit catcher from docker-compose.yml (SMTP 1025, inbox UI http://localhost:8025).
+    # Plain SMTP, no auth/TLS - never point a real environment at this.
+    host: ${SAMANVAY_MAIL_HOST:localhost}
+    port: ${SAMANVAY_MAIL_PORT:1025}
 samanvay:
   security:
     staff:
