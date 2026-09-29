@@ -15,5 +15,7 @@ public enum DenialReason {
     /** The consent allows one check per document per application, and it has been used (or is in flight). */
     CHECK_ALREADY_USED,
     /** The consent allows one check per application, but the request names no application. */
-    APPLICATION_REQUIRED
+    APPLICATION_REQUIRED,
+    /** The consent allows one check per payment, but the request names no payment/instalment id. */
+    PAYMENT_REQUIRED
 }

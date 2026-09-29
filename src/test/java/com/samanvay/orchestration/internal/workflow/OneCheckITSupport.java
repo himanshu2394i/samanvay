@@ -155,6 +155,14 @@ abstract class OneCheckITSupport extends PostgresIntegrationTest {
                 applicationId);
     }
 
+    /** A check for one payment/instalment of an application (ONCE_PER_PAYMENT scope). */
+    AccessRequest fetch(String applicationId, String paymentId) {
+        AccessRequest base = fetch(applicationId);
+        return new AccessRequest(
+                base.subject(), base.requester(), base.category(), base.departmentCode(), base.connectorRef(),
+                base.purpose(), base.journeyCode(), base.principal(), applicationId, paymentId);
+    }
+
     static ExecutionInputs inputs() {
         return new ExecutionInputs(DOC, "wf-p2f", Map.of(), Map.of(), Map.of());
     }

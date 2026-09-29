@@ -404,7 +404,7 @@ DigiLocker is modelled as a partner sandbox). **Deferred:** department scoping (
 step 9), the offline verifier (Phase 2 PR 2), a job that marks rows `EXPIRED` (expiry is
 enforced at `authorize()` and at read time from `valid_until`), and the retention purge job.
 
-### 7.4 Phase 2: frequency enforcement, one check per document per application (V189, V190)
+### 7.4 Phase 2: frequency enforcement, one check per document per application (V189, V190, V196)
 
 **Frequency values are closed.** `catalog_purpose.frequency` and `consent_artifact.frequency`
 (the purpose's value, copied at grant time) may only be `ONCE`,
@@ -420,15 +420,21 @@ load instead of switching the rule off.
   A consent with this rule asked for with no application id is refused `APPLICATION_REQUIRED`.
 - `ONCE_PER_YEAR` → the **calendar year** (Asia/Kolkata), scope key `YEAR:<year>`. One check of a
   document per year; no extra request input is needed.
-- `ONCE_PER_PAYMENT` → **not yet enforced per scope**: it needs a payment/instalment id, which
-  arrives with the disbursement flow (a later PR). Until then it keeps only the 20-per-24h
-  `frequency_limit`, like NULL (legacy) consents. When built, key its scope on a keyed HMAC of the
-  payment id (store the key version beside the hash).
+- `ONCE_PER_PAYMENT` → **enforced (V196)**: the **payment/instalment** id, carried on
+  `AccessRequest.paymentId`. One check of a document per payment. The scope key is
+  `PAYMENT:<hex HMAC-SHA256(key, payment id)>`, never the raw id, and the **key version** that
+  produced the hash is stored beside it in `consent_usage.scope_key_version`. A consent with this
+  rule asked for with no (or a blank) payment id is refused `PAYMENT_REQUIRED`. The application id
+  is not part of the scope: the same instalment is one payment whichever application asks. See
+  "Payment scope" below.
 
 **Table.** `consent_usage (id, consent_id, document_type, scope_key, grant_id, state
 PENDING|USED, claimed_at, used_at, claim_token)` with `CONSTRAINT consent_usage_one_check UNIQUE
-(consent_id, document_type, scope_key)`. `scope_key` (V190, renamed from `application_id`) holds
-the application id for the two enforced values; no other scope is written yet.
+(consent_id, document_type, scope_key)`, plus `scope_key_version` (V196). `scope_key` (V190,
+renamed from `application_id`) holds the application id for `ONCE` and
+`ONCE_PER_DOCUMENT_PER_APPLICATION`, `YEAR:<year>` for `ONCE_PER_YEAR` and `PAYMENT:<keyed hash>`
+for `ONCE_PER_PAYMENT`. `scope_key_version` is NULL for every scope but the last (and for every
+row written before V196).
 
 **Flow** (`FetchDataDelegate` + `ConsentServices.authorize`):
 
@@ -474,11 +480,60 @@ application. The citizen's permission allows one check."*, lives in
 `src/main/resources/consent/officer-copy_en.properties` (read by `ConsentCopy.officerDenied`),
 checked by `ConsentCopyTableTest` and the banned-phrase scan of `src/main`.
 
-**For the future disbursement PR (ONCE_PER_PAYMENT):** key the scope on a keyed HMAC of the
-payment/instalment id, not the raw id, and decide how key rotation works: store the key version
-next to the hash, or treat a rotation as a deliberate fresh start.
+**Payment scope (`ONCE_PER_PAYMENT`, V196).** `PaymentScopeKeys` computes the scope key:
 
-## 8. Error handling
+- **Keyed HMAC, not the raw id.** `scope_key = 'PAYMENT:' || hex(HMAC-SHA256(key, paymentId))`
+  (72 characters, inside `VARCHAR(100)`). Without the key the value cannot be recomputed from an id,
+  and the id is not readable from `consent_usage`. Checks of different payments never collide;
+  two checks of one payment always do, and the `consent_usage_one_check` UNIQUE constraint is the
+  enforcement, exactly as for the other scopes (the claim/settle flow above is unchanged). The
+  scope is independent of the application id.
+- **Key from the `SecretStore`, provisioned.** Secret `consent-payment-scope-key` (key id `v1`) or
+  `consent-payment-scope-key-<id>` (any other id, same naming as the audit checkpoint key), read
+  with `find()`. It is declared as a `RequiredSecrets`, so the production boot guard refuses to start
+  unless it is provisioned; the dev/test `EnvSecretStore` falls back to an in-process key (lost on
+  restart), the same trade-off as its other ephemeral keys. If the key is missing where the store
+  cannot generate, the check fails closed (an exception, no grant, no claim).
+- **Key version stored beside the hash.** `samanvay.consent.payment-scope.key-id` (default `v1`)
+  is the active id; it is written to `consent_usage.scope_key_version` and to the `GRANT_ISSUED`
+  audit row (`scopeKeyVersion`). The raw payment id is not written to either.
+- **Rotation is not a fresh start.** Provision the new key, set `key-id` to the new id and list the
+  old one in `samanvay.consent.payment-scope.retired-key-ids`. New checks are recorded under the
+  new key. Before claiming, `authorize()` also recomputes the payment's scope key under each retired
+  key and refuses (`CHECK_ALREADY_USED`, one `CONSENT_FREQUENCY_REFUSED` row) if that check is
+  `USED` or a fresh `PENDING` there (a stale `PENDING` counts as released, as elsewhere). Retired
+  keys must stay provisioned (they are in `RequiredSecrets`) for as long as they are listed.
+- **Trust.** Like the application id, `paymentId` is supplied by the calling service, which has
+  already authenticated its principal; consent does not look the id up. In this codebase it is an
+  instalment id issued by the `payments` module (below).
+
+**Disbursement flow (`payments` module, V196).** `ONCE_PER_PAYMENT` needs payment ids, so an
+approved application is given a *disbursement* with *instalments*. DBT is mocked (HLD 1.5): no
+payment rail is called and no amount is held; the record says money is due and gives each
+instalment an id.
+
+- `payments_disbursement (id, application_id UNIQUE, citizen_id, journey_code, status ISSUED,
+  created_at)` and `payments_instalment (id, disbursement_id, sequence_no, status SCHEDULED,
+  created_at)`. The instalment `id` is the payment id used as `AccessRequest.paymentId`. The
+  number of instalments is `samanvay.payments.instalments` (default 2, 1 to 12).
+- **Trigger.** `DisbursementOnApproval` listens for `ApplicationStateChanged` with status
+  `APPROVED` (as tracking and notifications do; orchestration does not know `payments`), reads the
+  citizen and journey from `tracking` (`ApplicationTracking.byInstanceId`) and calls
+  `DisbursementService.disburse`. Nothing in the journeys publishes `APPROVED` yet (they end at
+  `VERIFIED`, `PARTIALLY_VERIFIED` or `REJECTED`; the officer approval step is a later piece), so
+  today the flow runs when something publishes that event or calls `disburse` directly.
+- **Idempotent.** One disbursement per application: the insert is `ON CONFLICT ON CONSTRAINT
+  payments_disbursement_one_per_application DO NOTHING`. A redelivered event, a retry or a race
+  inserts no rows, writes no second audit entry and returns the existing disbursement.
+- **Audited.** One `DISBURSEMENT_ISSUED` row (actor `SYSTEM`/`payments`, resource `disbursement`,
+  meta: disbursement id, application id, journey code, instalment count and ids) in the same
+  transaction as the rows.
+- **Modules.** `payments` depends on `audit`, `orchestration` (the event), `tracking` and `shared`;
+  nothing depends on `payments` (a caller passes an instalment id to consent as a plain string), so
+  there is no cycle. Tables carry the `payments_` prefix. Migration V196 is the next free number
+  after the last (V195); `payments` has no reserved range in LLD 3.5.
+
+## 8. Error handling## 8. Error handling
 
 | Exception (`consent.api`) | Raised when | HTTP mapping |
 |---|---|---|
@@ -513,4 +568,7 @@ next to the hash, or treat a rotation as a deliberate fresh start.
 | `ConsentLostClaimIT` (stale window 2 s) | Worker A's claim is taken over by worker B while A's slow reply is pending: A's result is discarded, one `CONSENT_CHECK_LOST_CLAIM` row, the row ends USED with B's token (late success and late failure) |
 | `DeadlineHttpTest`, `ResilienceDeadlineTest`, `ConnectorTimingCheckTest` | Total deadline cuts off a trickled body and cancels the exchange; retries share the deadline and an overrun is not retried; the boot check (good, boundary, retries push over) |
 | `RefusalAuditorTest`, `AuditChainLockIT` | The audit append flags its transaction; a refusal audit from it throws at once |
+| `ConsentFrequencyIT` (payment scope) | `ONCE_PER_PAYMENT`: one check per payment id, a repeat (also from another application) refused, a different payment id allowed, no or blank payment id refused `PAYMENT_REQUIRED`; `scope_key` is `PAYMENT:<64 hex>` (not the id) with `scope_key_version` `v1`; a failed check releases the claim; instalment ids from a real disbursement scope the checks |
+| `PaymentScopeKeysTest`, `PaymentScopedAuthorizeTest` (unit) | The scope key equals an independently computed HMAC-SHA256, depends on the key, carries the key version; rotation (a payment used under a retired key stays refused); missing key fails closed; boot guard lists the keys; `authorize()` claims the hash with the version and never the raw id |
+| `DisbursementIT`, `DisbursementOnApprovalTest`, `DefaultDisbursementServiceTest` | Instalments with distinct ids, one `DISBURSEMENT_ISSUED` audit row; a repeat or four racing calls give one disbursement and no extra audit; `APPROVED` (also redelivered) issues one, other statuses none |
 | `PurposeFrequencyTest`, `PurposeCatalogColumnsIT` | Unknown frequency throws at load; a misspelled catalog frequency is rejected by the database |

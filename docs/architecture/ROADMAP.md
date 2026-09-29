@@ -30,7 +30,7 @@ Dependency order; each roughly unblocks the next. A is the critical path.
 | **E** | **Observability dashboards (Micrometer)** | Metrics used lightly for auth only | Connector-health (p50/p95), SLA, consent/access and exception-queue dashboards (HLD §10) |
 | **F** | **Notification channels** | In-app only | Email (Mailpit is already in compose) then SMS, with delivery retries |
 | **G** | **Secrets/KMS + audit signing key** | `EnvSecretStore` is a stub (env/base64 or ephemeral key); audit signing key is ephemeral | `SecretStore` backed by Vault/KMS; audit signing key in KMS with rotation |
-| **H** | **Payments/disbursement + semantic mapping + audit witness** | No disbursement flow (blocks `ONCE_PER_PAYMENT`); `MappingSuggestor` is lexical-only; audit external-witness publication is thin | Disbursement flow (enables `ONCE_PER_PAYMENT` scope), semantic mapping pass (propose-only), stronger audit external witness (§9.4) |
+| **H** | **Payments/disbursement + semantic mapping + audit witness** | Disbursement core built (mock DBT, `ONCE_PER_PAYMENT` enforced); nothing publishes `APPROVED` yet; `MappingSuggestor` is lexical-only; audit external-witness publication is thin | Officer approval step that triggers the disbursement, semantic mapping pass (propose-only), stronger audit external witness (§9.4) |
 
 ## Notes on ordering
 

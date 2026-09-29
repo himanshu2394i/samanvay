@@ -132,6 +132,7 @@ class StalePolicyTest {
                 anyCitizen -> java.util.List.of(),
                 new RefusalAuditor(audit, mock(org.springframework.transaction.PlatformTransactionManager.class)),
                 mock(ConsentUsageService.class),
+                mock(PaymentScopeKeys.class),
                 new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
                 audit,
                 e -> {},

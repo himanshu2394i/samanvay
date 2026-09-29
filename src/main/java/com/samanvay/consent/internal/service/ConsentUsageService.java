@@ -23,10 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Which consents it applies to: those whose frequency (copied from the catalog purpose at
  * grant time) is {@code ONCE} or {@code ONCE_PER_DOCUMENT_PER_APPLICATION} (scoped by the
- * application id), or {@code ONCE_PER_YEAR} (scoped by the calendar year, Asia/Kolkata).
- * {@code ONCE_PER_PAYMENT} and NULL (legacy purposes, consents granted before V189) are not
- * enforced here: those keep only the existing 24-hour frequency limit. Per-payment scoping
- * needs a payment/instalment id that arrives with the disbursement flow (a later PR). No other
+ * application id), {@code ONCE_PER_YEAR} (scoped by the calendar year, Asia/Kolkata) or
+ * {@code ONCE_PER_PAYMENT} (scoped by a keyed HMAC of the payment/instalment id, see
+ * {@link PaymentScopeKeys}). NULL (legacy purposes, consents granted before V189) is not
+ * enforced here: those keep only the existing 24-hour frequency limit. No other
  * value can exist (V190 CHECK constraints, and {@link Purpose.Frequency#fromCode} throws on load).
  *
  * <p>The claim is made inside the grant-check transaction and committed with it, before any
@@ -61,10 +61,16 @@ class ConsentUsageService implements ConsentUsage {
     /**
      * Runs in the caller's (grant-check) transaction. {@code scopeKey} is what "one check" is
      * counted per: the application id for ONCE / ONCE_PER_DOCUMENT_PER_APPLICATION, or the year
-     * for ONCE_PER_YEAR. The caller (AccessAuthority) picks it from the consent's frequency.
+     * for ONCE_PER_YEAR, or the keyed payment hash for ONCE_PER_PAYMENT (with the key version that
+     * made it). The caller (AccessAuthority) picks it from the consent's frequency.
      */
-    ClaimResult claim(UUID consentId, String documentType, String scopeKey, UUID grantId) {
-        return usage.claim(consentId, documentType, scopeKey, grantId, staleAfter);
+    ClaimResult claim(UUID consentId, String documentType, String scopeKey, String scopeKeyVersion, UUID grantId) {
+        return usage.claim(consentId, documentType, scopeKey, scopeKeyVersion, grantId, staleAfter);
+    }
+
+    /** The check for this scope key is used or in flight (a fresh claim), read-only. */
+    boolean isHeld(UUID consentId, String documentType, String scopeKey) {
+        return usage.isHeld(consentId, documentType, scopeKey, staleAfter);
     }
 
     /** Drops this grant's claim inside the grant-check transaction (a later check refused it). */

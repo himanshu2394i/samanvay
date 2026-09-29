@@ -53,6 +53,7 @@ tracking), over a cross-cutting **audit** spine. Acyclic by construction.
 | **consent** (+ AccessAuthority) | control | Consent requests, signed grants, revocation, **frequency** rules, expiry, retention; the `authorize()` gate every fetch passes through. |
 | **connector** | data | Talks to departments over REST / SOAP / SFTP / JDBC behind one adapter port, with total-deadline HTTP, resilience (retry/circuit-breaker), simulator-vs-live modes, and bank-account checks. |
 | **orchestration** | data | Runs the journey (WorkflowEngine port; in-process by default, **Flowable** optional), parallel fan-out, degraded mode, exception queue, officer review. |
+| **payments** | data | Mock DBT: issues a disbursement with instalment ids when an application is approved (idempotent, audited). No real payment rail. |
 | **tracking** | data | The citizen-facing status projection of an application's progress. |
 | **notifications** | data | Tells recipients what happened — in-app, and **email** (SMS stubbed). |
 | **shared** | cross-cutting | Security (Keycloak JWT, roles), SecretStore, name matching, mapping transforms. |
@@ -66,7 +67,8 @@ tracking), over a cross-cutting **audit** spine. Acyclic by construction.
   reason.
 - **Frequency enforcement:** a purpose can be `ONCE`, `ONCE_PER_DOCUMENT_PER_APPLICATION`,
   `ONCE_PER_YEAR`, or `ONCE_PER_PAYMENT` — the platform counts checks per the right scope and
-  refuses extra ones. (`ONCE_PER_PAYMENT` awaits the disbursement flow.)
+  refuses extra ones. `ONCE_PER_PAYMENT` is scoped by a keyed HMAC of the instalment id issued
+  by the `payments` disbursement flow (mock DBT, no real rail).
 - **Expiry & retention (scheduled jobs):** an ACTIVE consent past its validity is proactively
   marked EXPIRED; ended consents are purged after a 7-year retention window (audit rows are
   never purged).
@@ -129,7 +131,7 @@ tracking), over a cross-cutting **audit** spine. Acyclic by construction.
 
 ## 6. Where we are, and the final state we're heading to
 
-**Done / in place now:** the full architecture and business logic across all 12 modules; all
+**Done / in place now:** the full architecture and business logic across all 13 modules; all
 three journeys as configuration; consent (records, frequency, revocation, expiry, retention);
 identity linking incl. Keycloak department brokering; real REST/SOAP/SFTP connector transports
 + onboarding; Flowable engine (opt-in); observability dashboards; email notifications; the
@@ -138,7 +140,8 @@ citizen React SPA; the tamper-evident audit spine.
 **Remaining to reach the full-product final state** (see `ROADMAP.md`):
 - **G — Secrets/KMS:** move the SecretStore and the audit signing key off dev stubs onto
   Vault/KMS with rotation (foundational for running any source truly LIVE).
-- **H — Payments/disbursement flow** (unblocks `ONCE_PER_PAYMENT`), a **semantic** mapping
+- **H — Payments/disbursement flow** (core done: mock disbursement + `ONCE_PER_PAYMENT`; still to
+  do: the officer approval step that publishes `APPROVED`), a **semantic** mapping
   pass for onboarding (today it's lexical, propose-only), and a stronger audit **external
   witness**.
 - **Officer & admin React surfaces** (citizen is done).
