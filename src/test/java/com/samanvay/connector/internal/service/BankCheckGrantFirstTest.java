@@ -78,7 +78,7 @@ class BankCheckGrantFirstTest {
         };
         runtime = new ConnectorRuntimeImpl(
                 verifier, mock(ConnectorCatalog.class), mock(SchemaCatalog.class), List.of(), mock(ResilienceRegistries.class),
-                mock(MappingExecutor.class), audit, mock(DepartmentChaos.class), countingRegistry);
+                mock(MappingExecutor.class), audit, mock(DepartmentChaos.class), Duration.ofSeconds(10), countingRegistry);
     }
 
     @AfterEach

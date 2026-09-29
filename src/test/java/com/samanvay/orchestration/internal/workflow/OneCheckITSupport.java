@@ -129,6 +129,13 @@ abstract class OneCheckITSupport extends PostgresIntegrationTest {
             calls.incrementAndGet();
             return onCall.apply(grant);
         }
+
+        @Override
+        public com.samanvay.connector.api.SourceOutcome<com.samanvay.connector.api.BankCheckAdapter.BankCheckAnswer> bankCheck(
+                AccessGrant grant, String sourceCode,
+                com.samanvay.connector.api.BankCheckAdapter.BankCheckRequest request) {
+            throw new UnsupportedOperationException("not exercised in one-check tests");
+        }
     }
 
     static ConnectorResult success() {
