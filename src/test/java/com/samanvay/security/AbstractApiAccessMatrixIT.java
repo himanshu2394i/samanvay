@@ -83,7 +83,12 @@ abstract class AbstractApiAccessMatrixIT extends PostgresIntegrationTest {
                 Who.ADMIN, TestTokens.admin("matrix-admin"),
                 Who.DEPARTMENT,
                         TestTokens.department(
-                                "matrix-dept", "revenue-rest-mock", "education-soap-mock", "dbt-rest-mock"));
+                                "matrix-dept",
+                                // V199 repointed five journey categories to real sources; scope the department
+                                // caller for both the remaining mock sources and the new real ones.
+                                "revenue-rest-mock", "education-soap-mock", "dbt-rest-mock",
+                                "dept-income-rest", "dept-marks-soap", "dept-bank-rest",
+                                "dept-property-sftp", "dept-pollution-jdbc"));
 
         List<String> failures = new ArrayList<>();
         int checked = 0;
