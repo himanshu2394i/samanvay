@@ -87,6 +87,16 @@ const steps = [
   },
 ]
 
+const disbursement = {
+  status: 'ISSUED',
+  createdAt: '2026-09-29T10:00:00Z',
+  instalmentCount: 2,
+  instalments: [
+    { sequence: 1, status: 'SCHEDULED' },
+    { sequence: 2, status: 'SCHEDULED' },
+  ],
+}
+
 const issuedRecords = [
   {
     stepCode: 'INCOME_CERTIFICATE',
@@ -301,6 +311,7 @@ describe('apply: connect accounts, consent, submit, then track', () => {
       { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: applicationView } },
       { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
       { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/disbursement', reply: { status: 204 } },
     ])
   }
 
@@ -486,6 +497,34 @@ describe('track applications', () => {
     expect(await screen.findByRole('heading', { name: /Application SCH-2026-0001/ })).toBeInTheDocument()
     expect(screen.getByText('Waiting for the department')).toBeInTheDocument()
     expect(screen.queryByText('Records fetched for you')).not.toBeInTheDocument()
+  })
+
+  it('shows the sanction panel with each instalment once an approved application is disbursed', async () => {
+    const { fetchImpl } = mockFetch([
+      { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: { ...applicationView, status: 'APPROVED' } } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/disbursement', reply: { body: disbursement } },
+    ])
+    renderCitizen({ route: '/applications/SCH-2026-0001', fetchImpl })
+
+    const panel = (await screen.findByRole('heading', { name: 'Application sanctioned' })).closest('section') as HTMLElement
+    expect(within(panel).getByText('Instalment 1')).toBeInTheDocument()
+    expect(within(panel).getByText('Instalment 2')).toBeInTheDocument()
+    expect(within(panel).getByText('Issued')).toBeInTheDocument()
+  })
+
+  it('shows no sanction panel while the application is only verified (204, not yet disbursed)', async () => {
+    const { fetchImpl } = mockFetch([
+      { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: { ...applicationView, status: 'VERIFIED' } } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/disbursement', reply: { status: 204 } },
+    ])
+    renderCitizen({ route: '/applications/SCH-2026-0001', fetchImpl })
+
+    expect(await screen.findByRole('heading', { name: /Application SCH-2026-0001/ })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Application sanctioned' })).not.toBeInTheDocument()
   })
 
   it('says so plainly when the application does not exist', async () => {

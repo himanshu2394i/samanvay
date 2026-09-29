@@ -6,6 +6,7 @@ import type {
   ConsentArtifact,
   ConsentRequest,
   Department,
+  Disbursement,
   JourneyDefinition,
   IssuedRecord,
   JourneyInstance,
@@ -60,6 +61,9 @@ export function createCitizenApi(client: ApiClient) {
     getApplicationSteps: (referenceNo: string) => client.get<StepView[]>(`/api/applications/${enc(referenceNo)}/steps`),
     getIssuedRecords: (referenceNo: string) =>
       client.get<IssuedRecord[]>(`/api/applications/${enc(referenceNo)}/issued-records`),
+    /** Resolves to undefined (204) until the application is disbursed. */
+    getDisbursement: (referenceNo: string) =>
+      client.get<Disbursement | undefined>(`/api/applications/${enc(referenceNo)}/disbursement`),
   }
 }
 
