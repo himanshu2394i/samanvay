@@ -410,12 +410,16 @@ V186 seed values). NULL stays allowed: legacy purposes and pre-V189 consents hav
 the value to `Purpose.Frequency`; `fromCode` throws on anything else, so a typo fails loudly at
 load instead of switching the rule off.
 
-**Which consents.** Enforced only for `ONCE` and `ONCE_PER_DOCUMENT_PER_APPLICATION`
-(`Frequency.oneCheckPerApplication()`): one check of a document (data category) for an
-application (journey instance id). **`ONCE_PER_PAYMENT` and `ONCE_PER_YEAR` are not yet
-enforced** (pending Product's decision); they and NULL keep only the 20-per-24h
-`frequency_limit`. A one-check consent asked for with no application id is refused
-`APPLICATION_REQUIRED`.
+**Which consents.** The scope key (what "one check" is counted per) depends on the frequency:
+
+- `ONCE` and `ONCE_PER_DOCUMENT_PER_APPLICATION` → the **application** id (journey instance).
+  A consent with this rule asked for with no application id is refused `APPLICATION_REQUIRED`.
+- `ONCE_PER_YEAR` → the **calendar year** (Asia/Kolkata), scope key `YEAR:<year>`. One check of a
+  document per year; no extra request input is needed.
+- `ONCE_PER_PAYMENT` → **not yet enforced per scope**: it needs a payment/instalment id, which
+  arrives with the disbursement flow (a later PR). Until then it keeps only the 20-per-24h
+  `frequency_limit`, like NULL (legacy) consents. When built, key its scope on a keyed HMAC of the
+  payment id (store the key version beside the hash).
 
 **Table.** `consent_usage (id, consent_id, document_type, scope_key, grant_id, state
 PENDING|USED, claimed_at, used_at, claim_token)` with `CONSTRAINT consent_usage_one_check UNIQUE

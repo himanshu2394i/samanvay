@@ -22,12 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
  * One check per document per application (V189/V190 consent_usage).
  *
  * <p>Which consents it applies to: those whose frequency (copied from the catalog purpose at
- * grant time) is {@code ONCE} or {@code ONCE_PER_DOCUMENT_PER_APPLICATION}
- * ({@link Purpose.Frequency#oneCheckPerApplication}); both mean "one check of a document for an
- * application". {@code ONCE_PER_PAYMENT}, {@code ONCE_PER_YEAR} and NULL (legacy purposes,
- * consents granted before V189) are not enforced here: those consents keep only the existing
- * 24-hour frequency limit. No other value can exist (V190 CHECK constraints, and
- * {@link Purpose.Frequency#fromCode} throws on load).
+ * grant time) is {@code ONCE} or {@code ONCE_PER_DOCUMENT_PER_APPLICATION} (scoped by the
+ * application id), or {@code ONCE_PER_YEAR} (scoped by the calendar year, Asia/Kolkata).
+ * {@code ONCE_PER_PAYMENT} and NULL (legacy purposes, consents granted before V189) are not
+ * enforced here: those keep only the existing 24-hour frequency limit. Per-payment scoping
+ * needs a payment/instalment id that arrives with the disbursement flow (a later PR). No other
+ * value can exist (V190 CHECK constraints, and {@link Purpose.Frequency#fromCode} throws on load).
  *
  * <p>The claim is made inside the grant-check transaction and committed with it, before any
  * connector call. A PENDING claim older than {@link #staleAfter()} (2x the configured connector
@@ -54,19 +54,17 @@ class ConsentUsageService implements ConsentUsage {
         ConnectorTimingCheck.validate(staleAfter, totalTimeout, staleMargin, retryMaxAttempts, retryWait);
     }
 
-    static boolean oneCheck(Purpose.Frequency frequency) {
-        return frequency != null && frequency.oneCheckPerApplication();
-    }
-
     Duration staleAfter() {
         return staleAfter;
     }
 
-    /** Runs in the caller's (grant-check) transaction. */
-    ClaimResult claim(UUID consentId, String documentType, String applicationId, UUID grantId) {
-        // Scope key: the application id (ONCE / ONCE_PER_DOCUMENT_PER_APPLICATION, the only
-        // enforced frequencies).
-        return usage.claim(consentId, documentType, applicationId, grantId, staleAfter);
+    /**
+     * Runs in the caller's (grant-check) transaction. {@code scopeKey} is what "one check" is
+     * counted per: the application id for ONCE / ONCE_PER_DOCUMENT_PER_APPLICATION, or the year
+     * for ONCE_PER_YEAR. The caller (AccessAuthority) picks it from the consent's frequency.
+     */
+    ClaimResult claim(UUID consentId, String documentType, String scopeKey, UUID grantId) {
+        return usage.claim(consentId, documentType, scopeKey, grantId, staleAfter);
     }
 
     /** Drops this grant's claim inside the grant-check transaction (a later check refused it). */

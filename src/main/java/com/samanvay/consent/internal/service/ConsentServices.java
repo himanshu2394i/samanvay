@@ -354,7 +354,9 @@ class ConsentServices implements ConsentService, AccessAuthority {
         }
         UUID grantId = UUID.randomUUID();
         ClaimResult claim = null;
-        if (ConsentUsageService.oneCheck(c.frequency())) {
+        Purpose.Frequency freq = c.frequency();
+        String scopeKey = null;
+        if (freq != null && freq.oneCheckPerApplication()) {
             // One check per document per application. Claimed after the consent checks and before
             // the registry lookup: that is before this transaction's first audit write, so no
             // audit chain lock is held while a racing claim waits on ours, and a refused repeat
@@ -363,7 +365,15 @@ class ConsentServices implements ConsentService, AccessAuthority {
             if (req.applicationId() == null || req.applicationId().isBlank()) {
                 return deny(req, DenialReason.APPLICATION_REQUIRED, null, c.id(), null);
             }
-            claim = usage.claim(c.id(), req.category().code(), req.applicationId(), grantId);
+            scopeKey = req.applicationId();
+        } else if (freq == Purpose.Frequency.ONCE_PER_YEAR) {
+            // One check per document per calendar year (Asia/Kolkata). No extra request input needed.
+            scopeKey = "YEAR:" + AcademicYears.startYearOf(clock.instant(), 1);
+        }
+        // ONCE_PER_PAYMENT and legacy (null) rely on the 24h limit above. Per-payment scoping needs a
+        // payment/instalment id, which arrives with the disbursement flow (a separate PR, not built here).
+        if (scopeKey != null) {
+            claim = usage.claim(c.id(), req.category().code(), scopeKey, grantId);
             if (claim.outcome() == Claim.REFUSED) {
                 return refuseRepeatCheck(req, c.id());
             }
