@@ -368,6 +368,13 @@
                          every *IT test needs this set at the forked JVM's
                          startup instead, before any class loads. -->
                     <argLine>-Duser.timezone=UTC</argLine>
+                    <!-- TEST-ONLY fake credentials for the in-process RealDepartments
+                         fixtures (see com.samanvay.shared.test.RealDepartments). Base64 of
+                         fixtureuser:fixturepass and pcb_ro:pcb_ro_demo; not real secrets. -->
+                    <environmentVariables>
+                        <SAMANVAY_SECRET_SOURCE_DEPT_PROPERTY_SFTP_CREDENTIAL>Zml4dHVyZXVzZXI6Zml4dHVyZXBhc3M=</SAMANVAY_SECRET_SOURCE_DEPT_PROPERTY_SFTP_CREDENTIAL>
+                        <SAMANVAY_SECRET_SOURCE_DEPT_POLLUTION_JDBC_CREDENTIAL>cGNiX3JvOnBjYl9yb19kZW1v</SAMANVAY_SECRET_SOURCE_DEPT_POLLUTION_JDBC_CREDENTIAL>
+                    </environmentVariables>
                 </configuration>
             </plugin>
             <plugin>
@@ -377,6 +384,10 @@
                     <!-- Same reasoning as maven-failsafe-plugin above, for any
                          *Test that also opens a real Postgres connection. -->
                     <argLine>-Duser.timezone=UTC</argLine>
+                    <environmentVariables>
+                        <SAMANVAY_SECRET_SOURCE_DEPT_PROPERTY_SFTP_CREDENTIAL>Zml4dHVyZXVzZXI6Zml4dHVyZXBhc3M=</SAMANVAY_SECRET_SOURCE_DEPT_PROPERTY_SFTP_CREDENTIAL>
+                        <SAMANVAY_SECRET_SOURCE_DEPT_POLLUTION_JDBC_CREDENTIAL>cGNiX3JvOnBjYl9yb19kZW1v</SAMANVAY_SECRET_SOURCE_DEPT_POLLUTION_JDBC_CREDENTIAL>
+                    </environmentVariables>
                 </configuration>
             </plugin>
         </plugins>

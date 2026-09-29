@@ -22,3 +22,24 @@ samanvay:
       urls:
         sandbox-income-rest: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
         sandbox-marks-soap: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
+        # Journey REST/SOAP sources (V199): scholarship income+marks+bank consume the real department-service.
+        dept-income-rest: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
+        dept-marks-soap: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
+        dept-bank-rest: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
+    sftp:
+      sources:
+        # Journey PROPERTY source (V199): business-NOC property consumes the real department-sftp.
+        # Credential resolves from SecretStore source-dept-property-sftp-credential (fixtureuser:fixturepass).
+        dept-property-sftp:
+          mode: sandbox
+          host: ${SAMANVAY_SANDBOX_SFTP_HOST:localhost}
+          port: ${SAMANVAY_SANDBOX_SFTP_PORT:2222}
+          remote-path: /outbound/property.csv
+          host-key-sha256: ${SAMANVAY_SANDBOX_SFTP_HOSTKEY:SHA256:REPLACE_WITH_SANDBOX_SERVER_FINGERPRINT}
+    jdbc:
+      sources:
+        # Journey POLLUTION source (V199): business-NOC pollution consumes the real department-db.
+        # Credential resolves from SecretStore source-dept-pollution-jdbc-credential (pcb_ro:pcb_ro_demo).
+        dept-pollution-jdbc:
+          mode: sandbox
+          jdbc-url: ${SAMANVAY_SANDBOX_JDBC_URL:jdbc:postgresql://localhost:5433/deptdb}

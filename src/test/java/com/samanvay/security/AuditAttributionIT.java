@@ -117,7 +117,7 @@ class AuditAttributionIT extends PostgresIntegrationTest {
     void departmentClientTokenRecordsClientId() {
         UUID citizen = seededScholarshipCitizen();
         startAs(
-                TestTokens.department("dept-scholarship-it", "revenue-rest-mock", "education-soap-mock", "dbt-rest-mock"),
+                TestTokens.department("dept-scholarship-it", "dept-income-rest", "revenue-rest-mock", "dept-marks-soap", "dept-bank-rest"),
                 citizen);
 
         List<Map<String, Object>> rows = dataAccessed(citizen);
