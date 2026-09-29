@@ -57,10 +57,12 @@ class ConsentLifecycleJobsTest {
             anyCitizen -> List.of(),
             null,
             mock(ConsentUsageService.class),
+            mock(PaymentScopeKeys.class),
             new GrantSigner(new EnvSecretStore(), new CanonicalJson()),
             audit,
             e -> {},
-            Clock.fixed(NOW, ZoneOffset.UTC));
+            Clock.fixed(NOW, ZoneOffset.UTC),
+            new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
 
     @Test
     void activeConsentPastValidUntilIsMarkedExpiredWithEventAndAudit() {
