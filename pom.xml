@@ -21,6 +21,8 @@
         <java.version>21</java.version>
         <!-- must match the Keycloak image in docker-compose.yml / KeycloakTestSupport -->
         <keycloak.version>26.4.7</keycloak.version>
+        <!-- Not managed by the Spring Boot BOM, so pinned here. Latest stable 2.x. -->
+        <sshd.version>2.18.0</sshd.version>
     </properties>
 
     <dependencyManagement>
@@ -81,6 +83,16 @@
             <groupId>io.github.resilience4j</groupId>
             <artifactId>resilience4j-spring-boot4</artifactId>
             <version>2.4.0</version>
+        </dependency>
+
+        <!-- Real SFTP transport for the connector's SFTP_CSV adapter (Apache MINA sshd client).
+             sshd-sftp brings sshd-core transitively; the same jars provide the embedded SshServer
+             used by SftpCsvRealTransportTest, so there is no separate test-scope declaration
+             (declaring sshd-core test-scope would narrow it out of the main classpath). -->
+        <dependency>
+            <groupId>org.apache.sshd</groupId>
+            <artifactId>sshd-sftp</artifactId>
+            <version>${sshd.version}</version>
         </dependency>
 
         <!--
