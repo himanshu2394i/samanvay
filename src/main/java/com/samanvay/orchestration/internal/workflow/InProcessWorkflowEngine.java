@@ -6,14 +6,18 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * Flowable is the intended engine (HLD §15). This in-process port implementation
+ * Default {@link WorkflowEngine} (HLD §15). This in-process port implementation
  * records process identity only. Parallel fan-out is executed by JourneyService
- * (virtual threads) until a Flowable Boot 4 starter exists. Swap the bean; JourneyService stays.
+ * (virtual threads). The Flowable-backed alternative ({@link FlowableWorkflowEngine}) is opt-in via
+ * {@code samanvay.workflow.engine=flowable}; exactly one of the two beans exists in either mode.
+ * Swap the bean; JourneyService stays.
  */
 @Component
+@ConditionalOnProperty(name = WorkflowEngineMode.PROPERTY, havingValue = WorkflowEngineMode.IN_PROCESS, matchIfMissing = true)
 class InProcessWorkflowEngine implements WorkflowEngine {
 
     private final Map<String, byte[]> deployments = new ConcurrentHashMap<>();
