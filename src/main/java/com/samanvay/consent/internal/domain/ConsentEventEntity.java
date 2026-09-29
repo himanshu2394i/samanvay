@@ -23,6 +23,14 @@ public class ConsentEventEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     private String detail;
 
+    public UUID getConsentId() {
+        return consentId;
+    }
+
+    public String getEventType() {
+        return eventType;
+    }
+
     public void setId(UUID id) {
         this.id = id;
     }
