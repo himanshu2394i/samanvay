@@ -61,6 +61,31 @@ class ChainCheckpointSchedulerTest {
     }
 
     @Test
+    void recordsTheExternalWitnessReferenceOnTheCheckpoint() throws Exception {
+        KeyPair pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        SecretStore store = key -> new SecretStore.Secret(pair.getPrivate().getEncoded());
+
+        InMemoryAuditEntryRepository entries = new InMemoryAuditEntryRepository();
+        InMemoryCheckpointRepository checkpoints = new InMemoryCheckpointRepository();
+        JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
+        JdbcAuditService audit = new JdbcAuditService(entries, checkpoints, jdbc, new CanonicalJson());
+        org.springframework.transaction.support.TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            audit.record(new AuditEntry(
+                    ActorType.SYSTEM, "test", "PING", "s", null, null, null, null, Outcome.ALLOWED, null, Map.of()));
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        CheckpointWitness witness = (uptoSeq, rootHash, signature, keyId) -> "sha256:test-witness-ref";
+        var scheduler = new ChainCheckpointScheduler(
+                entries, checkpoints, store, AuditSigningKeys.legacyOnly(), witness);
+        scheduler.createCheckpoint();
+
+        assertThat(checkpoints.findLatest().orElseThrow().publishedRef()).isEqualTo("sha256:test-witness-ref");
+    }
+
+    @Test
     void createCheckpoint_isNoOpWhenChainIsEmpty() {
         InMemoryAuditEntryRepository entries = new InMemoryAuditEntryRepository();
         InMemoryCheckpointRepository checkpoints = new InMemoryCheckpointRepository();

@@ -26,6 +26,7 @@ class ChainCheckpointScheduler {
     private final CheckpointRepository checkpoints;
     private final SecretStore secretStore;
     private final AuditSigningKeys keys;
+    private final CheckpointWitness witness;
 
     /** Signs with the legacy key id, as before rotation existed. */
     ChainCheckpointScheduler(
@@ -33,16 +34,27 @@ class ChainCheckpointScheduler {
         this(entries, checkpoints, secretStore, AuditSigningKeys.legacyOnly());
     }
 
-    @Autowired
+    /** No external witness: publication is disabled (as before §9.4 witnessing). */
     ChainCheckpointScheduler(
             AuditEntryRepository entries,
             CheckpointRepository checkpoints,
             SecretStore secretStore,
             AuditSigningKeys keys) {
+        this(entries, checkpoints, secretStore, keys, CheckpointWitness.disabled());
+    }
+
+    @Autowired
+    ChainCheckpointScheduler(
+            AuditEntryRepository entries,
+            CheckpointRepository checkpoints,
+            SecretStore secretStore,
+            AuditSigningKeys keys,
+            CheckpointWitness witness) {
         this.entries = entries;
         this.checkpoints = checkpoints;
         this.secretStore = secretStore;
         this.keys = keys;
+        this.witness = witness;
     }
 
     @Scheduled(cron = "0 0 * * * *")
@@ -54,7 +66,10 @@ class ChainCheckpointScheduler {
         byte[] rootHash = entries.findHashAt(uptoSeq).orElseThrow();
         String keyId = keys.activeKeyId();
         byte[] signature = sign(rootHash, uptoSeq, secretStore.resolve(AuditSigningKeys.signingSecretName(keyId)));
-        checkpoints.insert(uptoSeq, rootHash, signature, keyId);
+        // Publish to the external witness first (best-effort), so the reference is written in the same
+        // INSERT — the app role has INSERT but not UPDATE on audit_checkpoint.
+        String publishedRef = witness.publish(uptoSeq, rootHash, signature, keyId);
+        checkpoints.insert(uptoSeq, rootHash, signature, keyId, publishedRef);
     }
 
     static byte[] sign(byte[] rootHash, long uptoSeq, SecretStore.Secret secret) {
