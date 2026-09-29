@@ -9,7 +9,7 @@ class SoapAdapterXxeTest {
 
     @Test
     void externalEntityDoesNotReadFile() {
-        SoapAdapter adapter = new SoapAdapter(new MockDepartmentBackend());
+        SoapAdapter adapter = new SoapAdapter(new MockDepartmentBackend(), null);
         byte[] xxe = """
                 <?xml version="1.0"?>
                 <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
