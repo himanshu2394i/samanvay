@@ -99,6 +99,12 @@ class SecurityConfig {
                         .requestMatchers(POST, "/api/journeys/*/start").hasAnyRole(CITIZEN, OFFICER, DEPARTMENT)
                         .requestMatchers(POST, "/api/journeys/instances/*/retry").hasRole(OFFICER)
                         .requestMatchers(GET, "/api/journeys/exceptions", "/api/journeys/instances/*").hasRole(OFFICER)
+                        // officer bank-account review (no holder name is ever returned)
+                        .requestMatchers(GET, "/api/officer/bank-reviews").hasRole(OFFICER)
+                        .requestMatchers(POST, "/api/officer/bank-reviews/*/passbook",
+                                "/api/officer/bank-reviews/*/request-document",
+                                "/api/officer/bank-reviews/*/approve",
+                                "/api/officer/bank-reviews/*/reject").hasRole(OFFICER)
                         // tracking
                         .requestMatchers(GET, "/api/applications", "/api/applications/**").hasAnyRole(CITIZEN, OFFICER)
                         // connector
