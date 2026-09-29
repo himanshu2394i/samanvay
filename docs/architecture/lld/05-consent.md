@@ -395,10 +395,14 @@ role denial) still gets exactly one `API_FORBIDDEN` row.
 **Retention.** Consent records are kept for 7 years after they end (revoked or expired). This
 is a platform policy, not a legal claim; no purge job exists yet.
 
-**Follow-ups that block Phase 2 acceptance:** enforcing `frequency` (usage rows) and a
-domicile data category. **Deferred:** department scoping (Phase 2 step 9), the offline
-verifier (Phase 2 PR 2), a job that marks rows `EXPIRED` (expiry is enforced at `authorize()`
-and at read time from `valid_until`), and the retention purge job.
+**Follow-ups that block Phase 2 acceptance:** enforcing `frequency` (usage rows).
+The **domicile data category** is now wired (V191): `DOMICILE_CERTIFICATE` is a real
+category on `SCH_ELIGIBILITY_CHECK`, served by the `rev-domicile@1` connector through the
+DigiLocker/Aaple Sarkar sandbox like income/caste (assumption: the certificate is issued
+into DigiLocker; a real offline XML verifier is still Phase 2 PR 2, not needed while
+DigiLocker is modelled as a partner sandbox). **Deferred:** department scoping (Phase 2
+step 9), the offline verifier (Phase 2 PR 2), a job that marks rows `EXPIRED` (expiry is
+enforced at `authorize()` and at read time from `valid_until`), and the retention purge job.
 
 ## 8. Error handling
 

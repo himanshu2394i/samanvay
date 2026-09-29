@@ -66,6 +66,17 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
     // ---- grant -> revoke -> refused fetch (audited) ----------------------------------------
 
     @Test
+    void domicileIsFetchableUnderEligibilityAfterGrant() throws InterruptedException {
+        Citizen c = linkedCitizen();
+        requestAndGrant(c, "SCH_ELIGIBILITY_CHECK");
+        // Domicile is a data_category of SCH_ELIGIBILITY_CHECK (V191), so the grant covers
+        // it and the rev-domicile@1 connector resolves. Before V191 this was Denied.
+        assertThat(awaitGranted(domicileFetch(c.id(), "SCH_ELIGIBILITY_CHECK")))
+                .as("domicile is now a fetchable category under the eligibility consent")
+                .isInstanceOf(AccessDecision.Granted.class);
+    }
+
+    @Test
     void grantThenRevokeThenFetchIsRefusedWithPlainMessageAndAudited() throws InterruptedException {
         Citizen c = linkedCitizen();
         UUID consentId = requestAndGrant(c, "SCH_ELIGIBILITY_CHECK");
@@ -425,6 +436,18 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
                 DataCategory.INCOME_CERTIFICATE,
                 "REVENUE",
                 "rev-income@1",
+                PurposeCode.of(purpose),
+                null,
+                new PrincipalRef(PrincipalRef.Kind.OFFICER, "officer-p2-fetch"));
+    }
+
+    private AccessRequest domicileFetch(UUID citizen, String purpose) {
+        return new AccessRequest(
+                new SubjectRef(citizen),
+                new RequesterRef("SCHOLARSHIP"),
+                DataCategory.DOMICILE_CERTIFICATE,
+                "REVENUE",
+                "rev-domicile@1",
                 PurposeCode.of(purpose),
                 null,
                 new PrincipalRef(PrincipalRef.Kind.OFFICER, "officer-p2-fetch"));
