@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCitizenApi } from '../../../api/apiContext'
 import { Badge } from '../../../ui/Badge'
@@ -8,6 +8,13 @@ import { useAsync } from '../../../ui/useAsync'
 import { useCitizen } from '../CitizenContext'
 import { formatDate, humanize } from '../lib/format'
 
+/** Badge colour for each consent state: active is reassuring, withdrawn is a clear stop, the rest are neutral. */
+function toneFor(status: string): 'ok' | 'bad' | 'neutral' {
+  if (status === 'ACTIVE') return 'ok'
+  if (status === 'REVOKED') return 'bad'
+  return 'neutral'
+}
+
 export function ConsentsPage() {
   const api = useCitizenApi()
   const { citizenId } = useCitizen()
@@ -15,6 +22,16 @@ export function ConsentsPage() {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const [justWithdrawn, setJustWithdrawn] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  // After a withdrawal lands, move focus to the confirmation so nothing is lost when the
+  // action button it replaced disappears.
+  useEffect(() => {
+    if (justWithdrawn && consents.status === 'success' && panelRef.current) {
+      panelRef.current.focus()
+    }
+  }, [justWithdrawn, consents.status, consents.data])
 
   async function withdraw(id: string) {
     setBusy(true)
@@ -22,6 +39,7 @@ export function ConsentsPage() {
     try {
       await api.revokeConsent(id)
       setConfirming(null)
+      setJustWithdrawn(id)
       consents.reload()
     } catch (err) {
       setError(err)
@@ -47,8 +65,7 @@ export function ConsentsPage() {
             {consents.data.map((c) => (
               <li key={c.id} className="card">
                 <h2>
-                  {humanize(c.purposeCode)}{' '}
-                  <Badge tone={c.status === 'ACTIVE' ? 'ok' : 'neutral'}>{c.statusLabel}</Badge>
+                  {humanize(c.purposeCode)} <Badge tone={toneFor(c.status)}>{c.statusLabel}</Badge>
                 </h2>
                 <dl className="facts">
                   <dt>Asked by</dt>
@@ -60,6 +77,19 @@ export function ConsentsPage() {
                     {formatDate(c.validFrom)} to {formatDate(c.validUntil)}
                   </dd>
                 </dl>
+                {c.status === 'REVOKED' ? (
+                  <div
+                    className="notice bad"
+                    role="status"
+                    tabIndex={-1}
+                    ref={justWithdrawn === c.id ? panelRef : undefined}
+                  >
+                    <p>
+                      This consent is withdrawn. Any new request for these records will now be refused. Samanvay never
+                      stored the records themselves, so there is nothing to delete.
+                    </p>
+                  </div>
+                ) : null}
                 {c.status === 'ACTIVE' ? (
                   confirming === c.id ? (
                     <div className="actions">
@@ -71,7 +101,12 @@ export function ConsentsPage() {
                       </button>
                     </div>
                   ) : (
-                    <button type="button" className="btn" onClick={() => setConfirming(c.id)}>
+                    <button
+                      type="button"
+                      className="btn"
+                      aria-label={`Withdraw consent for ${humanize(c.purposeCode)}`}
+                      onClick={() => setConfirming(c.id)}
+                    >
                       Withdraw consent
                     </button>
                   )
