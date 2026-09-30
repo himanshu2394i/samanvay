@@ -31,9 +31,12 @@ code; citizens: a one-time code emailed to them). So you can walk the demo witho
 | [`/app/#/staff/admin/catalog`](https://app.3.109.201.126.nip.io/app/#/staff/admin/catalog) | **Demo: Admin** | an admin | Each journey's **readiness** is computed from real connector availability; publish a ready one |
 | [`/app/#/staff/officer/exceptions`](https://app.3.109.201.126.nip.io/app/#/staff/officer/exceptions) | **Demo: Officer** | an officer | Exception queue, retries, bank-account review, live ops metrics |
 | [`/app/#/staff/reviewer/queue`](https://app.3.109.201.126.nip.io/app/#/staff/reviewer/queue) | **Demo: Reviewer** | a reviewer | The identity-matching review queue (machines propose, humans dispose) |
-| [`/app/#/`](https://app.3.109.201.126.nip.io/app/#/) | **Demo: Citizen** | a citizen | Apply for a service; documents are fetched between departments with consent |
 
-The `#` in the staff URLs matters — the app uses hash routing.
+The `#` in the staff URLs matters — the app uses hash routing. The **citizen** experience is the
+static department portals at [`/`](https://app.3.109.201.126.nip.io/) (Scholarship, Business licence,
+Farmer subsidy) — apply, watch the fan-out, and, on the scholarship desk, mark a department
+unavailable and retry. (The SPA is the staff/operator console only; a citizen who opens it is sent to
+the portals.)
 
 The one-click demo login exists **only in the demo build**: a normal (production) boot serves neither
 the button nor the endpoint behind it, and the demo token it would mint is refused there. Real sign-in
