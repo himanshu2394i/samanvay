@@ -17,6 +17,12 @@ async function start() {
     // The realm is fixed for this page load; moving between the citizen and staff areas
     // (a hash change across the boundary) reloads so the other realm's sign-in is used.
     const realm = detectRealm(window.location, isCallbackUrl(window.location.search))
+    // The SPA is the staff/operator console. Citizen journeys live in the static department
+    // portals at /, so anyone reaching the SPA as a citizen is sent there — one citizen UI, no duplicate.
+    if (realm !== 'staff') {
+      window.location.replace('/')
+      return
+    }
     const cfg = await loadOidcConfig(realm)
     const manager = createUserManager(cfg)
     if (!crossingListener) {

@@ -9,15 +9,20 @@ Record against the deployed site. Total ~5–6 min; each scene stands alone, so 
 
 ---
 
-## Logins you'll need (keep this open)
+## Sign-ins (all judge-friendly)
 
-- **Citizen:** username `dev-citizen` → it emails a one-time code → read the code at
-  `https://mail.3.109.201.126.nip.io/` and paste it. (No password.)
-- **Admin (operator):** go to `https://app.3.109.201.126.nip.io/app/#/staff` → username `dev-admin`,
-  your password, plus a **6-digit code from your phone's authenticator app**.
-- Everything staff lives under `.../app/#/staff/...` (the `#` matters — without it you get a 404).
+- **Staff / operator — Scenes 3, 4, 6, 7 (the SPA):** open any staff URL, e.g.
+  `https://app.3.109.201.126.nip.io/app/#/staff/admin/onboarding`, and on the sign-in screen click
+  **"Demo: Admin"** — **no password, no code**. (Also **Demo: Officer** / **Demo: Reviewer**.) The `#`
+  matters. *(These one-click buttons appear once the demo-login change is redeployed.)*
+- **Citizen — Scene 1 (static portals):** at a portal (e.g. `/scholarship/`) sign in as `dev-citizen`;
+  it emails a one-time code — read it at `https://mail.3.109.201.126.nip.io/`. (No password.) Do this
+  once off-camera.
+- **Officer desk for the "department down" beat — Scene 2 (scholarship portal):** the portal's own
+  **Officer desk** uses a simple demo login — ID `officer`, password `demo-2026`. No code.
 
-> Tip: log in **before** you start recording so your password/code aren't on tape.
+> The **citizen** experience lives in the static portals at `/`; the **SPA** (`/app/#/staff/...`) is the
+> staff/operator console. Keep each role in its own lane so it doesn't look like two apps of the same thing.
 
 ---
 
@@ -37,10 +42,11 @@ Record against the deployed site. Total ~5–6 min; each scene stands alone, so 
 
 ## Scene 2 — When a department's system is down  (~40s)
 
+- **Open:** the scholarship portal's **Officer desk** (`/scholarship/#officer`, login `officer` /
+  `demo-2026`). This is the one place with the "make a department fail" control.
 - **Say:** "Real government systems go down. Here's what that looks like."
-- **Do:** in the officer/desk view for that application, **mark the Revenue system unavailable**,
-  refresh — the application flips to *needs attention* with a clear reason. Then **restore** it and
-  hit **Retry**.
+- **Do:** **mark the Revenue system unavailable**, refresh — the application flips to *needs attention*
+  with a clear reason. Then **restore** it and hit **Retry**.
 - **Say:** "Nothing was lost, nothing failed silently. It paused, told us exactly why, and picked up
   where it left off once Revenue was back."
 
@@ -103,11 +109,13 @@ Record against the deployed site. Total ~5–6 min; each scene stands alone, so 
 
 ---
 
-### If you want to show even more (needs other logins)
-- **Officer desk** (`dev-officer` + password + code): exception queue, bank-account review, the
-  full applications list, and a "Citizen-360" view of everything linked to one person.
-- **Reviewer** (`dev-reviewer` + password + code): the identity-matching review queue.
+### If you want to show even more (SPA — just click the demo button)
+- **Officer console** (`…/app/#/staff/officer/exceptions`, **Demo: Officer**): exception queue,
+  bank-account review, the full applications list, and a "Citizen-360" view of one person.
+- **Reviewer** (`…/app/#/staff/reviewer/queue`, **Demo: Reviewer**): the identity-matching review queue.
 
-### The only two things that can trip you on camera
+### The things that can trip you on camera
 1. **Staff URLs need the `#`** — `.../app/#/staff/...`, not `.../app/staff/...`.
 2. **Discover needs a public department URL** — `localhost` is refused. Test it before recording.
+3. **The one-click demo buttons need the redeploy** — until then the SPA sign-in shows only the normal
+   Keycloak sign-in (password + code).
