@@ -317,6 +317,29 @@ describe('officer and admin: metrics', () => {
     expect(m.unhandled).toEqual([])
   })
 
+  it('shows the notification delivery panel when the backend reports it', async () => {
+    const withNotifications = {
+      ...metrics,
+      notifications: { sent: 120, failed: 3, retriedSent: 5, retriedFailed: 1, sentRate: 0.975 },
+    }
+    const m = mockFetch([{ method: 'GET', path: '/api/ops/metrics', reply: { body: withNotifications } }])
+    renderStaff({ route: '/staff/ops/metrics', fetchImpl: m.fetchImpl, auth: officer() })
+    const notif = await screen.findByRole('region', { name: 'Notification delivery' })
+    expect(tile(notif, 'Sent')).toHaveTextContent('120')
+    expect(tile(notif, 'Failed')).toHaveTextContent('3')
+    expect(tile(notif, 'Retries sent')).toHaveTextContent('5')
+    expect(tile(notif, 'Retries failed')).toHaveTextContent('1')
+    expect(tile(notif, 'First-attempt success rate')).toHaveTextContent('97.5%')
+    expect(m.unhandled).toEqual([])
+  })
+
+  it('omits the notification delivery panel when the backend does not report it', async () => {
+    const m = mockFetch([{ method: 'GET', path: '/api/ops/metrics', reply: { body: metrics } }])
+    renderStaff({ route: '/staff/ops/metrics', fetchImpl: m.fetchImpl, auth: officer() })
+    await screen.findByText(/As of/)
+    expect(screen.queryByRole('region', { name: 'Notification delivery' })).not.toBeInTheDocument()
+  })
+
   it('refreshes on demand and surfaces a failure with a retry', async () => {
     let fail = false
     const m = mockFetch([{ method: 'GET', path: '/api/ops/metrics', reply: () => (fail ? { status: 500, body: { status: 500 } } : { body: metrics }) }])
