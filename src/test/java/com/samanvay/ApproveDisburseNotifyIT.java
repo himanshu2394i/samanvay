@@ -125,7 +125,7 @@ class ApproveDisburseNotifyIT extends PostgresIntegrationTest {
             Integer rows = jdbc.queryForObject(
                     "SELECT count(*) FROM notification_delivery"
                             + " WHERE recipient_id = ? AND event_type = 'ApplicationStateChanged' AND dedupe_key = ?",
-                    Integer.class, app.toString(), app + ":APPROVED");
+                    Integer.class, app.toString(), "ApplicationStateChanged:" + app + ":APPROVED");
             if (rows != null && rows > 0) {
                 return true;
             }
