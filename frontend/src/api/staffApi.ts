@@ -14,6 +14,7 @@ import type {
   DepartmentManifest,
   IdentityCandidate,
   ImportPreview,
+  JourneyDraft,
   JourneyException,
   JourneyState,
   MappingDraft,
@@ -91,6 +92,10 @@ export function createStaffApi(client: ApiClient) {
     listDataSources: () => client.get<DataSourceHealth[]>('/api/catalog/data-sources'),
     /** Live connectivity check for one data source; records and returns GREEN/RED/UNKNOWN. ADMIN. */
     probeDataSource: (code: string) => client.post<DataSourceHealth>(`/api/catalog/data-sources/${enc(code)}/probe`),
+    /** Create a journey (service) onboarded from a manifest, as a DRAFT. ADMIN. */
+    createJourney: (draft: JourneyDraft) => client.post<JourneyDefinition>('/api/catalog/journeys', draft),
+    /** Publish a ready DRAFT journey (make it live to citizens); 400 if a required connector is missing. ADMIN. */
+    publishJourney: (code: string) => client.post<JourneyDefinition>(`/api/catalog/journeys/${enc(code)}/publish`),
     saveMapping: (draft: MappingDraft) => client.post<MappingDraft>('/api/catalog/mappings', draft),
     testConnector: (ref: string) => client.post<ConnectorTestReport>(`/api/catalog/connectors/${enc(ref)}/test`),
     publishConnector: (ref: string, report: ConnectorTestReport) =>

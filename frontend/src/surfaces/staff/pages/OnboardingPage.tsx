@@ -676,7 +676,11 @@ function PublishStep({
 // Reads a department's published capability manifest and, in one action, registers the
 // department + a data source and draft connector per document it holds. The admin then
 // finishes the field mapping, test and publish for each connector in the wizard below.
-async function onboardFromManifest(api: StaffApi, m: DepartmentManifest, baseUrl: string): Promise<number> {
+async function onboardFromManifest(
+  api: StaffApi,
+  m: DepartmentManifest,
+  baseUrl: string,
+): Promise<{ connectors: number; journeys: number }> {
   const host = new URL(baseUrl.trim()).host
   await api.registerDepartment({
     code: m.department.code,
@@ -710,7 +714,21 @@ async function onboardFromManifest(api: StaffApi, m: DepartmentManifest, baseUrl
     })
     drafted += 1
   }
-  return drafted
+  // Journeys the department publishes land as DRAFT; readiness is computed from real connector
+  // availability in the catalog, and an admin publishes a ready one there.
+  for (const j of m.journeys) {
+    await api.createJourney({
+      code: j.code,
+      name: j.name,
+      referencePrefix: j.referencePrefix,
+      slaHours: j.slaHours,
+      consentPurpose: j.consentPurpose,
+      requester: j.requester,
+      requiredCategories: j.requiredCategories.map((r) => r.category),
+      sources: Object.fromEntries(j.requiredCategories.map((r) => [r.category, r.department])),
+    })
+  }
+  return { connectors: drafted, journeys: m.journeys.length }
 }
 
 function DiscoverPanel() {
@@ -734,11 +752,14 @@ function DiscoverPanel() {
 
   async function runOnboard() {
     if (!manifest) return
-    let n = 0
+    let out = { connectors: 0, journeys: 0 }
     const ok = await onboard.run('onboard', async () => {
-      n = await onboardFromManifest(api, manifest, url)
+      out = await onboardFromManifest(api, manifest, url)
     }, '')
-    if (ok) setResult(`Registered ${manifest.department.name} and drafted ${n} connector${n === 1 ? '' : 's'}.`)
+    if (ok) {
+      const journeys = out.journeys ? ` and ${out.journeys} journey${out.journeys === 1 ? '' : 's'}` : ''
+      setResult(`Registered ${manifest.department.name}, drafted ${out.connectors} connector${out.connectors === 1 ? '' : 's'}${journeys}.`)
+    }
   }
 
   return (
@@ -823,7 +844,10 @@ function DiscoverPanel() {
                       {j.name} <span className="mono">{j.code}</span>
                     </h3>
                     {j.description ? <p className="hint">{j.description}</p> : null}
-                    <p>Requires: {j.requiredCategories.map(humanize).join(', ')}</p>
+                    <p className="hint">
+                      SLA {j.slaHours} h · purpose <span className="mono">{j.consentPurpose}</span>
+                    </p>
+                    <p>Requires: {j.requiredCategories.map((r) => `${humanize(r.category)} (${r.department})`).join(', ')}</p>
                   </li>
                 ))}
               </ul>

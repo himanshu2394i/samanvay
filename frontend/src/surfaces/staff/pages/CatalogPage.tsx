@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStaffApi } from '../../../api/apiContext'
-import type { DataSourceHealth } from '../../../api/staffTypes'
+import type { ConnectorDefinition, DataSourceHealth } from '../../../api/staffTypes'
+import type { JourneyDefinition } from '../../../api/types'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { humanize } from '../../../ui/format'
@@ -37,13 +38,46 @@ function healthTone(status: string): 'ok' | 'warn' | 'bad' | 'neutral' {
   }
 }
 
+/**
+ * A journey's required categories that have no PUBLISHED connector whose data source belongs to
+ * the provider department the journey names. Empty means it is ready to publish. Same rule the
+ * backend re-checks on publish; GET /api/catalog/connectors already returns only PUBLISHED.
+ */
+function missingCoverage(j: JourneyDefinition, connectors: ConnectorDefinition[], dataSources: DataSourceHealth[]): string[] {
+  return j.requiredCategories
+    .map((cat) => ({ cat, dept: j.policy.sources[cat] }))
+    .filter(
+      ({ cat, dept }) =>
+        !dept ||
+        !connectors.some(
+          (c) =>
+            c.status === 'PUBLISHED' &&
+            c.category.code === cat &&
+            dataSources.some((ds) => ds.code === c.dataSourceCode && ds.departmentCode === dept),
+        ),
+    )
+    .map(({ cat, dept }) => `${humanize(cat)}${dept ? ` (${dept})` : ''}`)
+}
+
 /** Read-only view of the catalog: departments, journeys (services) and connectors. */
 export function CatalogPage() {
   const api = useStaffApi()
   const data = useAsync(async () => {
-    const [departments, journeys, connectors] = await Promise.all([api.listDepartments(), api.listJourneys(), api.listConnectors()])
-    return { departments, journeys, connectors }
+    // Data sources feed journey readiness; guard it so a probe-list hiccup never blanks the catalog.
+    const [departments, journeys, connectors, dataSources] = await Promise.all([
+      api.listDepartments(),
+      api.listJourneys(),
+      api.listConnectors(),
+      api.listDataSources().catch(() => [] as DataSourceHealth[]),
+    ])
+    return { departments, journeys, connectors, dataSources }
   }, 'catalog')
+  const publish = useAction()
+
+  async function publishJourney(code: string) {
+    const ok = await publish.run(code, () => api.publishJourney(code), '')
+    if (ok) data.reload()
+  }
 
   return (
     <section aria-labelledby="cat-h">
@@ -62,6 +96,7 @@ export function CatalogPage() {
       {data.status === 'success' ? (
         <>
           <h2>Journeys</h2>
+          {publish.error ? <ErrorNotice error={publish.error} /> : null}
           {data.data.journeys.length === 0 ? (
             <p>No journeys are registered.</p>
           ) : (
@@ -77,30 +112,57 @@ export function CatalogPage() {
                     <th scope="col">Requester</th>
                     <th scope="col">Purpose</th>
                     <th scope="col">Records needed (department)</th>
+                    <th scope="col">Readiness</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.data.journeys.map((j) => (
-                    <tr key={j.code}>
-                      <td className="mono">{j.code}</td>
-                      <td>{j.name}</td>
-                      <td>
-                        <Badge tone={statusTone(j.status)}>{humanize(j.status)}</Badge>
-                      </td>
-                      <td>{j.policy.slaHours} h</td>
-                      <td>{j.policy.requester}</td>
-                      <td className="mono">{j.policy.purpose}</td>
-                      <td>
-                        <ul className="plain">
-                          {j.requiredCategories.map((c) => (
-                            <li key={c}>
-                              {humanize(c)} <span className="hint">({j.policy.sources[c] ?? 'unassigned'})</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
-                    </tr>
-                  ))}
+                  {data.data.journeys.map((j) => {
+                    const missing = j.status === 'PUBLISHED' ? [] : missingCoverage(j, data.data.connectors, data.data.dataSources)
+                    return (
+                      <tr key={j.code}>
+                        <td className="mono">{j.code}</td>
+                        <td>{j.name}</td>
+                        <td>
+                          <Badge tone={statusTone(j.status)}>{humanize(j.status)}</Badge>
+                        </td>
+                        <td>{j.policy.slaHours} h</td>
+                        <td>{j.policy.requester}</td>
+                        <td className="mono">{j.policy.purpose}</td>
+                        <td>
+                          <ul className="plain">
+                            {j.requiredCategories.map((c) => (
+                              <li key={c}>
+                                {humanize(c)} <span className="hint">({j.policy.sources[c] ?? 'unassigned'})</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td>
+                          {j.status === 'PUBLISHED' ? (
+                            <span className="hint">Live</span>
+                          ) : missing.length === 0 ? (
+                            <>
+                              <Badge tone="ok">Ready to publish</Badge>{' '}
+                              {j.status === 'DRAFT' ? (
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  onClick={() => void publishJourney(j.code)}
+                                  disabled={publish.busy !== null}
+                                >
+                                  {publish.busy === j.code ? 'Publishing…' : 'Publish'}
+                                </button>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span>
+                              <Badge tone="warn">Pending</Badge> <span className="hint">needs {missing.join(', ')}</span>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
