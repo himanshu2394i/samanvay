@@ -11,7 +11,18 @@ import java.util.UUID;
  * cannot be computed (no calls yet, gauge unreadable) are {@code null}, never NaN or a made-up zero.
  */
 public record OpsMetricsView(
-        Instant generatedAt, Connector connector, Sla sla, Consent consent, ExceptionQueue exceptionQueue) {
+        Instant generatedAt,
+        Connector connector,
+        Sla sla,
+        Consent consent,
+        ExceptionQueue exceptionQueue,
+        Notifications notifications) {
+
+    /**
+     * Notification delivery health since this node started: first-attempt outcomes and retry outcomes,
+     * by count. {@code sentRate} is the first-attempt success rate, {@code null} until one is attempted.
+     */
+    public record Notifications(long sent, long failed, long retriedSent, long retriedFailed, Double sentRate) {}
 
     /**
      * Connector health per data source. Call counts are cumulative since this node started;
