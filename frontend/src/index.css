@@ -825,6 +825,40 @@ details.tech summary {
     transform: rotate(360deg);
   }
 }
+
+/* table loading skeleton */
+.skeleton-table {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  overflow: hidden;
+}
+.skeleton-row {
+  display: flex;
+  gap: var(--sp-4);
+  padding: 0.85rem 0.75rem;
+  border-block-end: 1px solid var(--line);
+}
+.skeleton-row:last-child {
+  border-block-end: none;
+}
+.skeleton {
+  height: 0.85rem;
+  flex: 1;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--line) 25%, color-mix(in srgb, var(--line) 45%, var(--paper)) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.skeleton-row .skeleton:first-child {
+  flex: 0 0 30%;
+}
+@keyframes skeleton-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
