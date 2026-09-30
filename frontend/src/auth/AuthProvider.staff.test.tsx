@@ -28,13 +28,14 @@ function manager(over: Partial<Record<keyof OidcManager, unknown>> = {}) {
 }
 
 function Probe() {
-  const { status, user, signIn } = useAuth()
+  const { status, user, signIn, demoSignIn } = useAuth()
   return (
     <div>
       <p>status:{status}</p>
       <p>roles:{user?.roles.join(',') ?? 'none'}</p>
       <p>department:{user?.department ?? 'none'}</p>
       <button onClick={() => void signIn('/staff/ops/metrics')}>sign in</button>
+      <button onClick={() => void demoSignIn('admin')}>demo admin</button>
     </div>
   )
 }
@@ -78,5 +79,42 @@ describe('AuthProvider with a staff session', () => {
     expect(await screen.findByText('status:authenticated')).toBeInTheDocument()
     expect(window.location.hash).toBe('#/staff/admin/catalog')
     expect(detectRealm({ hash: '' }, true)).toBe('citizen')
+  })
+
+  it('demo sign-in mints a session from the API and stores it, with no Keycloak redirect', async () => {
+    const token = fakeJwt({
+      sub: 'demo-admin',
+      name: 'Demo Admin',
+      preferred_username: 'demo-admin',
+      iss: 'samanvay-demo-staff',
+      realm_access: { roles: ['admin'] },
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    })
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ access_token: token, token_type: 'Bearer' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const stored: User[] = []
+    const m = manager({
+      storeUser: vi.fn(async (u: User) => void stored.push(u)),
+      getUser: vi.fn(async () => stored[stored.length - 1] ?? null),
+    })
+
+    render(
+      <AuthProvider manager={m} realm="staff" devSignIn>
+        <Probe />
+      </AuthProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'demo admin' }))
+
+    expect(fetchMock).toHaveBeenCalledWith('/ui/demo-signin', expect.objectContaining({ method: 'POST' }))
+    expect(await screen.findByText('status:authenticated')).toBeInTheDocument()
+    expect(screen.getByText('roles:ADMIN')).toBeInTheDocument()
+    expect(stored).toHaveLength(1)
+    expect(m.signinRedirect).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 })

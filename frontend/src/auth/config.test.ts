@@ -14,8 +14,14 @@ describe('parseAuthConfig', () => {
     expect(parseAuthConfig(BODY, 'citizen')).toEqual({
       authority: 'http://localhost:8180/realms/samanvay-citizen',
       clientId: 'samanvay-citizen-ui',
+      devSignIn: true,
     })
     expect(parseAuthConfig(BODY, 'staff').clientId).toBe('samanvay-staff-ui')
+  })
+
+  it('defaults devSignIn to false when the API does not send it (prod)', () => {
+    const body = { realms: { citizen: { issuer: 'https://idp/realms/c', clientId: 'c-ui' } } }
+    expect(parseAuthConfig(body, 'citizen').devSignIn).toBe(false)
   })
 
   it('rejects a realm without an issuer or client', () => {
@@ -39,7 +45,7 @@ describe('loadOidcConfig', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
       env: { VITE_OIDC_AUTHORITY: 'https://idp.example/realms/r', VITE_OIDC_CLIENT_ID: 'spa' },
     })
-    expect(cfg).toEqual({ authority: 'https://idp.example/realms/r', clientId: 'spa' })
+    expect(cfg).toEqual({ authority: 'https://idp.example/realms/r', clientId: 'spa', devSignIn: false })
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 

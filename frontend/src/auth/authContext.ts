@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { RealmKey } from './config'
 
 export interface AuthUser {
   /** Token subject: the identity the API binds a citizen record to. */
@@ -28,6 +29,12 @@ export interface AuthContextValue {
   getAccessToken: () => Promise<string | null>
   /** Drops the local session (e.g. after the API answered 401). */
   expireSession: (notice?: string) => void
+  /** Which realm this page signs in to (staff or citizen); picks the demo roles offered. */
+  realm: RealmKey
+  /** True in the dev/demo build only: show the one-click demo sign-in. Always false in prod. */
+  devSignIn: boolean
+  /** Demo/dev only: sign in as a demo role (admin/officer/reviewer/citizen) with no password. */
+  demoSignIn: (role: string) => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

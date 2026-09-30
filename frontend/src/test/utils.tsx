@@ -71,6 +71,9 @@ export function signedInAuth(overrides: Partial<AuthContextValue> = {}): AuthCon
     signOut: vi.fn(async () => {}),
     getAccessToken: vi.fn(async () => 'test-token'),
     expireSession: vi.fn(),
+    realm: 'citizen',
+    devSignIn: false,
+    demoSignIn: vi.fn(async () => {}),
     ...overrides,
   }
 }
@@ -111,6 +114,7 @@ export function renderCitizen({ route, fetchImpl, auth = signedInAuth(), registe
 /** A signed-in staff session whose token carries `roles` (lower-case, as Keycloak names them, or any case). */
 export function staffAuth(roles: string[], overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return signedInAuth({
+    realm: 'staff',
     user: { sub: 'sub-staff-1', name: 'Om Kulkarni', roles: roles.map((r) => r.toUpperCase()), department: 'SCHOLARSHIP' },
     ...overrides,
   })

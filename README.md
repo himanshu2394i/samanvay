@@ -17,6 +17,29 @@ consent, discovery metadata, workflow, tracking, audit and mappings.
 Citizen journeys (scholarship, business licensing, farmer subsidy) exist as **evidence that
 the platform is generic**, not as the product .
 
+## Live demo & one-click access (for judges)
+
+**Live:** <https://app.3.109.201.126.nip.io/app/> — demo data only; nothing here is a real record.
+
+Normally the platform requires real sign-in (staff: a passkey, or a password **and** an authenticator
+code; citizens: a one-time code emailed to them). So you can walk the demo without any of that, the
+**demo build puts one-click "Demo: …" buttons on every sign-in screen** — no password, no code:
+
+| Open this | Click | You become | What to look at |
+|---|---|---|---|
+| [`/app/#/staff/admin/onboarding`](https://app.3.109.201.126.nip.io/app/#/staff/admin/onboarding) | **Demo: Admin** | an admin | Onboard a department from just its URL; it picks up the department's documents **and its services (journeys)** |
+| [`/app/#/staff/admin/catalog`](https://app.3.109.201.126.nip.io/app/#/staff/admin/catalog) | **Demo: Admin** | an admin | Each journey's **readiness** is computed from real connector availability; publish a ready one |
+| [`/app/#/staff/officer/exceptions`](https://app.3.109.201.126.nip.io/app/#/staff/officer/exceptions) | **Demo: Officer** | an officer | Exception queue, retries, bank-account review, live ops metrics |
+| [`/app/#/staff/reviewer/queue`](https://app.3.109.201.126.nip.io/app/#/staff/reviewer/queue) | **Demo: Reviewer** | a reviewer | The identity-matching review queue (machines propose, humans dispose) |
+| [`/app/#/`](https://app.3.109.201.126.nip.io/app/#/) | **Demo: Citizen** | a citizen | Apply for a service; documents are fetched between departments with consent |
+
+The `#` in the staff URLs matters — the app uses hash routing.
+
+The one-click demo login exists **only in the demo build**: a normal (production) boot serves neither
+the button nor the endpoint behind it, and the demo token it would mint is refused there. Real sign-in
+still goes through Keycloak (passkey / password + TOTP / email code) and is unchanged — so the demo
+convenience never weakens the real auth model. See `DemoSignIn` (backend) and `RequireAuth` (SPA).
+
 ## Design principles
 
 | | |
@@ -56,7 +79,9 @@ the platform is generic**, not as the product .
 **Backend** Java 21 · Spring Boot 4 (Spring Framework 7) · Spring Modulith 2.x ·
 PostgreSQL 16 · Flowable 8.x (behind a port) · Keycloak · Resilience4j · Flyway
 
-**Frontend** Thin static HTML (government portals + operations cutaways). No React SPA (HLD §11).
+**Frontend** Two surfaces: thin static HTML government portals (the citizen-facing judge path) and a
+React + TypeScript + Vite SPA (`frontend/`) for the staff consoles — officer desk, reviewer queue,
+admin onboarding & catalog — served by Spring at `/app/`.
 
 **Runtime** Docker Compose — fully offline, deterministic seed data
 
@@ -76,9 +101,12 @@ Use the `dev` or `demo` profile locally: only those two point at the compose Key
 
 Every `/api/**` call needs a Keycloak bearer token (the actor is taken only from the token).
 Pages have a sign-in bar (Authorization Code + PKCE; the issuer and client come from
-`GET /ui/auth-config`). Under `dev`/`demo` it becomes the **Dev sign-in** bar with a paste-token
-button; other profiles do not serve that script at all. Dev realms are
-imported from `keycloak/realms/` (regenerate with `python3 keycloak/gen_realms.py`):
+`GET /ui/auth-config`). Under `dev`/`demo` two extra conveniences appear (and only there): the static
+pages get a **Dev sign-in** bar with a paste-token button, and the SPA's sign-in screens get
+**one-click "Demo: …" buttons** (see the live-demo section above) — a demo-only endpoint,
+`POST /ui/demo-signin`, mints a short-lived token the API trusts, with no MFA. A normal boot serves
+neither. Dev realms are imported from `keycloak/realms/`
+(regenerate with `python3 keycloak/gen_realms.py`):
 
 | Realm | Dev users | Sign-in |
 |---|---|---|
