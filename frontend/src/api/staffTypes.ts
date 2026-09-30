@@ -101,6 +101,15 @@ export interface OpsMetrics {
     byReason: ReasonCount[]
     oldest: ExceptionRow[]
   }
+  /** Notification delivery/retry health. Optional: absent on an older backend without the field. */
+  notifications?: {
+    sent: number
+    failed: number
+    retriedSent: number
+    retriedFailed: number
+    /** First-attempt success rate (0..1), or null before any delivery. */
+    sentRate: number | null
+  }
 }
 
 // --- audit ledger (GET /api/audit/...) ----------------------------------------------------

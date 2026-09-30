@@ -40,7 +40,24 @@ function Dashboards({ m }: { m: OpsMetrics }) {
       <ExceptionSection q={m.exceptionQueue} />
       <ConnectorSection windowMinutes={m.connector.latencyWindowMinutes} sources={m.connector.sources} />
       <ConsentSection c={m.consent} />
+      {m.notifications ? <NotificationSection n={m.notifications} /> : null}
     </>
+  )
+}
+
+function NotificationSection({ n }: { n: NonNullable<OpsMetrics['notifications']> }) {
+  return (
+    <section aria-labelledby="notif-h">
+      <h2 id="notif-h">Notification delivery</h2>
+      <p className="hint">First-attempt delivery outcomes and retries since this node started.</p>
+      <div className="tiles">
+        <Tile label="Sent" value={n.sent} />
+        <Tile label="Failed" value={n.failed} tone={n.failed > 0 ? 'warn' : 'ok'} />
+        <Tile label="Retries sent" value={n.retriedSent} />
+        <Tile label="Retries failed" value={n.retriedFailed} tone={n.retriedFailed > 0 ? 'warn' : 'ok'} />
+        <Tile label="First-attempt success rate" value={formatRatio(n.sentRate)} />
+      </div>
+    </section>
   )
 }
 
