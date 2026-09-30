@@ -48,6 +48,15 @@ class DevSignInExposureIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void demoSignInEndpointIsNotServed() {
+        int code = TestHttp.anonymous().post().uri(url("/ui/demo-signin"))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(Map.of("role", "admin"))
+                .exchange((rq, rs) -> rs.getStatusCode().value());
+        assertThat(code).isEqualTo(404);
+    }
+
+    @Test
     void noServedPageOrScriptMentionsTheLocalKeycloakOrTheDevBar() throws IOException {
         Path root = Path.of("src/main/resources/static");
         List<String> hits = new ArrayList<>();

@@ -14,9 +14,17 @@ import { StaffApp } from './surfaces/staff/StaffApp'
  * realm, the staff surfaces (#/staff/...) on the staff realm. `manager` is the
  * UserManager of that realm.
  */
-export function App({ manager, realm = 'citizen' }: { manager: OidcManager; realm?: RealmKey }) {
+export function App({
+  manager,
+  realm = 'citizen',
+  devSignIn = false,
+}: {
+  manager: OidcManager
+  realm?: RealmKey
+  devSignIn?: boolean
+}) {
   return (
-    <AuthProvider manager={manager} realm={realm}>
+    <AuthProvider manager={manager} realm={realm} devSignIn={devSignIn}>
       <ApiProvider>
         <HashRouter>{realm === 'staff' ? <StaffApp /> : <CitizenApp />}</HashRouter>
       </ApiProvider>

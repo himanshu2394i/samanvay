@@ -129,10 +129,14 @@ class SecurityConfig {
 
     @Bean
     JwtIssuerAuthenticationManagerResolver jwtIssuerResolver(
-            SecurityRealmsProperties realms, RealmIssuerStartupCheck issuersChecked) {
+            SecurityRealmsProperties realms,
+            RealmIssuerStartupCheck issuersChecked,
+            org.springframework.beans.factory.ObjectProvider<AdditionalAuthManagers> extra) {
         Map<String, AuthenticationManager> managers = new LinkedHashMap<>();
         register(managers, realms.audience(), realms.staff(), KeycloakJwtConverter.RealmKind.STAFF);
         register(managers, realms.audience(), realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);
+        // Demo profile only: a demo-signin issuer the API also trusts (no such bean in prod).
+        extra.ifAvailable(a -> managers.putAll(a.byIssuer()));
         // Unknown issuer -> null manager -> InvalidBearerTokenException -> 401.
         return new JwtIssuerAuthenticationManagerResolver(managers::get);
     }

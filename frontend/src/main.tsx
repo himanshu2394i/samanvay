@@ -17,7 +17,8 @@ async function start() {
     // The realm is fixed for this page load; moving between the citizen and staff areas
     // (a hash change across the boundary) reloads so the other realm's sign-in is used.
     const realm = detectRealm(window.location, isCallbackUrl(window.location.search))
-    const manager = createUserManager(await loadOidcConfig(realm))
+    const cfg = await loadOidcConfig(realm)
+    const manager = createUserManager(cfg)
     if (!crossingListener) {
       crossingListener = true
       window.addEventListener('hashchange', () => {
@@ -26,7 +27,7 @@ async function start() {
     }
     root.render(
       <StrictMode>
-        <App manager={manager} realm={realm} />
+        <App manager={manager} realm={realm} devSignIn={cfg.devSignIn} />
       </StrictMode>,
     )
   } catch (e) {
