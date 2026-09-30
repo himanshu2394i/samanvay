@@ -572,8 +572,9 @@ describe('track applications', () => {
 
 describe('my consents', () => {
   const ended = { ...artifact, id: '55555555-5555-4555-8555-555555555555', status: 'EXPIRED', statusLabel: 'Ended' }
+  const EXPLANATION = /This consent is withdrawn\. Any new request for these records will now be refused\. Samanvay never stored the records themselves, so there is nothing to delete\./
 
-  it('lists consents and withdraws an active one after confirmation', async () => {
+  it('lists consents and withdraws an active one after confirmation, showing the withdrawn state and why it is safe', async () => {
     let revoked = false
     const { fetchImpl, find } = mockFetch([
       {
@@ -593,15 +594,35 @@ describe('my consents', () => {
     renderCitizen({ route: '/consents', fetchImpl })
 
     expect(await screen.findAllByRole('heading', { level: 2 })).toHaveLength(2)
-    expect(screen.getAllByRole('button', { name: 'Withdraw consent' })).toHaveLength(1) // ended one has none
+    expect(screen.getAllByRole('button', { name: /Withdraw consent/ })).toHaveLength(1) // ended one has none
+    expect(screen.queryByText(EXPLANATION)).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Withdraw consent' }))
+    await userEvent.click(screen.getByRole('button', { name: /Withdraw consent/ }))
     expect(find('POST', `/api/consent/me/${artifact.id}/revoke`)).toHaveLength(0) // needs a second, explicit click
     await userEvent.click(screen.getByRole('button', { name: 'Yes, withdraw this consent' }))
 
-    expect(await screen.findByText('Withdrawn by you')).toBeInTheDocument()
+    // the row flips to the withdrawn state and the reason it is safe is announced
+    const withdrawnCard = (await screen.findByText('Withdrawn by you')).closest('li') as HTMLElement
+    const status = within(withdrawnCard).getByRole('status')
+    expect(status).toHaveTextContent(EXPLANATION)
     expect(find('POST', `/api/consent/me/${artifact.id}/revoke`)).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: 'Withdraw consent' })).not.toBeInTheDocument()
+    // the action is no longer offered for a withdrawn consent
+    expect(within(withdrawnCard).queryByRole('button', { name: /Withdraw consent/ })).not.toBeInTheDocument()
+  })
+
+  it('reflects a consent already withdrawn on the server after a reload', async () => {
+    const { fetchImpl } = mockFetch([
+      {
+        method: 'GET',
+        path: `/api/consent/citizens/${CITIZEN_ID}`,
+        reply: { body: [{ ...artifact, status: 'REVOKED', statusLabel: 'Withdrawn by you' }] },
+      },
+    ])
+    renderCitizen({ route: '/consents', fetchImpl })
+
+    expect(await screen.findByText('Withdrawn by you')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(EXPLANATION)
+    expect(screen.queryByRole('button', { name: /Withdraw consent/ })).not.toBeInTheDocument()
   })
 
   it('can back out of a withdrawal', async () => {
@@ -609,9 +630,9 @@ describe('my consents', () => {
       { method: 'GET', path: `/api/consent/citizens/${CITIZEN_ID}`, reply: { body: [artifact] } },
     ])
     renderCitizen({ route: '/consents', fetchImpl })
-    await userEvent.click(await screen.findByRole('button', { name: 'Withdraw consent' }))
+    await userEvent.click(await screen.findByRole('button', { name: /Withdraw consent/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Keep it' }))
-    expect(screen.getByRole('button', { name: 'Withdraw consent' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Withdraw consent/ })).toBeInTheDocument()
     expect(find('POST', /revoke/)).toHaveLength(0)
   })
 })
