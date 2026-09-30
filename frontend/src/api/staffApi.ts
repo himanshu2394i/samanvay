@@ -61,6 +61,9 @@ export function createStaffApi(client: ApiClient) {
     /** Approve a VERIFIED application (VERIFIED→APPROVED, terminal); a 409 otherwise. */
     approveApplication: (instanceId: Uuid) =>
       client.post<{ instanceId: string; status: string }>(`/api/journeys/instances/${enc(instanceId)}/approve`),
+    /** Reject a non-terminal application (→REJECTED, terminal) with a reason; a 409 if already terminal. */
+    rejectApplication: (instanceId: Uuid, reason: string) =>
+      client.post<{ instanceId: string; status: string }>(`/api/journeys/instances/${enc(instanceId)}/reject`, { reason }),
 
     // --- officer + admin: ops dashboards (OpsMetricsController; OFFICER, ADMIN) ---
     getMetrics: () => client.get<OpsMetrics>('/api/ops/metrics'),

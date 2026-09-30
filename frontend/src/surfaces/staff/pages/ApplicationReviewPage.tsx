@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStaffApi } from '../../../api/apiContext'
 import { ApiError } from '../../../api/client'
@@ -14,6 +15,8 @@ export function ApplicationReviewPage() {
   const { ref = '' } = useParams()
   const api = useStaffApi()
   const action = useAction()
+  const [reason, setReason] = useState('')
+  const [reasonError, setReasonError] = useState<string | null>(null)
 
   const data = useAsync(async () => {
     const app = await api.getApplication(ref)
@@ -54,6 +57,18 @@ export function ApplicationReviewPage() {
 
   async function approve(instanceId: string) {
     if (await action.run(instanceId, () => api.approveApplication(instanceId), 'Application approved.')) data.reload()
+  }
+
+  async function reject(instanceId: string) {
+    if (!reason.trim()) {
+      setReasonError('A reason is required to reject.')
+      return
+    }
+    setReasonError(null)
+    if (await action.run(`reject:${instanceId}`, () => api.rejectApplication(instanceId, reason.trim()), 'Application rejected.')) {
+      setReason('')
+      data.reload()
+    }
   }
 
   return (
@@ -191,23 +206,55 @@ export function ApplicationReviewPage() {
           `instanceId` of the application view, not the reference number. */}
       {(() => {
         const canApprove = app.status === 'VERIFIED' && app.instanceId !== null
+        // Reject mirrors approve but applies to any non-terminal application (the endpoint answers 409
+        // once it is APPROVED/REJECTED/CLOSED), and always needs a reason (a blank one is a 400).
+        const canReject = open && app.instanceId !== null
+        const rejectKey = `reject:${app.instanceId}`
         return (
-          <div className="actions">
-            <button
-              type="button"
-              className="btn primary"
-              onClick={() => app.instanceId !== null && void approve(app.instanceId)}
-              disabled={!canApprove || action.busy !== null}
-              aria-describedby={canApprove ? undefined : 'approve-why'}
-            >
-              {action.busy === app.instanceId ? 'Approving…' : 'Approve application'}
-            </button>
-            {!canApprove ? (
-              <p id="approve-why" className="hint">
-                Available once every department record is verified
-              </p>
+          <>
+            <div className="actions">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => app.instanceId !== null && void approve(app.instanceId)}
+                disabled={!canApprove || action.busy !== null}
+                aria-describedby={canApprove ? undefined : 'approve-why'}
+              >
+                {action.busy === app.instanceId ? 'Approving…' : 'Approve application'}
+              </button>
+              {!canApprove ? (
+                <p id="approve-why" className="hint">
+                  Available once every department record is verified
+                </p>
+              ) : null}
+            </div>
+            {canReject ? (
+              <div className="reject">
+                <label htmlFor="reject-reason">Reason (required to reject)</label>
+                <textarea
+                  id="reject-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={2}
+                  aria-describedby={reasonError ? 'reject-why' : undefined}
+                  aria-invalid={reasonError ? true : undefined}
+                />
+                {reasonError ? (
+                  <p id="reject-why" className="hint bad" role="alert">
+                    {reasonError}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className="btn danger"
+                  onClick={() => app.instanceId !== null && void reject(app.instanceId)}
+                  disabled={action.busy !== null}
+                >
+                  {action.busy === rejectKey ? 'Rejecting…' : 'Reject application'}
+                </button>
+              </div>
             ) : null}
-          </div>
+          </>
         )
       })()}
     </section>
