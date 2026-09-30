@@ -6,6 +6,7 @@ import static com.samanvay.shared.InvalidRequestException.requireText;
 import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
 import com.samanvay.catalog.api.ConnectorCatalog;
+import com.samanvay.catalog.api.DataSourceHealth;
 import com.samanvay.catalog.api.DepartmentManifest;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
@@ -130,6 +131,16 @@ class CatalogController {
     }
 
     record DiscoverBody(String baseUrl) {}
+
+    @GetMapping("/data-sources")
+    List<DataSourceHealth> dataSources() {
+        return discovery.listDataSources();
+    }
+
+    @PostMapping("/data-sources/{code}/probe")
+    DataSourceHealth probe(@PathVariable String code) {
+        return discovery.probe(code);
+    }
 
     @PostMapping("/import/openapi")
     ImportPreview importOpenApi(@RequestBody ImportBody body) {

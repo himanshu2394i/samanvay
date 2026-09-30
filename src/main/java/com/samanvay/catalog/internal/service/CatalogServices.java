@@ -3,6 +3,7 @@ package com.samanvay.catalog.internal.service;
 import com.samanvay.catalog.api.Capability;
 import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
+import com.samanvay.catalog.api.DataSourceHealth;
 import com.samanvay.catalog.api.DepartmentManifest;
 import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.ConnectorDefinition;
@@ -347,6 +348,57 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             throw e;
         } catch (Exception e) {
             throw new InvalidRequestException("Could not read a Samanvay manifest at " + uri + ": " + e.getMessage());
+        }
+    }
+
+    @Override
+    public List<DataSourceHealth> listDataSources() {
+        return dataSources.findAll().stream()
+                .map(e -> new DataSourceHealth(e.getCode(), e.getDepartmentCode(), e.getProtocol(), e.getBaseHost(),
+                        e.getHealthStatus() == null ? "UNKNOWN" : e.getHealthStatus(), null))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public DataSourceHealth probe(String dataSourceCode) {
+        DataSourceEntity e = dataSources.findById(InvalidRequestException.requireText(dataSourceCode, "dataSourceCode"))
+                .orElseThrow(() -> new InvalidRequestException("No data source " + dataSourceCode));
+        String protocol = e.getProtocol();
+        String health;
+        String detail;
+        if ("REST".equals(protocol) || "SOAP".equals(protocol)) {
+            URI uri;
+            try {
+                uri = URI.create("https://" + e.getBaseHost() + "/");
+            } catch (RuntimeException ex) {
+                uri = null;
+            }
+            if (uri == null || uri.getHost() == null) {
+                health = "RED";
+                detail = "Invalid host";
+            } else {
+                String probed = probeHttp(uri);
+                health = probed == null ? "GREEN" : "RED";
+                detail = probed == null ? "Reachable" : "Unreachable: " + probed;
+            }
+        } else {
+            health = "UNKNOWN";
+            detail = "Live probe not supported over " + protocol + "; checked at fetch time";
+        }
+        e.setHealthStatus(health);
+        dataSources.save(e);
+        return new DataSourceHealth(e.getCode(), e.getDepartmentCode(), protocol, e.getBaseHost(), health, detail);
+    }
+
+    /** GET the URL; null means reachable (any HTTP status), else the failure message. */
+    private static String probeHttp(URI uri) {
+        try {
+            HTTP.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8)).GET().build(),
+                    HttpResponse.BodyHandlers.discarding());
+            return null;
+        } catch (Exception ex) {
+            return ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
         }
     }
 

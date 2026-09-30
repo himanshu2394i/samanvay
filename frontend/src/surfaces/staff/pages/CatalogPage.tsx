@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStaffApi } from '../../../api/apiContext'
+import type { DataSourceHealth } from '../../../api/staffTypes'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { humanize } from '../../../ui/format'
 import { Loading } from '../../../ui/Loading'
+import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
 
 function statusTone(status: string): 'ok' | 'warn' | 'bad' | 'neutral' {
@@ -16,6 +19,19 @@ function statusTone(status: string): 'ok' | 'warn' | 'bad' | 'neutral' {
     case 'RETIRED':
     case 'DEPRECATED':
       return 'neutral'
+    default:
+      return 'neutral'
+  }
+}
+
+function healthTone(status: string): 'ok' | 'warn' | 'bad' | 'neutral' {
+  switch (status) {
+    case 'GREEN':
+      return 'ok'
+    case 'RED':
+      return 'bad'
+    case 'AMBER':
+      return 'warn'
     default:
       return 'neutral'
   }
@@ -155,8 +171,79 @@ export function CatalogPage() {
               </table>
             </div>
           )}
+
+          <DataSourcesPanel />
         </>
       ) : null}
     </section>
+  )
+}
+
+/** Data sources with a live connectivity check (the "onboard it and see it connect" proof). */
+function DataSourcesPanel() {
+  const api = useStaffApi()
+  const data = useAsync(() => api.listDataSources(), 'data-sources')
+  const probe = useAction()
+  const [health, setHealth] = useState<Record<string, DataSourceHealth>>({})
+
+  async function check(code: string) {
+    let r: DataSourceHealth | undefined
+    const ok = await probe.run(code, async () => {
+      r = await api.probeDataSource(code)
+    }, '')
+    if (ok && r) setHealth((h) => ({ ...h, [code]: r as DataSourceHealth }))
+  }
+
+  return (
+    <>
+      <h2 className="spaced">Data sources &amp; connectivity</h2>
+      <p className="hint">Where Samanvay reaches each department. &ldquo;Check&rdquo; makes a live connection to the source right now.</p>
+      {data.status === 'loading' ? <Loading variant="table" label="Loading data sources" /> : null}
+      {data.status === 'error' ? <ErrorNotice error={data.error} onRetry={data.reload} /> : null}
+      {probe.error ? <ErrorNotice error={probe.error} /> : null}
+      {data.status === 'success' ? (
+        data.data.length === 0 ? (
+          <p>No data sources are registered.</p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <caption className="sr-only">Data sources and their connectivity health</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Source</th>
+                  <th scope="col">Department</th>
+                  <th scope="col">Protocol</th>
+                  <th scope="col">Host</th>
+                  <th scope="col">Health</th>
+                  <th scope="col">Check</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.data.map((s) => {
+                  const h = health[s.code] ?? s
+                  return (
+                    <tr key={s.code}>
+                      <td className="mono">{s.code}</td>
+                      <td className="mono">{s.departmentCode}</td>
+                      <td>{s.protocol}</td>
+                      <td className="mono">{s.baseHost}</td>
+                      <td>
+                        <Badge tone={healthTone(h.healthStatus)}>{humanize(h.healthStatus)}</Badge>
+                        {health[s.code]?.detail ? <span className="hint"> {health[s.code]?.detail}</span> : null}
+                      </td>
+                      <td>
+                        <button type="button" className="btn" onClick={() => void check(s.code)} disabled={probe.busy !== null}>
+                          {probe.busy === s.code ? 'Checking…' : 'Check'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : null}
+    </>
   )
 }

@@ -55,6 +55,9 @@ final class ApiAccessMatrix {
         allow("POST /api/catalog/connectors/{ref}/test", ADMIN);
         allow("POST /api/catalog/connectors/{ref}/publish", ADMIN);
         allow("POST /api/catalog/import/openapi", ADMIN);
+        allow("POST /api/catalog/discover", ADMIN);
+        allow("GET /api/catalog/data-sources", OFFICER, ADMIN);
+        allow("POST /api/catalog/data-sources/{code}/probe", ADMIN);
         // identity
         allow("POST /api/identity/citizens", CITIZEN, OFFICER);
         allow("GET /api/identity/citizens/{id}", CITIZEN, OFFICER, REVIEWER);

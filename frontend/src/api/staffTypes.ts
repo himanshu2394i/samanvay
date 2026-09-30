@@ -285,3 +285,13 @@ export interface DepartmentManifest {
   documents: ManifestDocument[]
   journeys: ManifestJourney[]
 }
+
+// --- data source health (live connectivity probe / monitoring) ---
+export interface DataSourceHealth {
+  code: string
+  departmentCode: string
+  protocol: string
+  baseHost: string
+  healthStatus: string
+  detail: string | null
+}
