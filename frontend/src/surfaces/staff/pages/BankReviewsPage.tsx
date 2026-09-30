@@ -36,7 +36,7 @@ export function BankReviewsPage() {
       ) : null}
       {action.error ? <ErrorNotice error={action.error} /> : null}
 
-      {reviews.status === 'loading' ? <Loading label="Loading reviews" /> : null}
+      {reviews.status === 'loading' ? <Loading variant="table" label="Loading reviews" /> : null}
       {reviews.status === 'error' ? <ErrorNotice error={reviews.error} onRetry={reviews.reload} /> : null}
       {reviews.status === 'success' ? (
         reviews.data.length === 0 ? (

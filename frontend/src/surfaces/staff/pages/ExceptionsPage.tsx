@@ -35,7 +35,7 @@ export function ExceptionsPage() {
       ) : null}
       {action.error ? <ErrorNotice error={action.error} /> : null}
 
-      {queue.status === 'loading' ? <Loading label="Loading the exception queue" /> : null}
+      {queue.status === 'loading' ? <Loading variant="table" label="Loading the exception queue" /> : null}
       {queue.status === 'error' ? <ErrorNotice error={queue.error} onRetry={queue.reload} /> : null}
       {queue.status === 'success' ? (
         queue.data.length === 0 ? (

@@ -65,7 +65,7 @@ export function ApplicationsReviewPage() {
         </button>
       </div>
 
-      {apps.status === 'loading' ? <Loading label="Loading applications" /> : null}
+      {apps.status === 'loading' ? <Loading variant="table" label="Loading applications" /> : null}
       {apps.status === 'error' ? <ErrorNotice error={apps.error} onRetry={apps.reload} /> : null}
       {apps.status === 'success' ? (
         rows.length === 0 ? (
