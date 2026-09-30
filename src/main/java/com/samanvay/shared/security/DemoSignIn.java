@@ -72,10 +72,16 @@ class DemoSignIn {
 
     String mint(String role) {
         DemoUser u = userFor(role);
+        // Citizens get a fresh identity on every sign-in, so the "connect a department" step always
+        // starts clean (nothing linked yet) and one session never inherits another's connections.
+        // Staff keep a stable identity (a shared operator view is fine and carries no personal links).
+        String subject = u.roles().contains("citizen")
+                ? u.username() + "-" + java.util.UUID.randomUUID().toString().substring(0, 8)
+                : u.username();
         Instant now = Instant.now();
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                 .issuer(u.issuer())
-                .subject(u.username())
+                .subject(subject)
                 .audience("samanvay-api")
                 .jwtID(java.util.UUID.randomUUID().toString()) // the session proof consent binds a grant to (like a Keycloak jti)
                 .issueTime(Date.from(now))
