@@ -12,6 +12,7 @@ describe('admin: catalog view', () => {
     { method: 'GET', path: '/api/catalog/journeys', reply: { body: [SCHOLARSHIP, DRAFT_JOURNEY] } },
     { method: 'GET', path: '/api/catalog/departments', reply: { body: DEPARTMENTS } },
     { method: 'GET', path: '/api/catalog/connectors', reply: { body: [connector] } },
+    { method: 'GET', path: '/api/catalog/data-sources', reply: { body: [] } },
   ]
 
   it('shows journeys, departments and connectors', async () => {
