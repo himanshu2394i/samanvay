@@ -330,11 +330,44 @@ nav a[aria-current='page'] {
 }
 .hero {
   padding-block: var(--sp-5) var(--sp-3);
+  display: grid;
+  gap: var(--sp-5) var(--sp-6);
+  align-items: start;
+}
+/* On wide screens the hero balances into two columns: the message on the left,
+   a calm assurance panel on the right. Below this it stacks to one column. */
+@media (min-width: 60rem) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) 21rem;
+  }
 }
 .hero h1 {
   font-size: 2.2rem;
   line-height: 1.15;
   max-width: 38rem;
+}
+/* landing assurance panel — reinforces the privacy thesis, never a status notice */
+.assurance h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+.assurance ul {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+.assurance li {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  gap: var(--sp-2);
+  color: var(--muted);
+}
+.assurance li::before {
+  content: '\2713'; /* check mark — a symbol, not an emoji */
+  color: var(--ok);
+  font-weight: 700;
 }
 
 .card {
@@ -621,6 +654,16 @@ input[aria-invalid='true'] {
 }
 .steps .done {
   color: var(--ok);
+}
+/* a rejected application's terminal step: distinct from the blue "current" and green "done" */
+.steps .bad {
+  color: var(--bad);
+  font-weight: 700;
+}
+.steps .bad .n {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--accent-ink);
 }
 
 .timeline {

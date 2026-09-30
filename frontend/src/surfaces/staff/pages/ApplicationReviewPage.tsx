@@ -88,7 +88,10 @@ export function ApplicationReviewPage() {
         </div>
         <div className="fact">
           <dt>Citizen</dt>
-          <dd className="mono">{app.citizenId}</dd>
+          <dd>
+            <span className="mono">{app.citizenId}</span>{' '}
+            <Link to={`/staff/officer/citizens/${encodeURIComponent(app.citizenId)}`}>Citizen file</Link>
+          </dd>
         </div>
       </dl>
 

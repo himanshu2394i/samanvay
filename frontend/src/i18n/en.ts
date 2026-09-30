@@ -38,6 +38,10 @@ export const en = {
   'landing.signInToStart': 'Sign in to start',
   'landing.signInHint':
     'Sign in with a one-time code sent to your email, or with a passkey. There is no password.',
+  'landing.assure.title': 'Your records stay where they are',
+  'landing.assure.point1': 'Fetched only after you agree — never before.',
+  'landing.assure.point2': 'Never stored by Samanvay; the department stays the source.',
+  'landing.assure.point3': 'You can withdraw a consent at any time.',
   'landing.howItWorks': 'How it works',
   'landing.step1.title': 'Browse services',
   'landing.step1.text': 'See what each government service needs before you start.',
