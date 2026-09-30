@@ -255,6 +255,36 @@ describe('officer: application review', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Approve application' })).toBeDisabled())
   })
 
+  it('rejects a non-terminal application: needs a reason, then posts and reloads', async () => {
+    let view = { ...applicationView } // PARTIALLY_VERIFIED — non-terminal, so rejectable
+    const m = mockFetch([
+      { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: () => ({ body: view }) },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/journeys/exceptions', reply: { body: [] } },
+      {
+        method: 'POST',
+        path: `/api/journeys/instances/${INSTANCE_ID}/reject`,
+        reply: () => {
+          view = { ...view, status: 'REJECTED' }
+          return { body: { instanceId: INSTANCE_ID, status: 'REJECTED' } }
+        },
+      },
+    ])
+    renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
+    // A blank reason is refused client-side, before any POST.
+    await userEvent.click(await screen.findByRole('button', { name: 'Reject application' }))
+    expect(screen.getByText('A reason is required to reject.')).toBeInTheDocument()
+    expect(m.find('POST', /reject/)).toHaveLength(0)
+    // With a reason it posts and reloads to REJECTED.
+    await userEvent.type(screen.getByLabelText('Reason (required to reject)'), 'documents forged')
+    await userEvent.click(screen.getByRole('button', { name: 'Reject application' }))
+    expect(await screen.findByText('Application rejected.')).toBeInTheDocument()
+    expect(m.find('POST', `/api/journeys/instances/${INSTANCE_ID}/reject`)[0]?.body).toEqual({ reason: 'documents forged' })
+    // Now terminal, so reject is no longer offered.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Reject application' })).not.toBeInTheDocument())
+  })
+
   it('shows a plain message when approval is refused with a 409', async () => {
     const m = mockFetch([
       { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: { ...applicationView, status: 'VERIFIED' } } },

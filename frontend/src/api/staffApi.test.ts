@@ -15,6 +15,7 @@ describe('staff API endpoints', () => {
     ['getInstance', (a) => a.getInstance(ID), 'GET', `/api/journeys/instances/${ID}`, undefined],
     ['retryInstance', (a) => a.retryInstance(ID), 'POST', `/api/journeys/instances/${ID}/retry`, undefined],
     ['approveApplication', (a) => a.approveApplication(ID), 'POST', `/api/journeys/instances/${ID}/approve`, undefined],
+    ['rejectApplication', (a) => a.rejectApplication(ID, 'documents forged'), 'POST', `/api/journeys/instances/${ID}/reject`, { reason: 'documents forged' }],
     ['listBankReviews', (a) => a.listBankReviews(), 'GET', '/api/officer/bank-reviews', undefined],
     ['requestDocument', (a) => a.requestDocument(ID), 'POST', `/api/officer/bank-reviews/${ID}/request-document`, undefined],
     ['approveBankReview', (a) => a.approveBankReview(ID, 'looks right'), 'POST', `/api/officer/bank-reviews/${ID}/approve`, { reason: 'looks right' }],
