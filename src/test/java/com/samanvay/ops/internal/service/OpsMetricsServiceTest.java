@@ -206,7 +206,8 @@ class OpsMetricsServiceTest {
 
         JsonNode json = JsonMapper.builder().build().valueToTree(service.metrics());
 
-        assertThat(json.propertyNames()).contains("generatedAt", "connector", "sla", "consent", "exceptionQueue");
+        assertThat(json.propertyNames())
+                .contains("generatedAt", "connector", "sla", "consent", "exceptionQueue", "notifications");
         assertThat(json.get("generatedAt").asString()).isEqualTo("2026-09-29T10:00:00Z");
         JsonNode source = json.get("connector").get("sources").get(0);
         assertThat(source.get("source").asString()).isEqualTo("revenue-rest-mock");
@@ -217,5 +218,28 @@ class OpsMetricsServiceTest {
         assertThat(json.get("consent").get("denialsByReason").get(0).get("reason").asString()).isEqualTo("NO_CONSENT");
         assertThat(json.get("exceptionQueue").get("oldest").get(0).get("stepCode").asString()).isEqualTo("INCOME");
         assertThat(json.toString()).doesNotContain("NaN");
+    }
+
+    // ---- notification delivery health
+
+    @Test
+    void notificationsReportsDeliveryAndRetryOutcomes() {
+        OpsMetrics.countNotificationDelivery(meters, "EMAIL", OpsMetrics.OUTCOME_SENT);
+        OpsMetrics.countNotificationDelivery(meters, "EMAIL", OpsMetrics.OUTCOME_SENT);
+        OpsMetrics.countNotificationDelivery(meters, "EMAIL", OpsMetrics.OUTCOME_FAILED);
+        OpsMetrics.countNotificationRetry(meters, "EMAIL", OpsMetrics.OUTCOME_SENT);
+
+        var n = service.notifications();
+
+        assertThat(n.sent()).isEqualTo(2);
+        assertThat(n.failed()).isEqualTo(1);
+        assertThat(n.retriedSent()).isEqualTo(1);
+        assertThat(n.retriedFailed()).isEqualTo(0);
+        assertThat(n.sentRate()).isCloseTo(2.0 / 3, within(1e-9));
+    }
+
+    @Test
+    void notificationsSentRateIsNullBeforeAnyDelivery() {
+        assertThat(service.notifications().sentRate()).isNull();
     }
 }
