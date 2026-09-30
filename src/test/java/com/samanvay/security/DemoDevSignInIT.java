@@ -34,9 +34,7 @@ class DemoDevSignInIT extends PostgresIntegrationTest {
         // an admin token is accepted and can read the staff-only connectors list
         String adminToken = mint("admin");
         // the token carries a jti (session proof) — consent grants require one (ConsentController)
-        String payload = new String(
-                java.util.Base64.getUrlDecoder().decode(adminToken.split("\\.")[1]), java.nio.charset.StandardCharsets.UTF_8);
-        assertThat(payload).contains("\"jti\"");
+        assertThat(payload(adminToken)).contains("\"jti\"");
         RestClient asAdmin = as(adminToken);
         assertThat(status(asAdmin, "/api/catalog/connectors")).isEqualTo(200);
 
@@ -46,10 +44,24 @@ class DemoDevSignInIT extends PostgresIntegrationTest {
         assertThat(status(asCitizen, "/api/catalog/connectors")).isEqualTo(403);
     }
 
+    @Test
+    void everyCitizenDemoSignInIsAFreshIdentity() {
+        String subA = payload(mint("citizen"));
+        String subB = payload(mint("citizen"));
+        // each citizen sign-in gets a distinct subject, so the "connect a department" step starts clean
+        assertThat(subA).contains("\"sub\":\"demo-citizen-");
+        assertThat(subA).isNotEqualTo(subB);
+    }
+
     private String mint(String role) {
         Map<?, ?> body = TestHttp.anonymous().post().uri(url("/ui/demo-signin"))
                 .contentType(MediaType.APPLICATION_JSON).body(Map.of("role", role)).retrieve().body(Map.class);
         return (String) body.get("access_token");
+    }
+
+    private static String payload(String jwt) {
+        return new String(
+                java.util.Base64.getUrlDecoder().decode(jwt.split("\\.")[1]), java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static RestClient as(String token) {
