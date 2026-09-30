@@ -20,7 +20,7 @@ class ReviewerDigestBatchingTest {
             pending.add(new CandidateRaised(UUID.randomUUID(), UUID.randomUUID(), "FIRE", 0.7));
         }
         NotificationDispatcher dispatcher = mock(NotificationDispatcher.class);
-        ScheduledJobs jobs = new ScheduledJobs(pending, dispatcher, mock(DeliveryRepository.class));
+        ScheduledJobs jobs = new ScheduledJobs(pending, dispatcher, mock(DeliveryRepository.class), 5);
         jobs.sendReviewerDigest();
         verify(dispatcher, times(1)).dispatchDirect(eq("CandidateDigest"), eq("identity-reviewers"), any(), any());
     }
