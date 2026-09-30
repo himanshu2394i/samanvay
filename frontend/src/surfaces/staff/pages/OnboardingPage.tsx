@@ -5,11 +5,16 @@ import type {
   ConnectorDefinition,
   ConnectorTestReport,
   DataSourceDefinition,
+  DepartmentManifest,
   ImportPreview,
 } from '../../../api/staffTypes'
 import type { Department } from '../../../api/types'
+import type { StaffApi } from '../../../api/staffApi'
+import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { Field } from '../../../ui/Field'
+import { Loading } from '../../../ui/Loading'
+import { humanize } from '../../../ui/format'
 import { TextArea } from '../../../ui/TextArea'
 import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
@@ -67,6 +72,10 @@ export function OnboardingPage() {
         Register a department and its data source, describe what the connector fetches, approve the field matches, then test and publish.
         Published connectors appear in the <Link to="/staff/admin/catalog">catalog</Link>.
       </p>
+
+      <DiscoverPanel />
+
+      <h2 className="spaced">Or onboard step by step</h2>
       <ol className="steps" aria-label="Onboarding steps">
         {STEPS.map((s, i) => (
           <li key={s.id} className={i < step ? 'done' : i === step ? 'now' : ''} aria-current={i === step ? 'step' : undefined}>
@@ -660,5 +669,191 @@ function PublishStep({
         </>
       )}
     </StepShell>
+  )
+}
+
+// --- Discover from URL --------------------------------------------------------------------
+// Reads a department's published capability manifest and, in one action, registers the
+// department + a data source and draft connector per document it holds. The admin then
+// finishes the field mapping, test and publish for each connector in the wizard below.
+async function onboardFromManifest(api: StaffApi, m: DepartmentManifest, baseUrl: string): Promise<number> {
+  const host = new URL(baseUrl.trim()).host
+  await api.registerDepartment({
+    code: m.department.code,
+    name: m.department.name,
+    idpRealm: 'samanvay-department',
+    contactEmail: `${m.department.code.toLowerCase()}@dept.samanvay.invalid`,
+    defaultSlaMs: 3000,
+  })
+  let drafted = 0
+  for (const doc of m.documents) {
+    const dsCode = `ds-${m.department.code}-${doc.category}`.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    await api.registerDataSource({
+      code: dsCode,
+      departmentCode: m.department.code,
+      protocol: doc.protocol,
+      baseHost: host,
+      authType: 'NONE',
+      authConfigRef: 'secret:none',
+    })
+    const capabilities = JSON.stringify({
+      FETCH: { endpoint: doc.path, mapping_ref: `map-${dsCode}@1`, output_schema: '', error_paths: [] },
+    })
+    const inputs = JSON.stringify(doc.inputs.map((inp) => ({ name: inp.name, from: 'link.localIdToken', required: inp.required })))
+    await api.createConnectorDraft({
+      connectorId: `conn-${dsCode}`,
+      dataSourceCode: dsCode,
+      category: { code: doc.category },
+      capabilitiesJson: capabilities,
+      inputsJson: inputs,
+      slaMs: 3000,
+    })
+    drafted += 1
+  }
+  return drafted
+}
+
+function DiscoverPanel() {
+  const api = useStaffApi()
+  const discover = useAction()
+  const onboard = useAction()
+  const [url, setUrl] = useState('')
+  const [manifest, setManifest] = useState<DepartmentManifest | null>(null)
+  const [result, setResult] = useState<string | null>(null)
+
+  async function runDiscover(e: FormEvent) {
+    e.preventDefault()
+    setManifest(null)
+    setResult(null)
+    let m: DepartmentManifest | undefined
+    const ok = await discover.run('discover', async () => {
+      m = await api.discover(url.trim())
+    }, 'Manifest read.')
+    if (ok && m) setManifest(m)
+  }
+
+  async function runOnboard() {
+    if (!manifest) return
+    let n = 0
+    const ok = await onboard.run('onboard', async () => {
+      n = await onboardFromManifest(api, manifest, url)
+    }, '')
+    if (ok) setResult(`Registered ${manifest.department.name} and drafted ${n} connector${n === 1 ? '' : 's'}.`)
+  }
+
+  return (
+    <div className="card spaced" aria-labelledby="discover-h">
+      <h2 id="discover-h" style={{ marginTop: 0 }}>
+        Discover a department from its URL
+      </h2>
+      <p className="hint">
+        Enter a department&rsquo;s base URL. Samanvay reads its published capability manifest and lists the documents it
+        holds and the journeys it offers, so you can onboard it without hand-typing each one.
+      </p>
+      <form className="inline-form" onSubmit={(e) => void runDiscover(e)}>
+        <Field
+          label="Department base URL"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          required
+          autoComplete="off"
+          placeholder="https://dbt.example.gov"
+          hint="Samanvay reads {URL}/.well-known/samanvay/manifest"
+        />
+        <button type="submit" className="btn primary" disabled={discover.busy !== null}>
+          {discover.busy ? 'Reading…' : 'Discover'}
+        </button>
+      </form>
+      {discover.busy ? <Loading variant="table" label="Reading the manifest" /> : null}
+      {discover.error ? <ErrorNotice error={discover.error} /> : null}
+
+      {manifest ? (
+        <div className="spaced">
+          <dl className="facts">
+            <div className="fact">
+              <dt>Department</dt>
+              <dd>
+                <strong>{manifest.department.name}</strong> <span className="mono">{manifest.department.code}</span>
+              </dd>
+            </div>
+            {manifest.department.description ? (
+              <div className="fact">
+                <dt>About</dt>
+                <dd>{manifest.department.description}</dd>
+              </div>
+            ) : null}
+          </dl>
+
+          <h3 className="spaced">Documents it holds ({manifest.documents.length})</h3>
+          {manifest.documents.length === 0 ? (
+            <p>This department publishes no documents.</p>
+          ) : (
+            <ul className="stack">
+              {manifest.documents.map((d) => (
+                <li key={d.category} className="card">
+                  <h3 style={{ marginTop: 0 }}>
+                    {d.title} <Badge tone="neutral">{humanize(d.category)}</Badge>
+                  </h3>
+                  <p className="hint">
+                    {d.protocol} {d.method} <span className="mono">{d.path}</span>
+                    {d.inputs.length ? ` · needs ${d.inputs.map((i) => i.name).join(', ')}` : ''}
+                  </p>
+                  <ul className="plain chips" aria-label={`Fields in ${d.title}`}>
+                    {d.fields.map((f) => (
+                      <li key={f.name}>
+                        <Badge tone={f.sensitive ? 'warn' : 'neutral'}>
+                          {f.name}
+                          {f.sensitive ? ' · personal' : ''}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {manifest.journeys.length ? (
+            <>
+              <h3 className="spaced">Journeys it offers ({manifest.journeys.length})</h3>
+              <ul className="stack">
+                {manifest.journeys.map((j) => (
+                  <li key={j.code} className="card">
+                    <h3 style={{ marginTop: 0 }}>
+                      {j.name} <span className="mono">{j.code}</span>
+                    </h3>
+                    {j.description ? <p className="hint">{j.description}</p> : null}
+                    <p>Requires: {j.requiredCategories.map(humanize).join(', ')}</p>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+
+          {onboard.error ? <ErrorNotice error={onboard.error} /> : null}
+          {result ? (
+            <div className="notice ok" role="status">
+              <p>
+                {result} <Link to="/staff/admin/catalog">See it in the catalog</Link>. Finish the field mapping, test and
+                publish for each connector in the steps below.
+              </p>
+            </div>
+          ) : (
+            <div className="actions">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => void runOnboard()}
+                disabled={onboard.busy !== null || manifest.documents.length === 0}
+              >
+                {onboard.busy
+                  ? 'Registering…'
+                  : `Register ${manifest.department.name} and draft ${manifest.documents.length} connector${manifest.documents.length === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
   )
 }

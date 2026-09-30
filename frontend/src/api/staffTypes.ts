@@ -251,3 +251,37 @@ export interface ConnectorTestReport {
   passed: boolean
   failures: string[]
 }
+
+// --- department discovery manifest (GET {baseUrl}/.well-known/samanvay/manifest) ---
+export interface ManifestInput {
+  name: string
+  in: string
+  required: boolean
+  description: string | null
+}
+export interface ManifestField {
+  name: string
+  type: string
+  sensitive: boolean
+}
+export interface ManifestDocument {
+  category: string
+  title: string
+  protocol: string
+  method: string
+  path: string
+  inputs: ManifestInput[]
+  fields: ManifestField[]
+}
+export interface ManifestJourney {
+  code: string
+  name: string
+  description: string | null
+  requiredCategories: string[]
+}
+export interface DepartmentManifest {
+  manifestVersion: number
+  department: { code: string; name: string; description: string | null }
+  documents: ManifestDocument[]
+  journeys: ManifestJourney[]
+}

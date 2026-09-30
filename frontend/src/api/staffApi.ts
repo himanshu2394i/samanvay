@@ -10,6 +10,7 @@ import type {
   DataSourceDefinition,
   DataSourceDraft,
   DepartmentDraft,
+  DepartmentManifest,
   IdentityCandidate,
   ImportPreview,
   JourneyException,
@@ -83,6 +84,8 @@ export function createStaffApi(client: ApiClient) {
     createConnectorDraft: (draft: ConnectorDraft) => client.post<ConnectorDefinition>('/api/catalog/connectors', draft),
     /** Preview only: suggests lexical matches and never saves or publishes anything. */
     importOpenApi: (body: OpenApiImportRequest) => client.post<ImportPreview>('/api/catalog/import/openapi', body),
+    /** Fetch a department's published capability manifest so it can be onboarded from just a base URL. */
+    discover: (baseUrl: string) => client.post<DepartmentManifest>('/api/catalog/discover', { baseUrl }),
     saveMapping: (draft: MappingDraft) => client.post<MappingDraft>('/api/catalog/mappings', draft),
     testConnector: (ref: string) => client.post<ConnectorTestReport>(`/api/catalog/connectors/${enc(ref)}/test`),
     publishConnector: (ref: string, report: ConnectorTestReport) =>
