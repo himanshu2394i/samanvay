@@ -1,7 +1,9 @@
 package com.samanvay.catalog.internal.service;
 
 import com.samanvay.catalog.api.Capability;
+import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
+import com.samanvay.catalog.api.DepartmentManifest;
 import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
@@ -33,8 +35,14 @@ import com.samanvay.catalog.internal.repository.JourneyRepository;
 import com.samanvay.catalog.internal.repository.MappingRepository;
 import com.samanvay.catalog.internal.repository.SchemaRepository;
 import com.samanvay.shared.DataCategory;
+import com.samanvay.shared.InvalidRequestException;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -46,9 +54,14 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
-class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCatalog, CatalogOnboarding {
+class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCatalog, CatalogOnboarding, CatalogDiscovery {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    // Lenient: a department may add manifest fields we do not model yet.
+    private static final JsonMapper MANIFEST_JSON =
+            JsonMapper.builder().configure(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).build();
+    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(6)).build();
+    private static final String MANIFEST_PATH = "/.well-known/samanvay/manifest";
 
     private final DepartmentRepository departments;
     private final DataSourceRepository dataSources;
@@ -303,6 +316,38 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
                 e.getAuthConfigRef(),
                 e.getRetryConfig(),
                 e.getBreakerConfig());
+    }
+
+    @Override
+    public DepartmentManifest discover(String baseUrl) {
+        String base = InvalidRequestException.requireText(baseUrl, "baseUrl").trim().replaceAll("/+$", "");
+        URI uri;
+        try {
+            uri = URI.create(base + MANIFEST_PATH);
+        } catch (RuntimeException e) {
+            throw new InvalidRequestException("baseUrl is not a valid URL");
+        }
+        if (uri.getScheme() == null || uri.getHost() == null) {
+            throw new InvalidRequestException("baseUrl must include a scheme and host, for example https://dept.example.gov");
+        }
+        hosts.assertAllowed(uri.getHost()); // same SSRF guard as a data source: no private/loopback targets
+        try {
+            HttpResponse<String> resp = HTTP.send(
+                    HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8)).header("Accept", "application/json").GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                throw new InvalidRequestException("No Samanvay manifest at " + uri + " (HTTP " + resp.statusCode() + ")");
+            }
+            DepartmentManifest m = MANIFEST_JSON.readValue(resp.body(), DepartmentManifest.class);
+            if (m == null || m.department() == null || m.documents() == null) {
+                throw new InvalidRequestException("The response at " + uri + " is not a Samanvay manifest");
+            }
+            return m;
+        } catch (InvalidRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new InvalidRequestException("Could not read a Samanvay manifest at " + uri + ": " + e.getMessage());
+        }
     }
 
     private static InetAddress resolveHost(String host) {

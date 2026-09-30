@@ -3,8 +3,10 @@ package com.samanvay.catalog.internal.web;
 import static com.samanvay.shared.InvalidRequestException.requirePresent;
 import static com.samanvay.shared.InvalidRequestException.requireText;
 
+import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
 import com.samanvay.catalog.api.ConnectorCatalog;
+import com.samanvay.catalog.api.DepartmentManifest;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
 import com.samanvay.catalog.api.ConnectorTestReport;
@@ -36,6 +38,7 @@ class CatalogController {
     private final JourneyCatalog journeys;
     private final ConnectorCatalog connectors;
     private final CatalogOnboarding onboarding;
+    private final CatalogDiscovery discovery;
     private final SpecImport importer;
     private final SchemaCatalog schemas;
 
@@ -44,12 +47,14 @@ class CatalogController {
             JourneyCatalog journeys,
             ConnectorCatalog connectors,
             CatalogOnboarding onboarding,
+            CatalogDiscovery discovery,
             SpecImport importer,
             SchemaCatalog schemas) {
         this.departments = departments;
         this.journeys = journeys;
         this.connectors = connectors;
         this.onboarding = onboarding;
+        this.discovery = discovery;
         this.importer = importer;
         this.schemas = schemas;
     }
@@ -117,6 +122,14 @@ class CatalogController {
     List<String> schemaRefs() {
         return schemas.refs();
     }
+
+    @PostMapping("/discover")
+    DepartmentManifest discover(@RequestBody DiscoverBody body) {
+        requireText(body.baseUrl(), "baseUrl");
+        return discovery.discover(body.baseUrl());
+    }
+
+    record DiscoverBody(String baseUrl) {}
 
     @PostMapping("/import/openapi")
     ImportPreview importOpenApi(@RequestBody ImportBody body) {
