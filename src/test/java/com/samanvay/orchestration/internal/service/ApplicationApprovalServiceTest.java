@@ -14,8 +14,10 @@ import com.samanvay.audit.api.ActorType;
 import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.orchestration.api.ApplicationNotApprovableException;
+import com.samanvay.orchestration.api.ApplicationNotRejectableException;
 import com.samanvay.orchestration.api.ApplicationStateChanged;
 import com.samanvay.orchestration.api.InstanceNotFoundException;
+import com.samanvay.shared.InvalidRequestException;
 import com.samanvay.orchestration.internal.domain.InstanceEntity;
 import com.samanvay.orchestration.internal.repository.InstanceRepository;
 import java.util.Optional;
@@ -28,6 +30,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class ApplicationApprovalServiceTest {
 
     private static final String MOVE = "UPDATE orchestration_instance SET status = ? WHERE id = ? AND status = ?";
+    private static final String REJECT_MOVE =
+            "UPDATE orchestration_instance SET status = ? WHERE id = ? AND status NOT IN ('APPROVED','REJECTED','CLOSED')";
     private static final String READ = "SELECT status FROM orchestration_instance WHERE id = ?";
 
     private final InstanceRepository instances = mock(InstanceRepository.class);
@@ -103,5 +107,75 @@ class ApplicationApprovalServiceTest {
     @Test
     void notApprovableIs409() {
         assertThat(new ApplicationNotApprovableException(app, "REJECTED").status()).isEqualTo(409);
+    }
+
+    @Test
+    void aNonTerminalApplicationBecomesRejectedPublishesTheEventAndAuditsWithTheReason() {
+        instanceExists();
+        when(jdbc.update(REJECT_MOVE, "REJECTED", app)).thenReturn(1);
+
+        assertThat(service.reject(app, "officer-9", "documents forged")).isEqualTo("REJECTED");
+
+        verify(events).publishEvent(new ApplicationStateChanged(app, "REJECTED"));
+        ArgumentCaptor<AuditEntry> entry = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit).record(entry.capture());
+        assertThat(entry.getValue().action()).isEqualTo("APPLICATION_REJECTED");
+        assertThat(entry.getValue().actorType()).isEqualTo(ActorType.OFFICER);
+        assertThat(entry.getValue().actorId()).isEqualTo("officer-9");
+        assertThat(entry.getValue().subjectId()).isEqualTo(citizen.toString());
+        assertThat(entry.getValue().meta())
+                .containsEntry("applicationId", app.toString())
+                .containsEntry("journeyCode", "SOME_JOURNEY")
+                .containsEntry("reason", "documents forged");
+    }
+
+    @Test
+    void rejectingARejectedApplicationIsANoOp() {
+        instanceExists();
+        when(jdbc.update(REJECT_MOVE, "REJECTED", app)).thenReturn(0);
+        when(jdbc.queryForObject(READ, String.class, app)).thenReturn("REJECTED");
+
+        assertThat(service.reject(app, "officer-9", "any reason")).isEqualTo("REJECTED");
+
+        verifyNoInteractions(events, audit);
+    }
+
+    @Test
+    void terminalApplicationsAreNotRejectable() {
+        for (String status : new String[] {"APPROVED", "CLOSED"}) {
+            instanceExists();
+            when(jdbc.update(REJECT_MOVE, "REJECTED", app)).thenReturn(0);
+            when(jdbc.queryForObject(READ, String.class, app)).thenReturn(status);
+
+            assertThatThrownBy(() -> service.reject(app, "officer-9", "too late"))
+                    .isInstanceOf(ApplicationNotRejectableException.class)
+                    .hasMessageContaining(status);
+        }
+        verify(events, never()).publishEvent(any(Object.class));
+        verifyNoInteractions(audit);
+    }
+
+    @Test
+    void aBlankReasonIsRejectedAsBadInputBeforeAnyStateChange() {
+        assertThatThrownBy(() -> service.reject(app, "officer-9", "  "))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("reason");
+        assertThat(new InvalidRequestException("reason is required").status()).isEqualTo(400);
+        verify(jdbc, never()).update(eq(REJECT_MOVE), any(), any());
+        verifyNoInteractions(events, audit);
+    }
+
+    @Test
+    void anUnknownApplicationIsNotRejectable404() {
+        when(instances.findById(app)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.reject(app, "officer-9", "reason"))
+                .isInstanceOf(InstanceNotFoundException.class);
+        verify(jdbc, never()).update(eq(REJECT_MOVE), any(), any());
+        verifyNoInteractions(events, audit);
+    }
+
+    @Test
+    void notRejectableIs409() {
+        assertThat(new ApplicationNotRejectableException(app, "APPROVED").status()).isEqualTo(409);
     }
 }

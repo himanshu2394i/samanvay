@@ -5,10 +5,12 @@ import com.samanvay.audit.api.AuditEntry;
 import com.samanvay.audit.api.AuditService;
 import com.samanvay.audit.api.Outcome;
 import com.samanvay.orchestration.api.ApplicationNotApprovableException;
+import com.samanvay.orchestration.api.ApplicationNotRejectableException;
 import com.samanvay.orchestration.api.ApplicationStateChanged;
 import com.samanvay.orchestration.api.InstanceNotFoundException;
 import com.samanvay.orchestration.internal.domain.InstanceEntity;
 import com.samanvay.orchestration.internal.repository.InstanceRepository;
+import com.samanvay.shared.InvalidRequestException;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,6 +36,8 @@ public class ApplicationApprovalService {
     static final String VERIFIED = "VERIFIED";
     static final String APPROVED = "APPROVED";
     static final String ACTION = "APPLICATION_APPROVED";
+    static final String REJECTED = "REJECTED";
+    static final String REJECT_ACTION = "APPLICATION_REJECTED";
 
     private final InstanceRepository instances;
     private final JdbcTemplate jdbc;
@@ -84,5 +88,57 @@ public class ApplicationApprovalService {
                 Map.of("applicationId", instanceId.toString(), "journeyCode", instance.getJourneyCode())));
         events.publishEvent(new ApplicationStateChanged(instanceId, APPROVED));
         return APPROVED;
+    }
+
+    /**
+     * The officer's other disposition: a non-terminal application becomes REJECTED, terminal. Publishes
+     * {@link ApplicationStateChanged}{@code (instanceId, "REJECTED")}; {@code DisbursementOnApproval}
+     * acts only on APPROVED, so a rejection never disburses. The {@code reason} is recorded in the audit
+     * entry's metadata (no schema change).
+     *
+     * <p>Rejectable from any non-terminal status (SUBMITTED, PARTIALLY_VERIFIED, VERIFIED); the terminal
+     * states (APPROVED, REJECTED, CLOSED) are not. Idempotent and race-safe like {@link #approve}: one
+     * conditional UPDATE, so a repeat sees REJECTED and is a no-op (no second event or audit row).
+     *
+     * @param officer the rejecting officer's token subject
+     * @param reason required, non-blank; recorded in the audit metadata
+     * @return the application's status after the call: always {@code REJECTED}
+     * @throws InvalidRequestException the reason is blank (400)
+     * @throws InstanceNotFoundException no such application
+     * @throws ApplicationNotRejectableException the application is already terminal
+     */
+    @Transactional
+    public String reject(UUID instanceId, String officer, String reason) {
+        String cleanReason = InvalidRequestException.requireText(reason, "reason");
+        InstanceEntity instance = instances.findById(instanceId).orElseThrow(InstanceNotFoundException::new);
+        int moved = jdbc.update(
+                "UPDATE orchestration_instance SET status = ? WHERE id = ? AND status NOT IN ('APPROVED','REJECTED','CLOSED')",
+                REJECTED,
+                instanceId);
+        if (moved == 0) {
+            String current = jdbc.queryForObject(
+                    "SELECT status FROM orchestration_instance WHERE id = ?", String.class, instanceId);
+            if (REJECTED.equals(current)) {
+                return REJECTED; // already rejected: no second event, no second audit row
+            }
+            throw new ApplicationNotRejectableException(instanceId, current);
+        }
+        audit.record(new AuditEntry(
+                ActorType.OFFICER,
+                officer,
+                REJECT_ACTION,
+                instance.getCitizenId().toString(),
+                "application",
+                null,
+                null,
+                null,
+                Outcome.ALLOWED,
+                null,
+                Map.of(
+                        "applicationId", instanceId.toString(),
+                        "journeyCode", instance.getJourneyCode(),
+                        "reason", cleanReason)));
+        events.publishEvent(new ApplicationStateChanged(instanceId, REJECTED));
+        return REJECTED;
     }
 }

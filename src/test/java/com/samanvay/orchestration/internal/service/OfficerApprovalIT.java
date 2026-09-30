@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
@@ -45,7 +46,7 @@ class OfficerApprovalIT extends PostgresIntegrationTest {
         assertThat(d).as("the approval event drove the disbursement listener").isPresent();
         assertThat(d.get().journeyCode()).isEqualTo("SOME_JOURNEY");
         assertThat(d.get().instalments()).isNotEmpty();
-        assertThat(awaitTrackingStatus(app)).isEqualTo("APPROVED");
+        assertThat(awaitTrackingStatus(app, "APPROVED")).isEqualTo("APPROVED");
         assertThat(auditCount(app)).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                         "SELECT actor_id FROM audit.audit_entry WHERE action = 'APPLICATION_APPROVED' AND meta->>'applicationId' = ?",
@@ -83,11 +84,83 @@ class OfficerApprovalIT extends PostgresIntegrationTest {
         assertThat(approve(TestTokens.officer("officer-approve-3"), UUID.randomUUID())).isEqualTo(404);
     }
 
+    @Test
+    void rejectingANonTerminalApplicationSetsRejectedWithoutDisbursingAndIsIdempotent() throws Exception {
+        UUID app = application("SUBMITTED");
+
+        assertThat(reject(TestTokens.officer("officer-reject-1"), app, "{\"reason\":\"documents forged\"}")).isEqualTo(200);
+
+        assertThat(orchestrationStatus(app)).isEqualTo("REJECTED");
+        assertThat(awaitTrackingStatus(app, "REJECTED")).isEqualTo("REJECTED");
+        assertThat(rejectAuditCount(app)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT meta->>'reason' FROM audit.audit_entry WHERE action = 'APPLICATION_REJECTED'"
+                                + " AND meta->>'applicationId' = ?",
+                        String.class, app.toString()))
+                .isEqualTo("documents forged");
+        // Rejection publishes the same event as approval, but DisbursementOnApproval acts only on APPROVED.
+        Thread.sleep(500);
+        assertThat(disbursements.forApplication(app)).as("a rejection never disburses").isEmpty();
+
+        // A repeat is a no-op: still 200, no second audit row.
+        assertThat(reject(TestTokens.officer("officer-reject-2"), app, "{\"reason\":\"again\"}")).isEqualTo(200);
+        Thread.sleep(300);
+        assertThat(rejectAuditCount(app)).isEqualTo(1);
+    }
+
+    @Test
+    void onlyOfficersMayReject() {
+        UUID app = application("VERIFIED");
+        String body = "{\"reason\":\"nope\"}";
+        assertThat(reject(TestTokens.citizen("citizen-" + UUID.randomUUID()), app, body)).isEqualTo(403);
+        assertThat(reject(TestTokens.reviewer("reviewer-1"), app, body)).isEqualTo(403);
+        assertThat(reject(TestTokens.admin("admin-1"), app, body)).isEqualTo(403);
+        assertThat(reject(null, app, body)).isEqualTo(401);
+        assertThat(orchestrationStatus(app)).isEqualTo("VERIFIED");
+        assertThat(rejectAuditCount(app)).isZero();
+    }
+
+    @Test
+    void terminalApplicationsCannotBeRejected() {
+        for (String status : new String[] {"APPROVED", "CLOSED"}) {
+            UUID app = application(status);
+            assertThat(reject(TestTokens.officer("officer-reject-3"), app, "{\"reason\":\"too late\"}"))
+                    .as(status)
+                    .isEqualTo(409);
+            assertThat(orchestrationStatus(app)).isEqualTo(status);
+            assertThat(rejectAuditCount(app)).isZero();
+        }
+        assertThat(reject(TestTokens.officer("officer-reject-3"), UUID.randomUUID(), "{\"reason\":\"x\"}")).isEqualTo(404);
+    }
+
+    @Test
+    void aBlankReasonIs400() {
+        UUID app = application("VERIFIED");
+        assertThat(reject(TestTokens.officer("officer-reject-4"), app, "{\"reason\":\"  \"}")).isEqualTo(400);
+        assertThat(orchestrationStatus(app)).isEqualTo("VERIFIED");
+        assertThat(rejectAuditCount(app)).isZero();
+    }
+
     private int approve(String token, UUID app) {
         RestClient http = token == null ? TestHttp.anonymous() : TestHttp.as(token);
         return http.post()
                 .uri("http://localhost:" + port + "/api/journeys/instances/" + app + "/approve")
                 .exchange((rq, rs) -> rs.getStatusCode().value());
+    }
+
+    private int reject(String token, UUID app, String jsonBody) {
+        RestClient http = token == null ? TestHttp.anonymous() : TestHttp.as(token);
+        return http.post()
+                .uri("http://localhost:" + port + "/api/journeys/instances/" + app + "/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(jsonBody)
+                .exchange((rq, rs) -> rs.getStatusCode().value());
+    }
+
+    private int rejectAuditCount(UUID app) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM audit.audit_entry WHERE action = 'APPLICATION_REJECTED' AND meta->>'applicationId' = ?",
+                Integer.class, app.toString());
     }
 
     /** An orchestration instance plus its tracking projection, both at {@code status}. */
@@ -126,11 +199,11 @@ class OfficerApprovalIT extends PostgresIntegrationTest {
         return Optional.empty();
     }
 
-    private String awaitTrackingStatus(UUID app) throws InterruptedException {
+    private String awaitTrackingStatus(UUID app, String target) throws InterruptedException {
         String status = null;
         for (int i = 0; i < 100; i++) {
             status = jdbc.queryForObject("SELECT status FROM tracking_application WHERE id = ?", String.class, app);
-            if ("APPROVED".equals(status)) {
+            if (target.equals(status)) {
                 break;
             }
             Thread.sleep(100);
