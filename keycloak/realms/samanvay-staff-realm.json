@@ -306,15 +306,17 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "http://localhost:8080/*",
-        "http://localhost:5173/*"
+        "http://localhost:5173/*",
+        "https://app.3.109.201.126.nip.io/*"
       ],
       "webOrigins": [
         "http://localhost:8080",
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "https://app.3.109.201.126.nip.io"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:8080/*##http://localhost:5173/*"
+        "post.logout.redirect.uris": "http://localhost:8080/*##http://localhost:5173/*##https://app.3.109.201.126.nip.io/*"
       },
       "defaultClientScopes": [
         "basic",
