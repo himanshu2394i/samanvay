@@ -32,9 +32,18 @@ public final class OpsMetrics {
     /** Gauge (seconds): age of the oldest open exception, 0 when the queue is empty. */
     public static final String EXCEPTIONS_OLDEST_AGE = "samanvay.exceptions.oldest.age";
 
+    /** Counter: first-attempt notification deliveries, tags {@code channel} and {@code outcome} (sent/failed). */
+    public static final String NOTIFICATION_DELIVERY = "samanvay.notifications.delivery";
+
+    /** Counter: notification delivery retries, tags {@code channel} and {@code outcome} (sent/failed). */
+    public static final String NOTIFICATION_RETRY = "samanvay.notifications.retry";
+
     public static final String TAG_SOURCE = "source";
     public static final String TAG_OUTCOME = "outcome";
     public static final String TAG_REASON = "reason";
+    public static final String TAG_CHANNEL = "channel";
+    public static final String OUTCOME_SENT = "sent";
+    public static final String OUTCOME_FAILED = "failed";
 
     public static final String OUTCOME_SUCCESS = "success";
     public static final String OUTCOME_FAILURE = "failure";
@@ -58,6 +67,16 @@ public final class OpsMetrics {
     /** Counts a source call that never reached the adapter (chaos kill, no adapter): no latency to record. */
     public static void countConnectorCall(MeterRegistry meters, String source, String outcome) {
         meters.counter(CONNECTOR_CALLS, TAG_SOURCE, source, TAG_OUTCOME, outcome).increment();
+    }
+
+    /** Counts a first-attempt notification delivery ({@code outcome}: sent/failed) on a channel. */
+    public static void countNotificationDelivery(MeterRegistry meters, String channel, String outcome) {
+        meters.counter(NOTIFICATION_DELIVERY, TAG_CHANNEL, channel, TAG_OUTCOME, outcome).increment();
+    }
+
+    /** Counts a notification delivery retry ({@code outcome}: sent/failed) on a channel. */
+    public static void countNotificationRetry(MeterRegistry meters, String channel, String outcome) {
+        meters.counter(NOTIFICATION_RETRY, TAG_CHANNEL, channel, TAG_OUTCOME, outcome).increment();
     }
 
     private static Timer exchangeTimer(MeterRegistry meters, String source, String outcome) {
