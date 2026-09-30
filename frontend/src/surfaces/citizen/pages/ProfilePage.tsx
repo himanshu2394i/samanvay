@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useCitizenApi } from '../../../api/apiContext'
 import type { ProfileDraft } from '../../../api/types'
+import { useT } from '../../../i18n'
 import { Field } from '../../../ui/Field'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { Loading } from '../../../ui/Loading'
@@ -16,42 +17,40 @@ export function ProfilePage() {
 
 function ProfileView({ citizenId }: { citizenId: string }) {
   const api = useCitizenApi()
+  const t = useT()
   const { setCitizenId } = useCitizen()
   const profile = useAsync(() => api.getProfile(citizenId), citizenId)
 
   return (
     <section className="card narrow" aria-labelledby="profile-h">
-      <h1 id="profile-h">My details</h1>
-      {profile.status === 'loading' ? <Loading label="Loading your details" /> : null}
+      <h1 id="profile-h">{t('profile.myDetails')}</h1>
+      {profile.status === 'loading' ? <Loading label={t('profile.loading')} /> : null}
       {profile.status === 'error' ? (
         <>
           <ErrorNotice error={profile.error} onRetry={profile.reload} />
-          <p className="hint">
-            If this record no longer exists (for example after the development database was reset), forget it here and
-            enter your details again.
-          </p>
+          <p className="hint">{t('profile.recordGoneHint')}</p>
           <button type="button" className="btn" onClick={() => setCitizenId(null)}>
-            Forget saved record
+            {t('profile.forgetRecord')}
           </button>
         </>
       ) : null}
       {profile.status === 'success' ? (
         <dl className="facts">
-          <dt>Name</dt>
+          <dt>{t('profile.name')}</dt>
           <dd>{profile.data.nameLatin}</dd>
           {profile.data.nameDevanagari ? (
             <>
-              <dt>Name (Devanagari)</dt>
+              <dt>{t('profile.nameDevanagari')}</dt>
               <dd lang="mr">{profile.data.nameDevanagari}</dd>
             </>
           ) : null}
           {profile.data.fatherName ? (
             <>
-              <dt>Father&rsquo;s name</dt>
+              <dt>{t('profile.fatherName')}</dt>
               <dd>{profile.data.fatherName}</dd>
             </>
           ) : null}
-          <dt>Date of birth</dt>
+          <dt>{t('profile.dob')}</dt>
           <dd>{formatDate(profile.data.dob)}</dd>
         </dl>
       ) : null}
@@ -61,6 +60,7 @@ function ProfileView({ citizenId }: { citizenId: string }) {
 
 function RegisterForm() {
   const api = useCitizenApi()
+  const t = useT()
   const { setCitizenId } = useCitizen()
   const navigate = useNavigate()
   const location = useLocation()
@@ -80,7 +80,7 @@ function RegisterForm() {
     e.preventDefault()
     setError(null)
     if (dob && new Date(dob).getTime() > Date.now()) {
-      setDobError('Date of birth cannot be in the future.')
+      setDobError(t('register.dobFuture'))
       return
     }
     setDobError(null)
@@ -108,24 +108,21 @@ function RegisterForm() {
 
   return (
     <section className="card narrow" aria-labelledby="register-h">
-      <h1 id="register-h">Your details</h1>
-      <p>
-        Tell us who you are once. Departments use these details to match your records, and never to decide for you.
-        If you have registered before, submitting this form finds your existing record.
-      </p>
+      <h1 id="register-h">{t('register.title')}</h1>
+      <p>{t('register.intro')}</p>
       <form onSubmit={(e) => void onSubmit(e)}>
-        <Field label="Given name" value={given} onChange={(e) => setGiven(e.target.value)} required autoComplete="given-name" />
-        <Field label="Family name" value={family} onChange={(e) => setFamily(e.target.value)} required autoComplete="family-name" />
-        <Field label="Father's name" value={father} onChange={(e) => setFather(e.target.value)} hint="Optional. Helps match older records." />
+        <Field label={t('register.givenName')} value={given} onChange={(e) => setGiven(e.target.value)} required autoComplete="given-name" />
+        <Field label={t('register.familyName')} value={family} onChange={(e) => setFamily(e.target.value)} required autoComplete="family-name" />
+        <Field label={t('register.fatherName')} value={father} onChange={(e) => setFather(e.target.value)} hint={t('register.fatherNameHint')} />
         <Field
-          label="Name in Devanagari"
+          label={t('register.nameDevanagari')}
           value={devanagari}
           onChange={(e) => setDevanagari(e.target.value)}
           lang="mr"
-          hint="Optional."
+          hint={t('register.optional')}
         />
         <Field
-          label="Date of birth"
+          label={t('register.dob')}
           type="date"
           value={dob}
           onChange={(e) => setDob(e.target.value)}
@@ -134,17 +131,17 @@ function RegisterForm() {
           error={dobError}
         />
         <div className="field">
-          <label htmlFor="gender">Gender</label>
+          <label htmlFor="gender">{t('register.gender')}</label>
           <select id="gender" value={gender} onChange={(e) => setGender(e.target.value)}>
-            <option value="">Prefer not to say</option>
-            <option value="F">Female</option>
-            <option value="M">Male</option>
-            <option value="O">Other</option>
+            <option value="">{t('register.genderPreferNot')}</option>
+            <option value="F">{t('register.genderFemale')}</option>
+            <option value="M">{t('register.genderMale')}</option>
+            <option value="O">{t('register.genderOther')}</option>
           </select>
         </div>
         {error ? <ErrorNotice error={error} /> : null}
         <button type="submit" className="btn primary" disabled={busy} aria-busy={busy || undefined}>
-          {busy ? 'Saving…' : 'Save and continue'}
+          {busy ? t('register.saving') : t('register.saveContinue')}
         </button>
       </form>
     </section>

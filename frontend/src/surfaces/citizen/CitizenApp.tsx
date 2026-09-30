@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
+import { LanguageProvider } from '../../i18n'
 import { CitizenLayout } from './CitizenLayout'
 import { ProtectedArea, RequireProfile } from './guards'
 import { LandingPage } from './pages/LandingPage'
@@ -18,22 +19,24 @@ import { NotFoundPage } from './pages/NotFoundPage'
  */
 export function CitizenApp() {
   return (
-    <Routes>
-      <Route element={<CitizenLayout />}>
-        <Route index element={<LandingPage />} />
-        <Route element={<ProtectedArea />}>
-          <Route path="services" element={<ServicesPage />} />
-          <Route path="services/:code" element={<ServicePage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="applications/:ref" element={<ApplicationPage />} />
-          <Route element={<RequireProfile />}>
-            <Route path="services/:code/apply" element={<ApplyPage />} />
-            <Route path="applications" element={<ApplicationsPage />} />
-            <Route path="consents" element={<ConsentsPage />} />
+    <LanguageProvider>
+      <Routes>
+        <Route element={<CitizenLayout />}>
+          <Route index element={<LandingPage />} />
+          <Route element={<ProtectedArea />}>
+            <Route path="services" element={<ServicesPage />} />
+            <Route path="services/:code" element={<ServicePage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="applications/:ref" element={<ApplicationPage />} />
+            <Route element={<RequireProfile />}>
+              <Route path="services/:code/apply" element={<ApplyPage />} />
+              <Route path="applications" element={<ApplicationsPage />} />
+              <Route path="consents" element={<ConsentsPage />} />
+            </Route>
           </Route>
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+      </Routes>
+    </LanguageProvider>
   )
 }

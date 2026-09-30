@@ -1,9 +1,14 @@
+import type { TFunction } from '../../../i18n'
+import { enT } from '../../../i18n'
 import { humanize } from './format'
 
 export type Tone = 'ok' | 'warn' | 'bad'
 
 export interface StatusCopy {
   tone: Tone
+  /** Short label for a badge (e.g. "Submitted"). */
+  short: string
+  /** Full sentence a citizen can act on. */
   label: string
   /** True once nothing more will change, so screens can stop polling. */
   final: boolean
@@ -13,37 +18,48 @@ export interface StatusCopy {
  * Application status codes written by tracking / orchestration (SUBMITTED,
  * PARTIALLY_VERIFIED, VERIFIED, APPROVED, REJECTED; CLOSED and FAILED are accepted too), in
  * words a citizen can act on. VERIFIED is not final: the page keeps polling until the officer
- * decides (APPROVED / REJECTED / CLOSED).
+ * decides (APPROVED / REJECTED / CLOSED). `t` localizes the copy; it defaults to English so
+ * this stays usable outside a LanguageProvider.
  */
-export function applicationStatus(code: string): StatusCopy {
+export function applicationStatus(code: string, t: TFunction = enT): StatusCopy {
   switch (code) {
     case 'SUBMITTED':
-      return { tone: 'warn', label: 'Submitted: your application was received and checks are starting', final: false }
+      return { tone: 'warn', short: t('status.submitted.short'), label: t('status.submitted.long'), final: false }
     case 'PARTIALLY_VERIFIED':
-      return { tone: 'warn', label: 'In progress: some department records are still awaited', final: false }
+      return {
+        tone: 'warn',
+        short: t('status.partiallyVerified.short'),
+        label: t('status.partiallyVerified.long'),
+        final: false,
+      }
     case 'VERIFIED':
-      return { tone: 'ok', label: "Records verified — awaiting the officer's decision", final: false }
+      return { tone: 'ok', short: t('status.verified.short'), label: t('status.verified.long'), final: false }
     case 'APPROVED':
-      return { tone: 'ok', label: 'Approved: your application was approved', final: true }
+      return { tone: 'ok', short: t('status.approved.short'), label: t('status.approved.long'), final: true }
     case 'CLOSED':
-      return { tone: 'ok', label: 'Completed: this application is closed', final: true }
+      return { tone: 'ok', short: t('status.closed.short'), label: t('status.closed.long'), final: true }
     case 'REJECTED':
-      return { tone: 'bad', label: 'Needs action: this application was not approved', final: true }
+      return { tone: 'bad', short: t('status.rejected.short'), label: t('status.rejected.long'), final: true }
     case 'FAILED':
-      return { tone: 'bad', label: 'Needs action: a department record could not be fetched', final: true }
+      return { tone: 'bad', short: t('status.failed.short'), label: t('status.failed.long'), final: true }
     default:
-      return { tone: 'warn', label: `In progress: ${humanize(code)}`, final: false }
+      return {
+        tone: 'warn',
+        short: t('status.inProgress.short'),
+        label: t('status.inProgress.long', { detail: humanize(code) }),
+        final: false,
+      }
   }
 }
 
-export function stepStatus(code: string): { tone: Tone; label: string } {
+export function stepStatus(code: string, t: TFunction = enT): { tone: Tone; label: string } {
   switch (code) {
     case 'COMPLETED':
-      return { tone: 'ok', label: 'Received' }
+      return { tone: 'ok', label: t('step.completed') }
     case 'PENDING_SOURCE':
-      return { tone: 'warn', label: 'Waiting for the department' }
+      return { tone: 'warn', label: t('step.pendingSource') }
     case 'FAILED':
-      return { tone: 'bad', label: 'Could not be fetched, needs action' }
+      return { tone: 'bad', label: t('step.failed') }
     default:
       return { tone: 'warn', label: humanize(code) }
   }
