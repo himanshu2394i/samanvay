@@ -15,6 +15,8 @@ export function describeError(e: unknown): string {
         return 'That department ID is already linked to another person.'
       case 'NO_PRIOR_AWARD':
         return 'This service needs an approved award from the previous year, and none was found for you.'
+      case 'APPLICATION_NOT_APPROVABLE':
+        return "This application can't be approved yet — a department record is still pending."
     }
     switch (e.status) {
       case 0:

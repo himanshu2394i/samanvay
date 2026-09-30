@@ -5,6 +5,7 @@ import { ApiError } from '../../../api/client'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { Loading } from '../../../ui/Loading'
+import { StatusStepper } from '../../../ui/StatusStepper'
 import { useAsync } from '../../../ui/useAsync'
 import { formatDate, humanize } from '../lib/format'
 import { applicationStatus, stepStatus } from '../lib/status'
@@ -17,13 +18,15 @@ export function ApplicationPage() {
   const api = useCitizenApi()
   const data = useAsync(
     async () => {
-      const [application, steps, records] = await Promise.all([
+      const [application, steps, records, disbursement] = await Promise.all([
         api.getApplication(ref),
         api.getApplicationSteps(ref),
         // A preview that fails must not hide the application itself.
         api.getIssuedRecords(ref).catch(() => null),
+        // Absent (204 -> undefined) until sanctioned; a failure just hides the panel.
+        api.getDisbursement(ref).catch(() => undefined),
       ])
-      return { application, steps, records }
+      return { application, steps, records, disbursement }
     },
     ref,
   )
@@ -56,7 +59,7 @@ export function ApplicationPage() {
     )
   }
 
-  const { application, steps, records } = data.data
+  const { application, steps, records, disbursement } = data.data
   const st = applicationStatus(application.status)
   return (
     <section aria-labelledby="app-h">
@@ -66,9 +69,44 @@ export function ApplicationPage() {
       <h1 id="app-h">
         Application <span className="mono">{application.referenceNo}</span>
       </h1>
+      <StatusStepper status={application.status} />
       <p className={`notice ${st.tone}`} role="status">
         {st.label}
       </p>
+      {disbursement ? (
+        <section className="card" aria-labelledby="sanction-h" role="status">
+          <h2 id="sanction-h">Application sanctioned</h2>
+          <dl className="facts">
+            <div className="fact">
+              <dt>Disbursement</dt>
+              <dd>
+                <Badge tone="ok">{humanize(disbursement.status)}</Badge>
+              </dd>
+            </div>
+            <div className="fact">
+              <dt>Instalments</dt>
+              <dd>{disbursement.instalmentCount}</dd>
+            </div>
+            <div className="fact">
+              <dt>Sanctioned on</dt>
+              <dd>{formatDate(disbursement.createdAt) || 'n/a'}</dd>
+            </div>
+          </dl>
+          <ol className="timeline">
+            {disbursement.instalments.map((it) => {
+              const is = stepStatus(it.status)
+              return (
+                <li key={it.sequence}>
+                  <div>
+                    <strong>Instalment {it.sequence}</strong>
+                  </div>
+                  <Badge tone={is.tone}>{is.label}</Badge>
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+      ) : null}
       <dl className="facts">
         <dt>Service</dt>
         <dd>{humanize(application.journeyCode)}</dd>

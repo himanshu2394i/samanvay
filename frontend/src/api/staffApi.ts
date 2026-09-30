@@ -55,11 +55,9 @@ export function createStaffApi(client: ApiClient) {
     getApplicationSteps: (referenceNo: string) => client.get<StepView[]>(`/api/applications/${enc(referenceNo)}/steps`),
     getIssuedRecords: (referenceNo: string) =>
       client.get<IssuedRecord[]>(`/api/applications/${enc(referenceNo)}/issued-records`),
-    // TODO(approve): no application approval endpoint exists on main yet (only bank-account
-    // reviews have approve/reject), so none is called. Open PR #55 proposes
-    // POST /api/journeys/instances/{instanceId}/approve (OFFICER; VERIFIED only, else 409).
-    // Once it merges, add `approveApplication(instanceId)` here and enable the marked button in
-    // ApplicationReviewPage. Not called from anywhere today.
+    /** Approve a VERIFIED application (VERIFIED→APPROVED, terminal); a 409 otherwise. */
+    approveApplication: (instanceId: Uuid) =>
+      client.post<{ instanceId: string; status: string }>(`/api/journeys/instances/${enc(instanceId)}/approve`),
 
     // --- officer + admin: ops dashboards (OpsMetricsController; OFFICER, ADMIN) ---
     getMetrics: () => client.get<OpsMetrics>('/api/ops/metrics'),

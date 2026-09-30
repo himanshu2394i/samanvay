@@ -11,8 +11,9 @@ export interface StatusCopy {
 
 /**
  * Application status codes written by tracking / orchestration (SUBMITTED,
- * PARTIALLY_VERIFIED, VERIFIED, REJECTED; CLOSED and FAILED are accepted too), in words
- * a citizen can act on.
+ * PARTIALLY_VERIFIED, VERIFIED, APPROVED, REJECTED; CLOSED and FAILED are accepted too), in
+ * words a citizen can act on. VERIFIED is not final: the page keeps polling until the officer
+ * decides (APPROVED / REJECTED / CLOSED).
  */
 export function applicationStatus(code: string): StatusCopy {
   switch (code) {
@@ -21,7 +22,9 @@ export function applicationStatus(code: string): StatusCopy {
     case 'PARTIALLY_VERIFIED':
       return { tone: 'warn', label: 'In progress: some department records are still awaited', final: false }
     case 'VERIFIED':
-      return { tone: 'ok', label: 'Verified: department records were received for your application', final: true }
+      return { tone: 'ok', label: "Records verified — awaiting the officer's decision", final: false }
+    case 'APPROVED':
+      return { tone: 'ok', label: 'Approved: your application was approved', final: true }
     case 'CLOSED':
       return { tone: 'ok', label: 'Completed: this application is closed', final: true }
     case 'REJECTED':

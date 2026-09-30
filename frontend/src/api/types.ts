@@ -195,6 +195,23 @@ export interface IssuedField {
   value: string
 }
 
+/** One instalment of a disbursement schedule. */
+export interface DisbursementInstalment {
+  sequence: number
+  status: string
+}
+
+/**
+ * A sanctioned application's disbursement (GET /api/applications/{ref}/disbursement). Absent
+ * (204) until the application is disbursed. Carries no money amount: the mock DBT holds none.
+ */
+export interface Disbursement {
+  status: string
+  createdAt: string
+  instalmentCount: number
+  instalments: DisbursementInstalment[]
+}
+
 /** A department record as it looks right now (GET /api/applications/{ref}/issued-records). Never stored by Samanvay. */
 export interface IssuedRecord {
   stepCode: string
