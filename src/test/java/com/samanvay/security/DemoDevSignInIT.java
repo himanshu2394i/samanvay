@@ -32,7 +32,12 @@ class DemoDevSignInIT extends PostgresIntegrationTest {
     @Test
     void demoSignInMintsRoleTokensTheApiAcceptsAndScopesByRole() {
         // an admin token is accepted and can read the staff-only connectors list
-        RestClient asAdmin = as(mint("admin"));
+        String adminToken = mint("admin");
+        // the token carries a jti (session proof) — consent grants require one (ConsentController)
+        String payload = new String(
+                java.util.Base64.getUrlDecoder().decode(adminToken.split("\\.")[1]), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(payload).contains("\"jti\"");
+        RestClient asAdmin = as(adminToken);
         assertThat(status(asAdmin, "/api/catalog/connectors")).isEqualTo(200);
 
         // a citizen token is accepted (journeys read) but not for the staff-only connectors list
