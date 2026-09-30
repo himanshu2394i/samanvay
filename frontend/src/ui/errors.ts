@@ -1,35 +1,43 @@
 import { ApiError, AuthRequiredError } from '../api/client'
+import { enT, type TFunction } from '../i18n'
 
-/** Citizen-readable message for anything the API layer can throw. */
-export function describeError(e: unknown): string {
-  if (e instanceof AuthRequiredError) return 'Your session has ended. Sign in again to continue.'
+/**
+ * Citizen-readable message for anything the API layer can throw. `t` localizes the copy for
+ * the citizen surface; it defaults to English so the staff surfaces (no LanguageProvider) and
+ * any non-UI caller keep working unchanged. Raw server messages (403/fallback) pass through
+ * untranslated.
+ */
+export function describeError(e: unknown, t: TFunction = enT): string {
+  if (e instanceof AuthRequiredError) return t('errors.sessionEnded')
   if (e instanceof ApiError) {
     switch (e.reason) {
       case 'MISSING_DEPARTMENT_LINKS': {
         const missing = e.problem?.missingDepartments ?? []
-        return `Connect your ${missing.length ? missing.join(', ') : 'department'} account${missing.length === 1 ? '' : 's'} before submitting.`
+        const departments = missing.length ? missing.join(', ') : t('errors.departmentWord')
+        const accounts = missing.length === 1 ? t('errors.accountOne') : t('errors.accountMany')
+        return t('errors.missingDepartments', { departments, accounts })
       }
       case 'LINK_PROOF_INVALID':
-        return 'That verification was not accepted. Check the details and try again.'
+        return t('errors.linkProofInvalid')
       case 'DUPLICATE_LOCAL_ID':
-        return 'That department ID is already linked to another person.'
+        return t('errors.duplicateLocalId')
       case 'NO_PRIOR_AWARD':
-        return 'This service needs an approved award from the previous year, and none was found for you.'
+        return t('errors.noPriorAward')
       case 'APPLICATION_NOT_APPROVABLE':
-        return "This application can't be approved yet — a department record is still pending."
+        return t('errors.notApprovable')
     }
     switch (e.status) {
       case 0:
-        return 'The Samanvay service could not be reached. Check that the application is running and try again.'
+        return t('errors.unreachable')
       case 401:
-        return 'Your session has ended. Sign in again to continue.'
+        return t('errors.sessionEnded')
       case 403:
-        return e.message && e.message !== 'Forbidden' ? e.message : 'You are not allowed to do that.'
+        return e.message && e.message !== 'Forbidden' ? e.message : t('errors.forbidden')
       case 404:
-        return 'Nothing was found for that request.'
+        return t('errors.notFound')
     }
-    if (e.status >= 500) return 'The service could not complete that request. Try again in a moment.'
-    return e.message.length > 200 ? 'The request could not be completed. Try again.' : e.message
+    if (e.status >= 500) return t('errors.serverError')
+    return e.message.length > 200 ? t('errors.generic') : e.message
   }
-  return e instanceof Error && e.message ? e.message : 'Something went wrong. Try again.'
+  return e instanceof Error && e.message ? e.message : t('errors.somethingWrong')
 }

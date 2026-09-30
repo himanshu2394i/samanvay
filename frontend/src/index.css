@@ -275,6 +275,39 @@ nav a[aria-current='page'] {
   color: var(--muted);
   font-size: 0.95rem;
 }
+/* citizen language toggle: two segmented buttons, current choice pressed */
+.identity .lang-toggle {
+  margin-inline-start: auto;
+}
+.lang-toggle {
+  display: inline-flex;
+  gap: 0;
+  border: 1.5px solid var(--brand);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.lang-toggle button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.7rem;
+  min-height: 2rem;
+  border: 0;
+  background: var(--paper);
+  color: var(--brand);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.lang-toggle button + button {
+  border-inline-start: 1.5px solid var(--brand);
+}
+.lang-toggle button:hover:not(.active) {
+  background: color-mix(in srgb, var(--brand) 10%, var(--paper));
+}
+.lang-toggle button.active {
+  background: var(--brand);
+  color: var(--accent-ink);
+}
 
 .site-footer {
   padding-block: var(--sp-5);

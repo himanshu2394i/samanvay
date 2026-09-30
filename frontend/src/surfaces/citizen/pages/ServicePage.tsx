@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useCitizenApi } from '../../../api/apiContext'
+import { useT } from '../../../i18n'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { Loading } from '../../../ui/Loading'
 import { useAsync } from '../../../ui/useAsync'
@@ -8,6 +9,7 @@ import { humanize } from '../lib/format'
 export function ServicePage() {
   const { code = '' } = useParams()
   const api = useCitizenApi()
+  const t = useT()
   const data = useAsync(
     async () => {
       const [journey, departments] = await Promise.all([api.getJourney(code), api.listDepartments().catch(() => [])])
@@ -16,7 +18,7 @@ export function ServicePage() {
     code,
   )
 
-  if (data.status === 'loading') return <Loading label="Loading service" />
+  if (data.status === 'loading') return <Loading label={t('service.loading')} />
   if (data.status === 'error') return <ErrorNotice error={data.error} onRetry={data.reload} />
 
   const { journey, departments } = data.data
@@ -29,10 +31,10 @@ export function ServicePage() {
   return (
     <section aria-labelledby="service-h">
       <p>
-        <Link to="/services">All services</Link>
+        <Link to="/services">{t('service.allServices')}</Link>
       </p>
       <h1 id="service-h">{journey.name}</h1>
-      <h2>What we will fetch, and from whom</h2>
+      <h2>{t('service.whatWeFetch')}</h2>
       <ul className="plain">
         {[...byDept.entries()].map(([dept, categories]) => (
           <li key={dept}>
@@ -41,11 +43,11 @@ export function ServicePage() {
         ))}
       </ul>
       <p className="hint">
-        You will be asked for consent for this purpose: <code>{journey.policy.purpose}</code>. Your application is
-        targeted for a decision within {journey.policy.slaHours} hours.
+        {t('service.consentPurposePrefix')} <code>{journey.policy.purpose}</code>.{' '}
+        {t('service.consentSla', { hours: journey.policy.slaHours })}
       </p>
       <Link className="btn primary" to={`/services/${encodeURIComponent(journey.code)}/apply`}>
-        Apply for this service
+        {t('service.apply')}
       </Link>
     </section>
   )

@@ -1,25 +1,24 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../../auth/authContext'
+import { useT } from '../../../i18n'
 
-const STEPS = [
-  ['Browse services', 'See what each government service needs before you start.'],
-  ['Connect department accounts', 'Link the departments that hold your records, once.'],
-  ['Give consent', 'Say exactly which records may be fetched, and for what purpose.'],
-  ['Submit', 'We fetch the records for you: no document uploads.'],
-  ['Track', 'Follow each department check until your application is decided.'],
-]
+const STEP_KEYS = [
+  ['landing.step1.title', 'landing.step1.text'],
+  ['landing.step2.title', 'landing.step2.text'],
+  ['landing.step3.title', 'landing.step3.text'],
+  ['landing.step4.title', 'landing.step4.text'],
+  ['landing.step5.title', 'landing.step5.text'],
+] as const
 
 export function LandingPage() {
   const { status, signIn, notice } = useAuth()
+  const t = useT()
   return (
     <>
       <section className="hero">
-        <span className="eyebrow">Government of Maharashtra · citizen services</span>
-        <h1>Apply for government services without carrying papers</h1>
-        <p className="lede">
-          Samanvay fetches the records a service needs directly from the departments that hold them, only after you say
-          yes.
-        </p>
+        <span className="eyebrow">{t('landing.eyebrow')}</span>
+        <h1>{t('landing.title')}</h1>
+        <p className="lede">{t('landing.lede')}</p>
         {notice ? (
           <p className="notice warn" role="alert">
             {notice}
@@ -27,24 +26,24 @@ export function LandingPage() {
         ) : null}
         {status === 'authenticated' ? (
           <Link className="btn primary" to="/services">
-            Browse services
+            {t('landing.browseServices')}
           </Link>
         ) : (
           <>
             <button type="button" className="btn primary" onClick={() => void signIn('/services')}>
-              Sign in to start
+              {t('landing.signInToStart')}
             </button>
-            <p className="hint">Sign in with a one-time code sent to your email, or with a passkey. There is no password.</p>
+            <p className="hint">{t('landing.signInHint')}</p>
           </>
         )}
       </section>
       <section aria-labelledby="how">
-        <h2 id="how">How it works</h2>
+        <h2 id="how">{t('landing.howItWorks')}</h2>
         <ol className="how">
-          {STEPS.map(([title, text]) => (
-            <li key={title}>
-              <strong>{title}</strong>
-              <span>{text}</span>
+          {STEP_KEYS.map(([titleKey, textKey]) => (
+            <li key={titleKey}>
+              <strong>{t(titleKey)}</strong>
+              <span>{t(textKey)}</span>
             </li>
           ))}
         </ol>

@@ -1,0 +1,243 @@
+// The citizen surface's English strings. This object is the source of truth for the set of
+// translation keys: `mr.ts` must provide the same keys (enforced by the `Dictionary` type),
+// and `t(key)` is typed to `keyof typeof en`. Values may contain {named} placeholders that
+// `t(key, params)` substitutes. Keep keys grouped by page and dotted for readability.
+export const en = {
+  // --- language toggle ---------------------------------------------------------------------
+  'language.label': 'Language',
+  'language.english': 'English',
+  'language.marathi': 'मराठी',
+  'language.englishAria': 'English',
+  'language.marathiAria': 'Marathi',
+
+  // --- layout ------------------------------------------------------------------------------
+  'layout.skipToMain': 'Skip to main content',
+  'layout.govOfMaharashtra': 'Government of Maharashtra',
+  'layout.demoBuild': 'Demo build',
+  'layout.citizenServices': 'Citizen services',
+  'layout.navMain': 'Main',
+  'layout.signOut': 'Sign out',
+  'layout.signIn': 'Sign in',
+  'layout.footerConsent':
+    'Samanvay connects you to government departments only with your consent. Development build: departments and sign-in providers are mocks.',
+  'layout.footerStaffLink': 'Staff consoles',
+  'layout.footerStaffRest': '(officers, reviewers and administrators sign in separately)',
+
+  // --- navigation --------------------------------------------------------------------------
+  'nav.services': 'Services',
+  'nav.applications': 'My applications',
+  'nav.consents': 'My consents',
+  'nav.profile': 'My details',
+
+  // --- landing page ------------------------------------------------------------------------
+  'landing.eyebrow': 'Government of Maharashtra · citizen services',
+  'landing.title': 'Apply for government services without carrying papers',
+  'landing.lede':
+    'Samanvay fetches the records a service needs directly from the departments that hold them, only after you say yes.',
+  'landing.browseServices': 'Browse services',
+  'landing.signInToStart': 'Sign in to start',
+  'landing.signInHint':
+    'Sign in with a one-time code sent to your email, or with a passkey. There is no password.',
+  'landing.howItWorks': 'How it works',
+  'landing.step1.title': 'Browse services',
+  'landing.step1.text': 'See what each government service needs before you start.',
+  'landing.step2.title': 'Connect department accounts',
+  'landing.step2.text': 'Link the departments that hold your records, once.',
+  'landing.step3.title': 'Give consent',
+  'landing.step3.text': 'Say exactly which records may be fetched, and for what purpose.',
+  'landing.step4.title': 'Submit',
+  'landing.step4.text': 'We fetch the records for you: no document uploads.',
+  'landing.step5.title': 'Track',
+  'landing.step5.text': 'Follow each department check until your application is decided.',
+
+  // --- services list -----------------------------------------------------------------------
+  'services.title': 'Services',
+  'services.lede': 'Choose a service to see what it needs and to apply.',
+  'services.loading': 'Loading services',
+  'services.none': 'No services are open for applications right now.',
+  'services.recordsNeeded': 'Records needed: {categories}.',
+  'services.decisionTarget': 'Decision target: within {hours} hours.',
+  'services.viewDetails': 'View details',
+
+  // --- single service ----------------------------------------------------------------------
+  'service.loading': 'Loading service',
+  'service.allServices': 'All services',
+  'service.whatWeFetch': 'What we will fetch, and from whom',
+  'service.consentPurposePrefix': 'You will be asked for consent for this purpose:',
+  'service.consentSla': 'Your application is targeted for a decision within {hours} hours.',
+  'service.apply': 'Apply for this service',
+
+  // --- apply wizard ------------------------------------------------------------------------
+  'apply.loading': 'Loading service',
+  'apply.backToService': 'Back to service details',
+  'apply.title': 'Apply: {name}',
+  'apply.stepsLabel': 'Application steps',
+  'apply.step.connect': 'Connect accounts',
+  'apply.step.consent': 'Give consent',
+  'apply.step.submit': 'Submit',
+
+  'connect.heading': 'Connect your department accounts',
+  'connect.introOne': 'This service needs records from {count} department. Connect it once by proving the account is yours.',
+  'connect.introMany':
+    'This service needs records from {count} departments. Connect each one once by proving the account is yours.',
+  'connect.checking': 'Checking your connected accounts',
+  'connect.connectedCount': 'Connected {linked} of {total}',
+  'connect.continue': 'Continue to consent',
+  'connect.connectAllHint': 'Connect every department above to continue.',
+
+  'dept.connected': 'Connected',
+  'dept.notConnected': 'Not connected',
+  'dept.provides': 'Provides: {categories}.',
+  'dept.noProvider': 'No supported way to connect this account is available right now.',
+  'dept.offeredByServer': '(Offered by the server: {providers}.)',
+  'dept.howProve': 'How do you want to prove it?',
+  'dept.idType': 'ID type',
+  'dept.idTypeHint': 'For example RATION, or the department name.',
+  'dept.yourId': 'Your ID with this department',
+  'dept.oneTimeCode': 'One-time code',
+  'dept.otpHint': 'Development build: the demo code is 000000.',
+  'dept.digilockerHint': 'Development build: this uses the DigiLocker sandbox, not the live DigiLocker.',
+  'dept.connecting': 'Connecting…',
+  'dept.connect': 'Connect {name}',
+
+  'consent.heading': 'Give your consent',
+  'consent.grantedPrefix': 'Consent granted. It is valid until {date} and you can withdraw it at any time from',
+  'consent.grantedSuffix': '.',
+  'consent.askingSuffix': 'is asking to fetch these records about you:',
+  'consent.purpose': 'Purpose:',
+  'consent.granting': 'Granting…',
+  'consent.agree': 'I agree: grant consent',
+  'consent.reviewIntro':
+    'Before we fetch anything, we will show you exactly who is asking, which records, and why. Nothing is shared until you agree.',
+  'consent.preparing': 'Preparing…',
+  'consent.review': 'Review what will be shared',
+  'consent.back': 'Back',
+  'consent.continue': 'Continue to submit',
+
+  'submit.heading': 'Submit your application',
+  'submit.introPrefix': 'We will now fetch the records you agreed to share and start the checks for',
+  'submit.introSuffix': '.',
+  'submit.slowPrefix': 'Your application was submitted, but its number is not ready yet. Check',
+  'submit.slowSuffix': 'in a moment.',
+  'submit.back': 'Back',
+  'submit.submitting': 'Submitting…',
+  'submit.checkNumber': 'Check for my application number',
+  'submit.submit': 'Submit application',
+
+  // --- profile / register ------------------------------------------------------------------
+  'profile.myDetails': 'My details',
+  'profile.loading': 'Loading your details',
+  'profile.recordGoneHint':
+    'If this record no longer exists (for example after the development database was reset), forget it here and enter your details again.',
+  'profile.forgetRecord': 'Forget saved record',
+  'profile.name': 'Name',
+  'profile.nameDevanagari': 'Name (Devanagari)',
+  'profile.fatherName': "Father's name",
+  'profile.dob': 'Date of birth',
+
+  'register.title': 'Your details',
+  'register.intro':
+    'Tell us who you are once. Departments use these details to match your records, and never to decide for you. If you have registered before, submitting this form finds your existing record.',
+  'register.givenName': 'Given name',
+  'register.familyName': 'Family name',
+  'register.fatherName': "Father's name",
+  'register.fatherNameHint': 'Optional. Helps match older records.',
+  'register.nameDevanagari': 'Name in Devanagari',
+  'register.optional': 'Optional.',
+  'register.dob': 'Date of birth',
+  'register.dobFuture': 'Date of birth cannot be in the future.',
+  'register.gender': 'Gender',
+  'register.genderPreferNot': 'Prefer not to say',
+  'register.genderFemale': 'Female',
+  'register.genderMale': 'Male',
+  'register.genderOther': 'Other',
+  'register.saving': 'Saving…',
+  'register.saveContinue': 'Save and continue',
+
+  // --- applications list -------------------------------------------------------------------
+  'apps.title': 'My applications',
+  'apps.loading': 'Loading your applications',
+  'apps.noneHeading': 'Nothing here yet',
+  'apps.noneBody':
+    'You have not applied for anything yet. When you do, you can track every department check here.',
+  'apps.browseServices': 'Browse services',
+  'apps.caption': 'Your applications',
+  'apps.colNumber': 'Application number',
+  'apps.colService': 'Service',
+  'apps.colStatus': 'Status',
+  'apps.colDecisionDue': 'Decision due',
+  'apps.trackLabel': 'Track by application number',
+  'apps.track': 'Track',
+
+  // --- single application ------------------------------------------------------------------
+  'app.loading': 'Loading application',
+  'app.notFoundTitle': 'Application not found',
+  'app.notFoundPrefix': 'No application with number',
+  'app.notFoundSuffix': 'was found for you.',
+  'app.myApplications': 'My applications',
+  'app.titlePrefix': 'Application',
+  'app.service': 'Service',
+  'app.submitted': 'Submitted',
+  'app.decisionDue': 'Decision due',
+  'app.departmentChecks': 'Department checks',
+  'app.checksSoon': 'Department checks will appear here shortly.',
+  'app.stepFrom': 'from {dept}',
+  'app.received': 'Received {date}',
+  'app.recordsFetched': 'Records fetched for you',
+  'app.recordsHint':
+    'Shown as the departments hold them right now. Samanvay does not keep a copy. Development build: these come from mock department systems.',
+  'app.waitingForSystem': 'Waiting for this department system.',
+  'app.refreshing': 'Refreshing…',
+  'app.refresh': 'Refresh',
+  'app.selfRefreshHint': 'This page refreshes itself while your application is in progress.',
+  'app.na': 'n/a',
+
+  // --- sanction panel ----------------------------------------------------------------------
+  'sanction.heading': 'Application sanctioned',
+  'sanction.disbursement': 'Disbursement',
+  'sanction.instalments': 'Instalments',
+  'sanction.sanctionedOn': 'Sanctioned on',
+  'sanction.instalment': 'Instalment {n}',
+
+  // --- application status (lib/status.ts) --------------------------------------------------
+  'status.submitted.short': 'Submitted',
+  'status.submitted.long': 'Submitted: your application was received and checks are starting',
+  'status.partiallyVerified.short': 'In progress',
+  'status.partiallyVerified.long': 'In progress: some department records are still awaited',
+  'status.verified.short': 'Verified',
+  'status.verified.long': "Records verified — awaiting the officer's decision",
+  'status.approved.short': 'Approved',
+  'status.approved.long': 'Approved: your application was approved',
+  'status.closed.short': 'Completed',
+  'status.closed.long': 'Completed: this application is closed',
+  'status.rejected.short': 'Needs action',
+  'status.rejected.long': 'Needs action: this application was not approved',
+  'status.failed.short': 'Needs action',
+  'status.failed.long': 'Needs action: a department record could not be fetched',
+  'status.inProgress.short': 'In progress',
+  'status.inProgress.long': 'In progress: {detail}',
+
+  'step.completed': 'Received',
+  'step.pendingSource': 'Waiting for the department',
+  'step.failed': 'Could not be fetched, needs action',
+
+  // --- API errors (ui/errors.ts) that citizens see ----------------------------------------
+  'errors.sessionEnded': 'Your session has ended. Sign in again to continue.',
+  'errors.missingDepartments': 'Connect your {departments} {accounts} before submitting.',
+  'errors.departmentWord': 'department',
+  'errors.accountOne': 'account',
+  'errors.accountMany': 'accounts',
+  'errors.linkProofInvalid': 'That verification was not accepted. Check the details and try again.',
+  'errors.duplicateLocalId': 'That department ID is already linked to another person.',
+  'errors.noPriorAward':
+    'This service needs an approved award from the previous year, and none was found for you.',
+  'errors.notApprovable': "This application can't be approved yet — a department record is still pending.",
+  'errors.unreachable':
+    'The Samanvay service could not be reached. Check that the application is running and try again.',
+  'errors.forbidden': 'You are not allowed to do that.',
+  'errors.notFound': 'Nothing was found for that request.',
+  'errors.serverError': 'The service could not complete that request. Try again in a moment.',
+  'errors.generic': 'The request could not be completed. Try again.',
+  'errors.somethingWrong': 'Something went wrong. Try again.',
+  'errors.tryAgain': 'Try again',
+}

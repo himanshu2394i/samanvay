@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCitizenApi } from '../../../api/apiContext'
 import { ApiError } from '../../../api/client'
+import { useT } from '../../../i18n'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { Loading } from '../../../ui/Loading'
@@ -16,6 +17,7 @@ export const REFRESH_MS = 8000
 export function ApplicationPage() {
   const { ref = '' } = useParams()
   const api = useCitizenApi()
+  const t = useT()
   const data = useAsync(
     async () => {
       const [application, steps, records, disbursement] = await Promise.all([
@@ -41,33 +43,35 @@ export function ApplicationPage() {
     return () => clearInterval(t)
   }, [watching, reload])
 
-  if (data.status === 'loading') return <Loading label="Loading application" />
+  if (data.status === 'loading') return <Loading label={t('app.loading')} />
   if (data.status === 'error') {
     const notFound = data.error instanceof ApiError && data.error.status === 404
     return (
       <section className="card narrow">
-        <h1>Application not found</h1>
+        <h1>{t('app.notFoundTitle')}</h1>
         {notFound ? (
-          <p>No application with number <code>{ref}</code> was found for you.</p>
+          <p>
+            {t('app.notFoundPrefix')} <code>{ref}</code> {t('app.notFoundSuffix')}
+          </p>
         ) : (
           <ErrorNotice error={data.error} onRetry={data.reload} />
         )}
         <Link className="btn" to="/applications">
-          My applications
+          {t('app.myApplications')}
         </Link>
       </section>
     )
   }
 
   const { application, steps, records, disbursement } = data.data
-  const st = applicationStatus(application.status)
+  const st = applicationStatus(application.status, t)
   return (
     <section aria-labelledby="app-h">
       <p>
-        <Link to="/applications">My applications</Link>
+        <Link to="/applications">{t('app.myApplications')}</Link>
       </p>
       <h1 id="app-h">
-        Application <span className="mono">{application.referenceNo}</span>
+        {t('app.titlePrefix')} <span className="mono">{application.referenceNo}</span>
       </h1>
       <StatusStepper status={application.status} />
       <p className={`notice ${st.tone}`} role="status">
@@ -75,30 +79,30 @@ export function ApplicationPage() {
       </p>
       {disbursement ? (
         <section className="card" aria-labelledby="sanction-h" role="status">
-          <h2 id="sanction-h">Application sanctioned</h2>
+          <h2 id="sanction-h">{t('sanction.heading')}</h2>
           <dl className="facts">
             <div className="fact">
-              <dt>Disbursement</dt>
+              <dt>{t('sanction.disbursement')}</dt>
               <dd>
                 <Badge tone="ok">{humanize(disbursement.status)}</Badge>
               </dd>
             </div>
             <div className="fact">
-              <dt>Instalments</dt>
+              <dt>{t('sanction.instalments')}</dt>
               <dd>{disbursement.instalmentCount}</dd>
             </div>
             <div className="fact">
-              <dt>Sanctioned on</dt>
-              <dd>{formatDate(disbursement.createdAt) || 'n/a'}</dd>
+              <dt>{t('sanction.sanctionedOn')}</dt>
+              <dd>{formatDate(disbursement.createdAt) || t('app.na')}</dd>
             </div>
           </dl>
           <ol className="timeline">
             {disbursement.instalments.map((it) => {
-              const is = stepStatus(it.status)
+              const is = stepStatus(it.status, t)
               return (
                 <li key={it.sequence}>
                   <div>
-                    <strong>Instalment {it.sequence}</strong>
+                    <strong>{t('sanction.instalment', { n: it.sequence })}</strong>
                   </div>
                   <Badge tone={is.tone}>{is.label}</Badge>
                 </li>
@@ -108,28 +112,29 @@ export function ApplicationPage() {
         </section>
       ) : null}
       <dl className="facts">
-        <dt>Service</dt>
+        <dt>{t('app.service')}</dt>
         <dd>{humanize(application.journeyCode)}</dd>
-        <dt>Submitted</dt>
-        <dd>{formatDate(application.submittedAt) || 'n/a'}</dd>
-        <dt>Decision due</dt>
-        <dd>{formatDate(application.slaDueAt) || 'n/a'}</dd>
+        <dt>{t('app.submitted')}</dt>
+        <dd>{formatDate(application.submittedAt) || t('app.na')}</dd>
+        <dt>{t('app.decisionDue')}</dt>
+        <dd>{formatDate(application.slaDueAt) || t('app.na')}</dd>
       </dl>
 
-      <h2>Department checks</h2>
+      <h2>{t('app.departmentChecks')}</h2>
       {steps.length === 0 ? (
-        <p>Department checks will appear here shortly.</p>
+        <p>{t('app.checksSoon')}</p>
       ) : (
         <ol className="timeline">
           {steps.map((s) => {
-            const ss = stepStatus(s.status)
+            const ss = stepStatus(s.status, t)
             return (
               <li key={`${s.stepCode}:${s.departmentCode}`}>
                 <div>
-                  <strong>{humanize(s.stepCode)}</strong> <span className="hint">from {humanize(s.departmentCode)}</span>
+                  <strong>{humanize(s.stepCode)}</strong>{' '}
+                  <span className="hint">{t('app.stepFrom', { dept: humanize(s.departmentCode) })}</span>
                 </div>
                 <Badge tone={ss.tone}>{ss.label}</Badge>
-                {s.completedAt ? <span className="hint"> Received {formatDate(s.completedAt)}</span> : null}
+                {s.completedAt ? <span className="hint"> {t('app.received', { date: formatDate(s.completedAt) })}</span> : null}
               </li>
             )
           })}
@@ -137,11 +142,8 @@ export function ApplicationPage() {
       )}
       {records && records.length > 0 ? (
         <>
-          <h2>Records fetched for you</h2>
-          <p className="hint">
-            Shown as the departments hold them right now. Samanvay does not keep a copy. Development build: these come
-            from mock department systems.
-          </p>
+          <h2>{t('app.recordsFetched')}</h2>
+          <p className="hint">{t('app.recordsHint')}</p>
           <ul className="stack">
             {records.map((r) => (
               <li key={`${r.stepCode}:${r.departmentCode}`} className="card">
@@ -159,7 +161,7 @@ export function ApplicationPage() {
                     ))}
                   </dl>
                 ) : (
-                  <p>Waiting for this department system.</p>
+                  <p>{t('app.waitingForSystem')}</p>
                 )}
               </li>
             ))}
@@ -169,9 +171,9 @@ export function ApplicationPage() {
 
       <div className="actions">
         <button type="button" className="btn" onClick={reload} disabled={data.refreshing}>
-          {data.refreshing ? 'Refreshing…' : 'Refresh'}
+          {data.refreshing ? t('app.refreshing') : t('app.refresh')}
         </button>
-        {watching ? <span className="hint">This page refreshes itself while your application is in progress.</span> : null}
+        {watching ? <span className="hint">{t('app.selfRefreshHint')}</span> : null}
       </div>
     </section>
   )

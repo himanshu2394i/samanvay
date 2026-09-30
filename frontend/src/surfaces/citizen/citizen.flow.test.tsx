@@ -459,7 +459,7 @@ describe('track applications', () => {
 
     const row = (await screen.findByRole('link', { name: 'SCH-2026-0001' })).closest('tr') as HTMLElement
     expect(within(row).getByText('Post-matric scholarship')).toBeInTheDocument()
-    expect(within(row).getByText(/Records verified/)).toBeInTheDocument()
+    expect(within(row).getByText('Verified')).toBeInTheDocument()
     expect(within(row).getByText('2 Oct 2026')).toBeInTheDocument()
   })
 
