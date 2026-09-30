@@ -16,6 +16,10 @@ export function CitizenLayout() {
         Skip to main content
       </a>
       <header className="site-header">
+        <div className="wrap identity">
+          <span className="eyebrow">Government of Maharashtra</span>
+          <span className="demo-tag">Demo build</span>
+        </div>
         <div className="wrap bar">
           <NavLink to="/" className="brand" end>
             Samanvay <span>Citizen services</span>

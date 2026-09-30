@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import type { User } from 'oidc-client-ts'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import type { OidcManager } from './auth/AuthProvider'
 import { fakeJwt } from './test/jwt'
@@ -23,7 +23,21 @@ const userWith = (roles: string[]) =>
     profile: { sub: 'sub-1', preferred_username: 'dev-officer' },
   }) as unknown as User
 
-afterEach(() => window.history.replaceState(null, '', '/'))
+// The staff home now pulls live "needs attention" figures; here we only assert routing and
+// role gating, so keep the network offline — the dashboard degrades to a quiet line.
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new Error('offline in unit test')
+    }),
+  )
+})
+
+afterEach(() => {
+  window.history.replaceState(null, '', '/')
+  vi.unstubAllGlobals()
+})
 
 // The whole path a real browser takes: token -> AuthProvider (roles) -> realm-specific app -> route guard.
 describe('App realm wiring', () => {

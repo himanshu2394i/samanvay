@@ -1,42 +1,79 @@
-/* Design tokens: light by default, dark via the OS preference. Colours were picked for
-   >= 4.5:1 text contrast on their backgrounds in both schemes. */
+/* Samanvay design system — one coherent government operational layer.
+   See docs/design/frontend-direction.md. Light by default, dark via the OS preference.
+   Colours are chosen for >= 4.5:1 text contrast on their backgrounds in both schemes.
+   The `--seal` saffron is the signature identity mark: it is used ONLY for the masthead
+   stripe and the "demo" tag, never as a button or a large fill. */
 :root {
   color-scheme: light dark;
-  --ink: #1c2430;
-  --muted: #4a5568;
-  --paper: #ffffff;
-  --wash: #f3eee4;
-  --line: #cfc6b3;
-  --accent: #123a6b;
-  --accent-ink: #ffffff;
-  --focus: #1c2430;
+
+  /* identity + neutrals */
+  --brand: #0d4a7a;        /* deep official blue: primary actions, active nav, links */
+  --brand-strong: #0a3960; /* pressed / emphasis */
+  --seal: #c25e00;         /* restrained saffron — signature stripe + demo tag ONLY */
+  --seal-ink: #8a4400;     /* saffron text that stays >= AA on the seal wash */
+  --seal-wash: #fbeeddff;
+  --ink: #14202b;
+  --muted: #4c5a68;
+  --surface: #f4f6f9;      /* cool paper page background */
+  --paper: #ffffff;        /* cards, header, inputs */
+  --line: #d5dce4;
+
+  /* status language (shared across citizen + staff) */
   --ok: #0b5d1e;
   --ok-wash: #e4f3e7;
   --warn: #7a4d00;
   --warn-wash: #fbf0d9;
   --bad: #9b1c1c;
   --bad-wash: #fbe6e6;
+  --info: #0d4a7a;
+  --info-wash: #e7eff7;
+
+  /* legacy aliases kept so every existing selector stays styled */
+  --accent: var(--brand);
+  --accent-ink: #ffffff;
+  --wash: var(--surface);
+  --focus: var(--ink);
+  --paper-2: var(--surface);
+
+  /* spacing scale (8px base) */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+
   --radius: 8px;
+  --shadow: 0 1px 2px rgba(20, 32, 43, 0.06), 0 1px 3px rgba(20, 32, 43, 0.04);
   --font: system-ui, -apple-system, 'Segoe UI', 'Noto Sans', 'Nirmala UI', sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --num: 'tnum' 1, 'lnum' 1; /* tabular, lining numerals for aligned worklists */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ink: #eef1f5;
-    --muted: #b6c0cd;
-    --paper: #1a222d;
-    --wash: #10161d;
-    --line: #3a4656;
-    --accent: #8fbaf5;
-    --accent-ink: #0c1a2e;
-    --focus: #eef1f5;
+    --brand: #7fb2e6;
+    --brand-strong: #a8ccf0;
+    --seal: #e8a24d;
+    --seal-ink: #f0c48a;
+    --seal-wash: #33260f;
+    --ink: #eef2f6;
+    --muted: #aeb9c6;
+    --surface: #0f151b;
+    --paper: #182029;
+    --line: #31404f;
+
     --ok: #7fd693;
     --ok-wash: #14301c;
     --warn: #f0c46b;
     --warn-wash: #33290f;
     --bad: #ff9c9c;
     --bad-wash: #3a1717;
+    --info: #7fb2e6;
+    --info-wash: #16283a;
+
+    --accent-ink: #0c1a2e;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -55,7 +92,8 @@ body {
   font-size: 1.0625rem;
   line-height: 1.55;
   color: var(--ink);
-  background: var(--wash);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
 }
 
 #root {
@@ -66,36 +104,43 @@ body {
   width: 100%;
   max-width: 62rem;
   margin-inline: auto;
-  padding-inline: 1rem;
+  padding-inline: var(--sp-4);
 }
 
 main {
   flex: 1;
-  padding-block: 1.5rem 3rem;
+  padding-block: var(--sp-5) var(--sp-6);
 }
 
 main:focus {
   outline: none;
 }
 
+/* type scale */
 h1 {
-  font-size: 1.75rem;
-  line-height: 1.25;
-  margin: 0.5rem 0 1rem;
+  font-size: 1.9rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: var(--sp-2) 0 var(--sp-4);
 }
 h2 {
-  font-size: 1.25rem;
-  margin: 1.5rem 0 0.5rem;
+  font-size: 1.2rem;
+  letter-spacing: -0.005em;
+  margin: var(--sp-5) 0 var(--sp-2);
 }
 h3 {
-  font-size: 1.1rem;
-  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  margin: 0 0 var(--sp-1);
 }
 p {
-  margin: 0.5rem 0;
+  margin: var(--sp-2) 0;
 }
 a {
-  color: var(--accent);
+  color: var(--brand);
+  text-underline-offset: 2px;
+}
+a:hover {
+  color: var(--brand-strong);
 }
 code,
 .mono {
@@ -103,9 +148,20 @@ code,
   font-size: 0.95em;
 }
 
+/* an "eyebrow" label — the officiality cue used above sections and beside the brand */
+.eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .sr-only {
@@ -121,7 +177,7 @@ code,
   position: absolute;
   inset-inline-start: 0.5rem;
   top: -4rem;
-  padding: 0.5rem 0.75rem;
+  padding: var(--sp-2) var(--sp-3);
   background: var(--paper);
   border: 2px solid var(--ink);
   border-radius: var(--radius);
@@ -131,27 +187,60 @@ code,
   top: 0.5rem;
 }
 
-/* header */
+/* header + signature identity stripe */
 .site-header {
+  position: relative;
   background: var(--paper);
   border-block-end: 1px solid var(--line);
+}
+/* the signature: a thin saffron -> blue masthead stripe on every page */
+.site-header::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--seal) 0 22%, var(--brand) 22% 100%);
+}
+/* official identity strip: the same masthead line on citizen and staff, tying them together */
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-block: var(--sp-2) 0;
 }
 .bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1.25rem;
-  padding-block: 0.6rem;
+  gap: var(--sp-2) 1.25rem;
+  padding-block: var(--sp-3);
 }
 .brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
   font-weight: 700;
   font-size: 1.15rem;
+  letter-spacing: -0.01em;
   text-decoration: none;
   color: var(--ink);
 }
 .brand span {
   font-weight: 400;
+  font-size: 0.95rem;
   color: var(--muted);
+}
+/* a clearly-labelled prototype marker, never presented as a genuine emblem */
+.demo-tag {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--seal-ink);
+  background: var(--seal-wash);
+  border: 1px solid color-mix(in srgb, var(--seal) 45%, transparent);
 }
 nav ul {
   display: flex;
@@ -172,14 +261,15 @@ nav a:hover {
   border-block-end-color: var(--line);
 }
 nav a[aria-current='page'] {
-  border-block-end-color: var(--accent);
+  border-block-end-color: var(--brand);
+  color: var(--brand);
   font-weight: 600;
 }
 .session {
   margin-inline-start: auto;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--sp-3);
 }
 .who {
   color: var(--muted);
@@ -187,9 +277,11 @@ nav a[aria-current='page'] {
 }
 
 .site-footer {
-  padding-block: 1.25rem;
+  padding-block: var(--sp-5);
+  margin-top: var(--sp-6);
   color: var(--muted);
   font-size: 0.9rem;
+  background: var(--paper);
   border-block-start: 1px solid var(--line);
 }
 
@@ -204,10 +296,11 @@ nav a[aria-current='page'] {
   font-size: 0.95rem;
 }
 .hero {
-  padding-block: 1rem 0.5rem;
+  padding-block: var(--sp-5) var(--sp-3);
 }
 .hero h1 {
-  font-size: 2.1rem;
+  font-size: 2.2rem;
+  line-height: 1.15;
   max-width: 38rem;
 }
 
@@ -215,7 +308,8 @@ nav a[aria-current='page'] {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 1rem 1.25rem;
+  padding: var(--sp-4) 1.25rem;
+  box-shadow: var(--shadow);
 }
 .card h2 {
   margin-top: 0;
@@ -230,30 +324,38 @@ nav a[aria-current='page'] {
 .how {
   list-style: none;
   padding: 0;
-  margin: 1rem 0;
+  margin: var(--sp-4) 0;
 }
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-  gap: 1rem;
+  gap: var(--sp-4);
+}
+/* cards inside a grid lift very slightly on hover to read as navigable */
+.grid .card {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.grid .card:hover {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--line));
+  box-shadow: 0 2px 8px rgba(13, 74, 122, 0.1);
 }
 .stack {
   display: grid;
-  gap: 1rem;
+  gap: var(--sp-4);
 }
 .plain li {
-  margin: 0.25rem 0;
+  margin: var(--sp-1) 0;
 }
 .how {
   counter-reset: how;
   display: grid;
-  gap: 0.75rem;
+  gap: var(--sp-3);
 }
 .how li {
   counter-increment: how;
   display: grid;
   grid-template-columns: 2rem 1fr;
-  column-gap: 0.75rem;
+  column-gap: var(--sp-3);
 }
 .how li::before {
   content: counter(how);
@@ -263,9 +365,10 @@ nav a[aria-current='page'] {
   width: 2rem;
   height: 2rem;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--brand);
   color: var(--accent-ink);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .how span {
   color: var(--muted);
@@ -273,31 +376,40 @@ nav a[aria-current='page'] {
 
 /* buttons */
 .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   font: inherit;
   font-weight: 600;
-  padding: 0.55rem 1rem;
+  padding: 0.55rem 1.05rem;
   min-height: 2.75rem;
-  border: 1.5px solid var(--accent);
+  border: 1.5px solid var(--brand);
   border-radius: var(--radius);
   background: var(--paper);
-  color: var(--accent);
+  color: var(--brand);
   text-decoration: none;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  background: color-mix(in srgb, var(--brand) 10%, var(--paper));
 }
 .btn.primary {
-  background: var(--accent);
+  background: var(--brand);
   color: var(--accent-ink);
+  border-color: var(--brand);
 }
 .btn.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
+  background: var(--brand-strong);
+  border-color: var(--brand-strong);
 }
 .btn.danger {
   border-color: var(--bad);
   color: var(--bad);
+}
+.btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 10%, var(--paper));
 }
 .btn:disabled {
   opacity: 0.55;
@@ -307,8 +419,8 @@ nav a[aria-current='page'] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
-  margin-block: 1rem;
+  gap: var(--sp-3);
+  margin-block: var(--sp-4);
 }
 
 /* forms */
@@ -318,7 +430,7 @@ nav a[aria-current='page'] {
 .field label {
   display: block;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--sp-1);
 }
 .req {
   font-weight: 400;
@@ -336,34 +448,43 @@ select {
   border: 1.5px solid var(--muted);
   border-radius: var(--radius);
 }
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--brand);
+}
 input[aria-invalid='true'] {
   border-color: var(--bad);
 }
 .field-error {
   color: var(--bad);
   font-weight: 600;
-  margin: 0.25rem 0 0;
+  margin: var(--sp-1) 0 0;
 }
 .inline-form {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.75rem;
-  margin-top: 2rem;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
 }
 .inline-form .field {
   margin: 0;
 }
 
-/* notices, badges */
+/* notices, badges — the shared status language */
 .notice {
-  padding: 0.75rem 1rem;
+  padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius);
   border: 1px solid currentColor;
-  margin-block: 1rem;
+  border-inline-start-width: 4px;
+  margin-block: var(--sp-4);
 }
 .notice p {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--sp-2);
+}
+.notice p:last-child {
+  margin-bottom: 0;
 }
 .notice.ok {
   color: var(--ok);
@@ -378,13 +499,23 @@ input[aria-invalid='true'] {
   background: var(--bad-wash);
 }
 .badge {
-  display: inline-block;
-  padding: 0.05rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.6rem;
   border-radius: 999px;
   border: 1px solid currentColor;
   font-size: 0.85rem;
   font-weight: 600;
   vertical-align: middle;
+}
+/* a small leading dot makes the status readable without relying on colour alone */
+.badge::before {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
 }
 .badge.ok {
   color: var(--ok);
@@ -400,13 +531,14 @@ input[aria-invalid='true'] {
 }
 .badge.neutral {
   color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 8%, var(--paper));
 }
 
 .facts {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.25rem 1rem;
-  margin: 1rem 0;
+  gap: var(--sp-1) var(--sp-4);
+  margin: var(--sp-4) 0;
 }
 .facts .fact {
   display: contents;
@@ -416,18 +548,22 @@ input[aria-invalid='true'] {
 }
 .facts dd {
   margin: 0;
+  font-variant-numeric: tabular-nums;
 }
 
-/* wizard steps */
+/* wizard steps — shared stepper vocabulary */
 .steps {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
+  gap: var(--sp-2) 1.25rem;
   list-style: none;
   padding: 0;
-  margin: 1rem 0 1.5rem;
+  margin: var(--sp-4) 0 var(--sp-5);
 }
 .steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   color: var(--muted);
 }
 .steps .n {
@@ -439,14 +575,15 @@ input[aria-invalid='true'] {
   border: 1.5px solid currentColor;
   font-weight: 700;
   font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
 }
 .steps .now {
   color: var(--ink);
   font-weight: 700;
 }
 .steps .now .n {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--brand);
+  border-color: var(--brand);
   color: var(--accent-ink);
 }
 .steps .done {
@@ -456,15 +593,17 @@ input[aria-invalid='true'] {
 .timeline {
   list-style: none;
   padding: 0;
-  margin: 1rem 0;
+  margin: var(--sp-4) 0;
   border-inline-start: 3px solid var(--line);
 }
 .timeline li {
-  padding: 0.5rem 0 0.5rem 1rem;
+  padding: var(--sp-2) 0 var(--sp-2) var(--sp-4);
 }
 
 .table-wrap {
   overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 table {
   width: 100%;
@@ -477,17 +616,34 @@ td {
   padding: 0.6rem 0.75rem;
   border-block-end: 1px solid var(--line);
 }
+td {
+  font-variant-numeric: tabular-nums;
+}
+tr:last-child td {
+  border-block-end: none;
+}
 th {
   color: var(--muted);
   font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--surface) 60%, var(--paper));
+}
+tbody tr:hover td {
+  background: color-mix(in srgb, var(--brand) 4%, var(--paper));
 }
 
 /* staff surfaces (officer / admin / reviewer) */
 .wrap.wide {
-  max-width: 78rem;
+  max-width: 82rem;
 }
+/* staff masthead keeps the same signature stripe; the accent underline marks the console */
 .site-header.staff {
-  border-block-end: 3px solid var(--accent);
+  border-block-end: 1px solid var(--line);
+}
+.site-header.staff::before {
+  height: 4px;
 }
 textarea {
   font: inherit;
@@ -512,14 +668,26 @@ input[type='file'] {
 .tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: 0.75rem;
-  margin-block: 1rem;
+  gap: var(--sp-3);
+  margin-block: var(--sp-4);
 }
 .tile {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 0.75rem 1rem;
+  padding: var(--sp-3) var(--sp-4);
+  box-shadow: var(--shadow);
+}
+/* a tile that links into a console reads as navigable but keeps its calm surface */
+a.tile {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+a.tile:hover {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--line));
+  box-shadow: 0 2px 8px rgba(13, 74, 122, 0.1);
 }
 .tile p {
   margin: 0;
@@ -532,6 +700,8 @@ input[type='file'] {
   font-size: 1.75rem;
   font-weight: 700;
   line-height: 1.3;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 .tile-value.ok {
   color: var(--ok);
@@ -547,54 +717,58 @@ input[type='file'] {
   font-size: 0.85rem;
 }
 .spaced {
-  margin-top: 1.5rem;
+  margin-top: var(--sp-5);
 }
 .row-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--sp-2);
 }
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-block: 0.75rem;
+  gap: var(--sp-2);
+  margin-block: var(--sp-3);
 }
 .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.75rem 1.25rem;
-  margin-block: 1rem;
+  gap: var(--sp-3) 1.25rem;
+  margin-block: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 .filters .field {
   margin: 0;
 }
 .check {
   display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
+  align-items: center;
+  gap: var(--sp-2);
   font-weight: 400;
   min-height: 2.75rem;
-  align-items: center;
 }
 .checklist {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--paper);
-  margin-block: 1rem;
-  padding: 0.5rem 1rem 0.75rem;
+  margin-block: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
 }
 .checklist legend {
   font-weight: 600;
-  padding-inline: 0.25rem;
+  padding-inline: var(--sp-1);
 }
 details.tech {
-  margin-block: 1rem;
+  margin-block: var(--sp-4);
 }
 details.tech summary {
   cursor: pointer;
   font-weight: 600;
+  color: var(--muted);
 }
 
 /* loading */
@@ -602,14 +776,14 @@ details.tech summary {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 1.5rem 1rem;
+  padding: var(--sp-5) var(--sp-4);
   color: var(--muted);
 }
 .spinner {
   width: 1.1rem;
   height: 1.1rem;
   border: 3px solid var(--line);
-  border-top-color: var(--accent);
+  border-top-color: var(--brand);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -619,14 +793,27 @@ details.tech summary {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }
 
 @media (max-width: 40rem) {
+  h1 {
+    font-size: 1.6rem;
+  }
+  .hero h1 {
+    font-size: 1.8rem;
+  }
   .facts {
     grid-template-columns: 1fr;
+  }
+  .facts dt {
+    margin-top: var(--sp-2);
   }
   .session {
     margin-inline-start: 0;

@@ -71,6 +71,29 @@ class SandboxDepartmentTest {
         }
     }
 
+    @Test
+    void rest_bank_is_open_json_with_the_marker() throws Exception {
+        HttpResponse<String> r = get("/bank?dbtId=DBT-1001");
+        assertThat(r.statusCode()).isEqualTo(200);
+        assertThat(r.headers().firstValue("Content-Type")).hasValueSatisfying(ct -> assertThat(ct).startsWith("application/json"));
+        JsonNode body = JSON.readTree(r.body());
+        assertThat(body.get("accountRef").asString()).isEqualTo("XXXXXX1234");
+        assertThat(body.get("ifscMasked").asString()).isEqualTo("SBIN0XXX300");
+        assertThat(body.get("samanvay_simulator").asBoolean()).isTrue();
+    }
+
+    @Test
+    void rest_bank_is_deterministic_for_unknown_ids() throws Exception {
+        String first = get("/bank?dbtId=DBT-ZZ-42").body();
+        assertThat(get("/bank?dbtId=DBT-ZZ-42").body()).isEqualTo(first);
+        assertThat(JSON.readTree(first).get("accountRef").asString()).startsWith("XXXXXX");
+    }
+
+    @Test
+    void rest_bank_without_a_dbt_id_is_400() throws Exception {
+        assertThat(get("/bank").statusCode()).isEqualTo(400);
+    }
+
     static String envelope(String studentIdXml) {
         return "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body>"
                 + "<GetMarks><studentId>" + studentIdXml + "</studentId></GetMarks></soap:Body></soap:Envelope>";

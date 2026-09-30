@@ -89,6 +89,7 @@ final class ApiAccessMatrix {
         allow("GET /api/applications/{referenceNo}", CITIZEN, OFFICER);
         allow("GET /api/applications/{referenceNo}/steps", CITIZEN, OFFICER);
         allow("GET /api/applications/{referenceNo}/issued-records", CITIZEN, OFFICER);
+        allow("GET /api/applications/{referenceNo}/disbursement", CITIZEN, OFFICER);
         // connector
         allow("GET /api/connector/issued-documents", CITIZEN, OFFICER);
         allow("GET /api/connector/chaos/{dataSourceCode}", OFFICER, ADMIN);

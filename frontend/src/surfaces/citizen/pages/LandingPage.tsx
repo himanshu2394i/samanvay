@@ -14,6 +14,7 @@ export function LandingPage() {
   return (
     <>
       <section className="hero">
+        <span className="eyebrow">Government of Maharashtra · citizen services</span>
         <h1>Apply for government services without carrying papers</h1>
         <p className="lede">
           Samanvay fetches the records a service needs directly from the departments that hold them, only after you say

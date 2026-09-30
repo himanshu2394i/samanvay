@@ -15,8 +15,9 @@ public class InMemoryCheckpointRepository extends CheckpointRepository {
     }
 
     @Override
-    public void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature, String keyId) {
-        rows.add(new Checkpoint(rows.size() + 1L, uptoEntrySeq, rootHash, Instant.now(), signature, null, keyId));
+    public void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature, String keyId, String publishedRef) {
+        rows.add(new Checkpoint(
+                rows.size() + 1L, uptoEntrySeq, rootHash, Instant.now(), signature, publishedRef, keyId));
     }
 
     @Override

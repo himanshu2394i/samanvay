@@ -22,7 +22,10 @@ import com.samanvay.orchestration.api.ManualUploadRequested;
 import com.samanvay.orchestration.api.SlaBreached;
 import com.samanvay.orchestration.api.StepPendingSource;
 import com.samanvay.registry.api.PointerUpserted;
+import com.samanvay.shared.OpsMetrics;
 import com.samanvay.tracking.api.ApplicationReferenceIssued;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Instant;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
@@ -46,7 +50,9 @@ class NotificationDispatcher {
     private final Map<Channel, NotificationChannel> channels = new HashMap<>();
     private final ApplicationEventPublisher events;
     private final PendingCandidateAlerts candidateAlerts;
+    private final MeterRegistry meters;
 
+    /** No metrics registry: deliveries go to a throwaway registry (used by unit tests). */
     NotificationDispatcher(
             SubscriptionRepository subscriptions,
             DeliveryRepository deliveries,
@@ -54,12 +60,25 @@ class NotificationDispatcher {
             List<NotificationChannel> channelList,
             ApplicationEventPublisher events,
             PendingCandidateAlerts candidateAlerts) {
+        this(subscriptions, deliveries, renderer, channelList, events, candidateAlerts, new SimpleMeterRegistry());
+    }
+
+    @Autowired
+    NotificationDispatcher(
+            SubscriptionRepository subscriptions,
+            DeliveryRepository deliveries,
+            TemplateRenderer renderer,
+            List<NotificationChannel> channelList,
+            ApplicationEventPublisher events,
+            PendingCandidateAlerts candidateAlerts,
+            MeterRegistry meters) {
         this.subscriptions = subscriptions;
         this.deliveries = deliveries;
         this.renderer = renderer;
         channelList.forEach(c -> this.channels.put(c.channel(), c));
         this.events = events;
         this.candidateAlerts = candidateAlerts;
+        this.meters = meters;
     }
 
     @ApplicationModuleListener
@@ -248,12 +267,67 @@ class NotificationDispatcher {
             row.setStatus("SENT");
             row.setSentAt(Instant.now());
             deliveries.save(row);
+            OpsMetrics.countNotificationDelivery(meters, channel.name(), OpsMetrics.OUTCOME_SENT);
         } catch (Exception e) {
             row.setStatus("FAILED");
             row.setLastError(truncate(e.getMessage()));
             deliveries.save(row);
+            OpsMetrics.countNotificationDelivery(meters, channel.name(), OpsMetrics.OUTCOME_FAILED);
             events.publishEvent(new DeliveryFailed(row.getId(), channel, e.getMessage()));
         }
+    }
+
+    /**
+     * Re-attempts a single FAILED delivery (called by the retry job). Increments the attempt count,
+     * re-sends over the same channel reusing the already-rendered body and the recipient's current
+     * address, and flips the row to SENT on success or leaves it FAILED with the latest error. Its own
+     * transaction, so one bad row does not roll back the others in a retry sweep.
+     *
+     * @return true if this attempt delivered.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    boolean retry(UUID deliveryId) {
+        DeliveryEntity row = deliveries.findById(deliveryId).orElse(null);
+        if (row == null || !"FAILED".equals(row.getStatus())) {
+            return false;
+        }
+        Channel channel = Channel.valueOf(row.getChannel());
+        row.setAttempts(row.getAttempts() + 1);
+        try {
+            NotificationChannel impl = channels.get(channel);
+            if (impl == null) {
+                throw new IllegalStateException("no channel " + channel);
+            }
+            String address = addressFor(row.getRecipientId(), row.getEventType(), channel);
+            var outcome = impl.send(new RenderedMessage(
+                    row.getRecipientId(),
+                    row.getRenderedBody(),
+                    address,
+                    "Samanvay notification: " + row.getEventType()));
+            if (!outcome.sent()) {
+                throw new IllegalStateException(outcome.error());
+            }
+            row.setStatus("SENT");
+            row.setSentAt(Instant.now());
+            deliveries.save(row);
+            OpsMetrics.countNotificationRetry(meters, channel.name(), OpsMetrics.OUTCOME_SENT);
+            return true;
+        } catch (Exception e) {
+            row.setLastError(truncate(e.getMessage()));
+            deliveries.save(row);
+            OpsMetrics.countNotificationRetry(meters, channel.name(), OpsMetrics.OUTCOME_FAILED);
+            return false;
+        }
+    }
+
+    /** The recipient's current address for a channel, from an enabled subscription for this event type. */
+    private String addressFor(String recipientId, String eventType, Channel channel) {
+        return subscriptions.findByRecipientIdAndEventTypeAndEnabledTrue(recipientId, eventType).stream()
+                .filter(s -> channel.name().equals(s.getChannel()))
+                .map(SubscriptionEntity::getAddress)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     private static String truncate(String error) {

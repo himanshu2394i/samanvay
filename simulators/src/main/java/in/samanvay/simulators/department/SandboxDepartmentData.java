@@ -15,6 +15,8 @@ final class SandboxDepartmentData {
 
     record Marks(String studentId, String percentage, String board, String exam) {}
 
+    record Bank(String accountRef, String ifscMasked, String holderName) {}
+
     private static final Map<String, Income> INCOME_FIXTURES = Map.of(
             "RC-1001", new Income("742000", "Rs 7,42,000", "Sandbox Holder", "Pune", "Tahsildar, Haveli"),
             "RC-1002", new Income("185000", "Rs 1,85,000", "Asha Patil", "Nashik", "Tahsildar, Nashik"));
@@ -22,6 +24,10 @@ final class SandboxDepartmentData {
     private static final Map<String, Marks> MARKS_FIXTURES = Map.of(
             "S-1001", new Marks("S-1001", "91", "icse", "ISC 2025"),
             "S-1002", new Marks("S-1002", "81", "cbse", "AISSCE 2025"));
+
+    private static final Map<String, Bank> BANK_FIXTURES = Map.of(
+            "DBT-1001", new Bank("XXXXXX1234", "SBIN0XXX300", "Sandbox Holder"),
+            "DBT-1002", new Bank("XXXXXX5678", "HDFC0XXX210", "Asha Patil"));
 
     private static final List<String> HOLDERS = List.of("Meera Kulkarni", "Vikas Jadhav", "Sunita Pawar", "R. Deshmukh");
     private static final List<String> DISTRICTS = List.of("Pune", "Nashik", "Nagpur", "Satara");
@@ -52,5 +58,17 @@ final class SandboxDepartmentData {
         }
         int h = Math.floorMod(studentId.hashCode(), 1_000_000);
         return new Marks(studentId, Integer.toString(50 + h % 50), BOARDS.get(h % BOARDS.size()), "HSC 2025");
+    }
+
+    static Bank bank(String dbtId) {
+        Bank known = BANK_FIXTURES.get(dbtId.toUpperCase(Locale.ROOT));
+        if (known != null) {
+            return known;
+        }
+        int h = Math.floorMod(dbtId.hashCode(), 1_000_000);
+        return new Bank(
+                "XXXXXX" + String.format("%04d", h % 10_000),
+                "BANK0XXX" + (h % 900 + 100),
+                HOLDERS.get(h % HOLDERS.size()));
     }
 }

@@ -25,15 +25,25 @@ public class CheckpointRepository {
 
     /** Records which signing key id produced the signature, so a later rotation cannot orphan it. */
     public void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature, String keyId) {
+        insert(uptoEntrySeq, rootHash, signature, keyId, null);
+    }
+
+    /**
+     * As above, also recording the external-witness reference (HLD §9.4), or {@code null} when
+     * witnessing is disabled/failed. Written in the same INSERT — the app role has INSERT (not UPDATE)
+     * on this table — so publication happens before the row is written.
+     */
+    public void insert(long uptoEntrySeq, byte[] rootHash, byte[] signature, String keyId, String publishedRef) {
         jdbc.update(
                 """
-                INSERT INTO audit.audit_checkpoint (upto_entry_seq, root_hash, signature, key_id)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO audit.audit_checkpoint (upto_entry_seq, root_hash, signature, key_id, published_ref)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 uptoEntrySeq,
                 rootHash,
                 signature,
-                keyId);
+                keyId,
+                publishedRef);
     }
 
     public Optional<Checkpoint> findLatest() {
