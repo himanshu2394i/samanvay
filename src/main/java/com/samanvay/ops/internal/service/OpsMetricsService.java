@@ -7,6 +7,7 @@ import com.samanvay.ops.internal.service.OpsMetricsView.Consent;
 import com.samanvay.ops.internal.service.OpsMetricsView.ExceptionQueue;
 import com.samanvay.ops.internal.service.OpsMetricsView.ExceptionRow;
 import com.samanvay.ops.internal.service.OpsMetricsView.Latency;
+import com.samanvay.ops.internal.service.OpsMetricsView.Notifications;
 import com.samanvay.ops.internal.service.OpsMetricsView.ReasonCount;
 import com.samanvay.ops.internal.service.OpsMetricsView.Sla;
 import com.samanvay.ops.internal.service.OpsMetricsView.Source;
@@ -54,7 +55,7 @@ public class OpsMetricsService {
 
     public OpsMetricsView metrics() {
         Instant now = clock.instant();
-        return new OpsMetricsView(now, connector(), sla(now), consent(), exceptionQueue(now));
+        return new OpsMetricsView(now, connector(), sla(now), consent(), exceptionQueue(now), notifications());
     }
 
     // ---- connector health
@@ -149,6 +150,35 @@ public class OpsMetricsService {
                 .toList();
         long total = granted + denied;
         return new Consent(granted, denied, total == 0 ? null : (double) granted / total, byReason);
+    }
+
+    // ---- notification delivery health
+
+    Notifications notifications() {
+        long sent = 0;
+        long failed = 0;
+        for (Counter c : meters.find(OpsMetrics.NOTIFICATION_DELIVERY).counters()) {
+            String outcome = c.getId().getTag(OpsMetrics.TAG_OUTCOME);
+            long n = (long) c.count();
+            if (OpsMetrics.OUTCOME_SENT.equals(outcome)) {
+                sent += n;
+            } else if (OpsMetrics.OUTCOME_FAILED.equals(outcome)) {
+                failed += n;
+            }
+        }
+        long retriedSent = 0;
+        long retriedFailed = 0;
+        for (Counter c : meters.find(OpsMetrics.NOTIFICATION_RETRY).counters()) {
+            String outcome = c.getId().getTag(OpsMetrics.TAG_OUTCOME);
+            long n = (long) c.count();
+            if (OpsMetrics.OUTCOME_SENT.equals(outcome)) {
+                retriedSent += n;
+            } else if (OpsMetrics.OUTCOME_FAILED.equals(outcome)) {
+                retriedFailed += n;
+            }
+        }
+        long total = sent + failed;
+        return new Notifications(sent, failed, retriedSent, retriedFailed, total == 0 ? null : (double) sent / total);
     }
 
     // ---- exception queue

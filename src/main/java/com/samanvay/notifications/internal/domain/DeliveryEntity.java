@@ -88,12 +88,24 @@ public class DeliveryEntity {
         this.status = status;
     }
 
+    public int getAttempts() {
+        return attempts;
+    }
+
     public void setAttempts(int attempts) {
         this.attempts = attempts;
     }
 
+    public String getLastError() {
+        return lastError;
+    }
+
     public void setLastError(String lastError) {
         this.lastError = lastError;
+    }
+
+    public Instant getSentAt() {
+        return sentAt;
     }
 
     public void setSentAt(Instant sentAt) {
