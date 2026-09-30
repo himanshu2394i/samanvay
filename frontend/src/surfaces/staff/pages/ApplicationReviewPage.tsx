@@ -5,6 +5,7 @@ import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { formatDateTime, humanize } from '../../../ui/format'
 import { Loading } from '../../../ui/Loading'
+import { StatusStepper } from '../../../ui/StatusStepper'
 import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
 import { appStatus, isOpenApplication, SLA_BADGE, slaState, stepTone } from '../lib/status'
@@ -51,12 +52,18 @@ export function ApplicationReviewPage() {
     if (await action.run(instanceId, () => api.retryInstance(instanceId), 'Retry requested. Refresh in a moment to see whether the step cleared.')) data.reload()
   }
 
+  async function approve(instanceId: string) {
+    if (await action.run(instanceId, () => api.approveApplication(instanceId), 'Application approved.')) data.reload()
+  }
+
   return (
     <section aria-labelledby="app-h">
       <p>
         <Link to="/staff/officer/applications">All applications</Link>
       </p>
       <h1 id="app-h">Application {app.referenceNo}</h1>
+
+      <StatusStepper status={app.status} />
 
       <dl className="facts">
         <div className="fact">
@@ -176,25 +183,30 @@ export function ApplicationReviewPage() {
       )}
 
       <h2>Decision</h2>
-      {/* TODO(approve): wire this to the application approval endpoint once it is on main.
-          None exists at this commit (only bank-account reviews have approve/reject), and this app
-          does not invent endpoints. Open PR #55 proposes POST /api/journeys/instances/{instanceId}/approve
-          (OFFICER only; only a VERIFIED application is approvable, others answer 409; {instanceId} is the
-          `instanceId` field of the application view, not the reference number). When it merges, confirm the
-          route, add `approveApplication` to api/staffApi.ts (+ its case in staffApi.test.ts, which today
-          pins that no such call exists), enable this button only for status VERIFIED, and reload after. */}
-      <div className="notice warn" data-testid="approve-todo">
-        <p>
-          <strong>TODO: approving an application is not available yet.</strong> This build of the API has no application
-          approval endpoint, so this console can review but not decide.
-        </p>
-        <button type="button" className="btn primary" disabled aria-describedby="approve-todo-why">
-          Approve application
-        </button>
-        <p id="approve-todo-why" className="hint">
-          Disabled until the endpoint exists.
-        </p>
-      </div>
+      {/* Approval is officer-only and applies only to a VERIFIED application: the endpoint answers 409
+          (mapped to a plain sentence in ui/errors.ts) for any other status. The route keys off the
+          `instanceId` of the application view, not the reference number. */}
+      {(() => {
+        const canApprove = app.status === 'VERIFIED' && app.instanceId !== null
+        return (
+          <div className="actions">
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => app.instanceId !== null && void approve(app.instanceId)}
+              disabled={!canApprove || action.busy !== null}
+              aria-describedby={canApprove ? undefined : 'approve-why'}
+            >
+              {action.busy === app.instanceId ? 'Approving…' : 'Approve application'}
+            </button>
+            {!canApprove ? (
+              <p id="approve-why" className="hint">
+                Available once every department record is verified
+              </p>
+            ) : null}
+          </div>
+        )
+      })()}
     </section>
   )
 }

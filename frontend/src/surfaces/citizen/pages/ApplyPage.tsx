@@ -10,6 +10,8 @@ import type {
   LinkProofKind,
   LinkProofProviderInfo,
 } from '../../../api/types'
+import { useT } from '../../../i18n'
+import type { TranslationKey } from '../../../i18n'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { Field } from '../../../ui/Field'
@@ -26,25 +28,27 @@ import {
 import { formatDate, humanize } from '../lib/format'
 
 type Step = 'connect' | 'consent' | 'submit'
-const STEPS: { id: Step; label: string }[] = [
-  { id: 'connect', label: 'Connect accounts' },
-  { id: 'consent', label: 'Give consent' },
-  { id: 'submit', label: 'Submit' },
+const STEPS: { id: Step; labelKey: TranslationKey }[] = [
+  { id: 'connect', labelKey: 'apply.step.connect' },
+  { id: 'consent', labelKey: 'apply.step.consent' },
+  { id: 'submit', labelKey: 'apply.step.submit' },
 ]
 
 export function ApplyPage() {
   const { code = '' } = useParams()
   const api = useCitizenApi()
+  const t = useT()
   const { citizenId } = useCitizen()
   const journey = useAsync(() => api.getJourney(code), code)
 
-  if (journey.status === 'loading') return <Loading label="Loading service" />
+  if (journey.status === 'loading') return <Loading label={t('apply.loading')} />
   if (journey.status === 'error') return <ErrorNotice error={journey.error} onRetry={journey.reload} />
   if (!citizenId) return null // RequireProfile redirects before this renders
   return <Wizard journey={journey.data} citizenId={citizenId} />
 }
 
 function Wizard({ journey, citizenId }: { journey: JourneyDefinition; citizenId: string }) {
+  const t = useT()
   const [step, setStep] = useState<Step>('connect')
   const [artifact, setArtifact] = useState<ConsentArtifact | null>(null)
   const current = STEPS.findIndex((s) => s.id === step)
@@ -52,13 +56,13 @@ function Wizard({ journey, citizenId }: { journey: JourneyDefinition; citizenId:
   return (
     <section aria-labelledby="apply-h">
       <p>
-        <Link to={`/services/${encodeURIComponent(journey.code)}`}>Back to service details</Link>
+        <Link to={`/services/${encodeURIComponent(journey.code)}`}>{t('apply.backToService')}</Link>
       </p>
-      <h1 id="apply-h">Apply: {journey.name}</h1>
-      <ol className="steps" aria-label="Application steps">
+      <h1 id="apply-h">{t('apply.title', { name: journey.name })}</h1>
+      <ol className="steps" aria-label={t('apply.stepsLabel')}>
         {STEPS.map((s, i) => (
           <li key={s.id} className={i < current ? 'done' : i === current ? 'now' : ''} aria-current={i === current ? 'step' : undefined}>
-            <span className="n">{i + 1}</span> {s.label}
+            <span className="n">{i + 1}</span> {t(s.labelKey)}
           </li>
         ))}
       </ol>
@@ -89,9 +93,10 @@ function Wizard({ journey, citizenId }: { journey: JourneyDefinition; citizenId:
 
 function ConnectStep({ journey, citizenId, onContinue }: { journey: JourneyDefinition; citizenId: string; onContinue: () => void }) {
   const api = useCitizenApi()
+  const t = useT()
   const accounts = useAsync(() => api.connectAccounts(citizenId, journey.code), `${citizenId}:${journey.code}`)
 
-  if (accounts.status === 'loading') return <Loading label="Checking your connected accounts" />
+  if (accounts.status === 'loading') return <Loading label={t('connect.checking')} />
   if (accounts.status === 'error') return <ErrorNotice error={accounts.error} onRetry={accounts.reload} />
 
   const { departments, providers } = accounts.data
@@ -100,14 +105,9 @@ function ConnectStep({ journey, citizenId, onContinue }: { journey: JourneyDefin
 
   return (
     <div aria-labelledby="connect-h" role="group">
-      <h2 id="connect-h">Connect your department accounts</h2>
-      <p>
-        This service needs records from {departments.length} department{departments.length === 1 ? '' : 's'}. Connect
-        each one once by proving the account is yours.
-      </p>
-      <p role="status">
-        Connected {linkedCount} of {departments.length}
-      </p>
+      <h2 id="connect-h">{t('connect.heading')}</h2>
+      <p>{t(departments.length === 1 ? 'connect.introOne' : 'connect.introMany', { count: departments.length })}</p>
+      <p role="status">{t('connect.connectedCount', { linked: linkedCount, total: departments.length })}</p>
       <ul className="stack">
         {departments.map((d) => (
           <li key={d.departmentCode} className="card">
@@ -117,9 +117,9 @@ function ConnectStep({ journey, citizenId, onContinue }: { journey: JourneyDefin
       </ul>
       <div className="actions">
         <button type="button" className="btn primary" disabled={!ready} onClick={onContinue}>
-          Continue to consent
+          {t('connect.continue')}
         </button>
-        {!ready ? <span className="hint">Connect every department above to continue.</span> : null}
+        {!ready ? <span className="hint">{t('connect.connectAllHint')}</span> : null}
       </div>
     </div>
   )
@@ -137,6 +137,7 @@ function DepartmentCard({
   onLinked: () => void
 }) {
   const api = useCitizenApi()
+  const t = useT()
   const usable = supportedProviders(providers)
   const other = unsupportedProviders(providers)
   const [provider, setProvider] = useState<LinkProofKind>(usable[0]?.kind ?? 'DIGILOCKER')
@@ -166,18 +167,19 @@ function DepartmentCard({
   return (
     <>
       <h3 id={headingId}>
-        {need.departmentName} <Badge tone={need.linked ? 'ok' : 'warn'}>{need.linked ? 'Connected' : 'Not connected'}</Badge>
+        {need.departmentName}{' '}
+        <Badge tone={need.linked ? 'ok' : 'warn'}>{need.linked ? t('dept.connected') : t('dept.notConnected')}</Badge>
       </h3>
-      <p className="hint">Provides: {need.categories.map(humanize).join(', ')}.</p>
+      <p className="hint">{t('dept.provides', { categories: need.categories.map(humanize).join(', ') })}</p>
       {need.linked ? null : usable.length === 0 ? (
         <p className="notice warn">
-          No supported way to connect this account is available right now.
-          {other.length ? ` (Offered by the server: ${other.map((p) => p.label).join(', ')}.)` : ''}
+          {t('dept.noProvider')}
+          {other.length ? ` ${t('dept.offeredByServer', { providers: other.map((p) => p.label).join(', ') })}` : ''}
         </p>
       ) : (
         <form onSubmit={(e) => void onSubmit(e)} aria-labelledby={headingId}>
           <div className="field">
-            <label htmlFor={`${headingId}-provider`}>How do you want to prove it?</label>
+            <label htmlFor={`${headingId}-provider`}>{t('dept.howProve')}</label>
             <select id={`${headingId}-provider`} value={provider} onChange={(e) => setProvider(e.target.value as LinkProofKind)}>
               {usable.map((p) => (
                 <option key={p.kind} value={p.kind}>
@@ -186,24 +188,24 @@ function DepartmentCard({
               ))}
             </select>
           </div>
-          <Field label="ID type" value={localIdType} onChange={(e) => setLocalIdType(e.target.value)} required hint="For example RATION, or the department name." />
-          <Field label="Your ID with this department" value={localId} onChange={(e) => setLocalId(e.target.value)} required />
+          <Field label={t('dept.idType')} value={localIdType} onChange={(e) => setLocalIdType(e.target.value)} required hint={t('dept.idTypeHint')} />
+          <Field label={t('dept.yourId')} value={localId} onChange={(e) => setLocalId(e.target.value)} required />
           {provider === 'LOCAL_ID_OTP' ? (
             <Field
-              label="One-time code"
+              label={t('dept.oneTimeCode')}
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
               required
               inputMode="numeric"
               autoComplete="one-time-code"
-              hint="Development build: the demo code is 000000."
+              hint={t('dept.otpHint')}
             />
           ) : (
-            <p className="hint">Development build: this uses the DigiLocker sandbox, not the live DigiLocker.</p>
+            <p className="hint">{t('dept.digilockerHint')}</p>
           )}
           {error ? <ErrorNotice error={error} /> : null}
           <button type="submit" className="btn" disabled={busy} aria-busy={busy || undefined}>
-            {busy ? 'Connecting…' : `Connect ${need.departmentName}`}
+            {busy ? t('dept.connecting') : t('dept.connect', { name: need.departmentName })}
           </button>
         </form>
       )}
@@ -231,6 +233,7 @@ function ConsentStep({
   onContinue: () => void
 }) {
   const api = useCitizenApi()
+  const t = useT()
   const [request, setRequest] = useState<ConsentRequest | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -249,18 +252,19 @@ function ConsentStep({
 
   return (
     <div role="group" aria-labelledby="consent-h">
-      <h2 id="consent-h">Give your consent</h2>
+      <h2 id="consent-h">{t('consent.heading')}</h2>
       {artifact ? (
         <div className="notice ok" role="status">
           <p>
-            Consent granted. It is valid until <strong>{formatDate(artifact.validUntil)}</strong> and you can withdraw
-            it at any time from <Link to="/consents">My consents</Link>.
+            {t('consent.grantedPrefix', { date: formatDate(artifact.validUntil) })}{' '}
+            <Link to="/consents">{t('nav.consents')}</Link>
+            {t('consent.grantedSuffix')}
           </p>
         </div>
       ) : request ? (
         <div className="card">
           <p>
-            <strong>{humanize(request.requesterId)}</strong> is asking to fetch these records about you:
+            <strong>{humanize(request.requesterId)}</strong> {t('consent.askingSuffix')}
           </p>
           <ul className="plain">
             {request.categories.map((c) => (
@@ -268,7 +272,7 @@ function ConsentStep({
             ))}
           </ul>
           <p>
-            Purpose: <em>{request.purposeText}</em>
+            {t('consent.purpose')} <em>{request.purposeText}</em>
           </p>
           <div className="actions">
             <button
@@ -277,33 +281,30 @@ function ConsentStep({
               disabled={busy}
               onClick={() => void run(() => api.grantConsent(request.id, citizenId), onGranted)}
             >
-              {busy ? 'Granting…' : 'I agree: grant consent'}
+              {busy ? t('consent.granting') : t('consent.agree')}
             </button>
           </div>
         </div>
       ) : (
         <>
-          <p>
-            Before we fetch anything, we will show you exactly who is asking, which records, and why. Nothing is shared
-            until you agree.
-          </p>
+          <p>{t('consent.reviewIntro')}</p>
           <button
             type="button"
             className="btn primary"
             disabled={busy}
             onClick={() => void run(() => api.requestConsent(citizenId, journey.policy.purpose), setRequest)}
           >
-            {busy ? 'Preparing…' : 'Review what will be shared'}
+            {busy ? t('consent.preparing') : t('consent.review')}
           </button>
         </>
       )}
       {error ? <ErrorNotice error={error} /> : null}
       <div className="actions">
         <button type="button" className="btn" onClick={onBack}>
-          Back
+          {t('consent.back')}
         </button>
         <button type="button" className="btn primary" disabled={!artifact} onClick={onContinue}>
-          Continue to submit
+          {t('consent.continue')}
         </button>
       </div>
     </div>
@@ -316,6 +317,7 @@ function ConsentStep({
 
 function SubmitStep({ journey, citizenId, onBack }: { journey: JourneyDefinition; citizenId: string; onBack: () => void }) {
   const api = useCitizenApi()
+  const t = useT()
   const navigate = useNavigate()
   const [instance, setInstance] = useState<JourneyInstance | null>(null)
   const [busy, setBusy] = useState(false)
@@ -342,23 +344,23 @@ function SubmitStep({ journey, citizenId, onBack }: { journey: JourneyDefinition
 
   return (
     <div role="group" aria-labelledby="submit-h">
-      <h2 id="submit-h">Submit your application</h2>
+      <h2 id="submit-h">{t('submit.heading')}</h2>
       <p>
-        We will now fetch the records you agreed to share and start the checks for <strong>{journey.name}</strong>.
+        {t('submit.introPrefix')} <strong>{journey.name}</strong>
+        {t('submit.introSuffix')}
       </p>
       {error ? <ErrorNotice error={error} /> : null}
       {slow ? (
         <p className="notice warn" role="status">
-          Your application was submitted, but its number is not ready yet. Check <Link to="/applications">My applications</Link> in
-          a moment.
+          {t('submit.slowPrefix')} <Link to="/applications">{t('nav.applications')}</Link> {t('submit.slowSuffix')}
         </p>
       ) : null}
       <div className="actions">
         <button type="button" className="btn" onClick={onBack} disabled={busy || instance !== null}>
-          Back
+          {t('submit.back')}
         </button>
         <button type="button" className="btn primary" disabled={busy} aria-busy={busy || undefined} onClick={() => void submit()}>
-          {busy ? 'Submitting…' : instance ? 'Check for my application number' : 'Submit application'}
+          {busy ? t('submit.submitting') : instance ? t('submit.checkNumber') : t('submit.submit')}
         </button>
       </div>
     </div>

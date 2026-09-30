@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCitizenApi } from '../../../api/apiContext'
+import { useT } from '../../../i18n'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { Field } from '../../../ui/Field'
@@ -12,6 +13,7 @@ import { applicationStatus } from '../lib/status'
 
 export function ApplicationsPage() {
   const api = useCitizenApi()
+  const t = useT()
   const { citizenId } = useCitizen()
   const navigate = useNavigate()
   const [ref, setRef] = useState('')
@@ -32,35 +34,35 @@ export function ApplicationsPage() {
 
   return (
     <section aria-labelledby="apps-h">
-      <h1 id="apps-h">My applications</h1>
-      {data.status === 'loading' ? <Loading label="Loading your applications" /> : null}
+      <h1 id="apps-h">{t('apps.title')}</h1>
+      {data.status === 'loading' ? <Loading label={t('apps.loading')} /> : null}
       {data.status === 'error' ? <ErrorNotice error={data.error} onRetry={data.reload} /> : null}
       {data.status === 'success' ? (
         data.data.apps.length === 0 ? (
           <div className="card narrow">
-            <h2>Nothing here yet</h2>
-            <p>You have not applied for anything yet. When you do, you can track every department check here.</p>
+            <h2>{t('apps.noneHeading')}</h2>
+            <p>{t('apps.noneBody')}</p>
             <div className="actions">
               <Link className="btn primary" to="/services">
-                Browse services
+                {t('apps.browseServices')}
               </Link>
             </div>
           </div>
         ) : (
           <div className="table-wrap">
             <table>
-              <caption className="sr-only">Your applications</caption>
+              <caption className="sr-only">{t('apps.caption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Application number</th>
-                  <th scope="col">Service</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Decision due</th>
+                  <th scope="col">{t('apps.colNumber')}</th>
+                  <th scope="col">{t('apps.colService')}</th>
+                  <th scope="col">{t('apps.colStatus')}</th>
+                  <th scope="col">{t('apps.colDecisionDue')}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.data.apps.map((a) => {
-                  const st = applicationStatus(a.status)
+                  const st = applicationStatus(a.status, t)
                   return (
                     <tr key={a.referenceNo}>
                       <td>
@@ -68,9 +70,9 @@ export function ApplicationsPage() {
                       </td>
                       <td>{data.data.names.get(a.journeyCode) ?? humanize(a.journeyCode)}</td>
                       <td>
-                        <Badge tone={st.tone}>{st.label.split(':')[0]}</Badge>
+                        <Badge tone={st.tone}>{st.short}</Badge>
                       </td>
-                      <td>{formatDate(a.slaDueAt) || 'n/a'}</td>
+                      <td>{formatDate(a.slaDueAt) || t('app.na')}</td>
                     </tr>
                   )
                 })}
@@ -81,9 +83,9 @@ export function ApplicationsPage() {
       ) : null}
 
       <form className="inline-form" onSubmit={track}>
-        <Field label="Track by application number" value={ref} onChange={(e) => setRef(e.target.value)} required />
+        <Field label={t('apps.trackLabel')} value={ref} onChange={(e) => setRef(e.target.value)} required />
         <button type="submit" className="btn">
-          Track
+          {t('apps.track')}
         </button>
       </form>
     </section>

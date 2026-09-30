@@ -87,6 +87,16 @@ const steps = [
   },
 ]
 
+const disbursement = {
+  status: 'ISSUED',
+  createdAt: '2026-09-29T10:00:00Z',
+  instalmentCount: 2,
+  instalments: [
+    { sequence: 1, status: 'SCHEDULED' },
+    { sequence: 2, status: 'SCHEDULED' },
+  ],
+}
+
 const issuedRecords = [
   {
     stepCode: 'INCOME_CERTIFICATE',
@@ -301,6 +311,7 @@ describe('apply: connect accounts, consent, submit, then track', () => {
       { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: applicationView } },
       { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
       { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/disbursement', reply: { status: 204 } },
     ])
   }
 
@@ -488,6 +499,34 @@ describe('track applications', () => {
     expect(screen.queryByText('Records fetched for you')).not.toBeInTheDocument()
   })
 
+  it('shows the sanction panel with each instalment once an approved application is disbursed', async () => {
+    const { fetchImpl } = mockFetch([
+      { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: { ...applicationView, status: 'APPROVED' } } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/disbursement', reply: { body: disbursement } },
+    ])
+    renderCitizen({ route: '/applications/SCH-2026-0001', fetchImpl })
+
+    const panel = (await screen.findByRole('heading', { name: 'Application sanctioned' })).closest('section') as HTMLElement
+    expect(within(panel).getByText('Instalment 1')).toBeInTheDocument()
+    expect(within(panel).getByText('Instalment 2')).toBeInTheDocument()
+    expect(within(panel).getByText('Issued')).toBeInTheDocument()
+  })
+
+  it('shows no sanction panel while the application is only verified (204, not yet disbursed)', async () => {
+    const { fetchImpl } = mockFetch([
+      { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: { ...applicationView, status: 'VERIFIED' } } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+      { method: 'GET', path: '/api/applications/SCH-2026-0001/disbursement', reply: { status: 204 } },
+    ])
+    renderCitizen({ route: '/applications/SCH-2026-0001', fetchImpl })
+
+    expect(await screen.findByRole('heading', { name: /Application SCH-2026-0001/ })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Application sanctioned' })).not.toBeInTheDocument()
+  })
+
   it('says so plainly when the application does not exist', async () => {
     const { fetchImpl } = mockFetch([
       { method: 'GET', path: '/api/applications/NOPE', reply: { status: 404, body: { status: 404 } } },
@@ -497,7 +536,7 @@ describe('track applications', () => {
     expect(await screen.findByRole('heading', { name: 'Application not found' })).toBeInTheDocument()
   })
 
-  it('keeps refreshing an in-progress application and stops once it is final', async () => {
+  it('keeps refreshing while VERIFIED awaits the officer, and stops once APPROVED', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       let status = 'PARTIALLY_VERIFIED'
@@ -511,11 +550,17 @@ describe('track applications', () => {
       expect(await screen.findByText(/some department records are still awaited/)).toBeInTheDocument()
       expect(find('GET', '/api/applications/SCH-2026-0001')).toHaveLength(1)
 
+      // VERIFIED is not final for the citizen: the page keeps polling for the officer's decision.
       status = 'VERIFIED'
       await vi.advanceTimersByTimeAsync(REFRESH_MS + 100)
-      expect(await screen.findByText(/Verified: department records were received/)).toBeInTheDocument()
+      expect(await screen.findByText(/awaiting the officer's decision/)).toBeInTheDocument()
+      expect(find('GET', '/api/applications/SCH-2026-0001').length).toBeGreaterThanOrEqual(2)
+
+      // APPROVED is final: polling stops.
+      status = 'APPROVED'
+      await vi.advanceTimersByTimeAsync(REFRESH_MS + 100)
+      expect(await screen.findByText(/your application was approved/)).toBeInTheDocument()
       const afterFinal = find('GET', '/api/applications/SCH-2026-0001').length
-      expect(afterFinal).toBe(2)
 
       await vi.advanceTimersByTimeAsync(REFRESH_MS * 3)
       expect(find('GET', '/api/applications/SCH-2026-0001')).toHaveLength(afterFinal)
