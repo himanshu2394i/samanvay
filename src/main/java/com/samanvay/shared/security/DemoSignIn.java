@@ -77,6 +77,7 @@ class DemoSignIn {
                 .issuer(u.issuer())
                 .subject(u.username())
                 .audience("samanvay-api")
+                .jwtID(java.util.UUID.randomUUID().toString()) // the session proof consent binds a grant to (like a Keycloak jti)
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(now.plus(Duration.ofHours(12)))) // a long demo session
                 .claim("typ", "Bearer")
