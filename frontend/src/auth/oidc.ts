@@ -12,8 +12,9 @@ export function currentRedirectUri(loc: Pick<Location, 'origin' | 'pathname'> = 
 
 /**
  * Authorization Code + PKCE (S256) with a public client. Tokens live in sessionStorage
- * (per tab, gone when it closes); no refresh token is requested, so an expired session
- * means signing in again.
+ * (per tab, gone when it closes). The short-lived (5 min) access token is renewed in the
+ * background from the refresh token Keycloak issues, so an active session stays signed in
+ * until the Keycloak SSO session itself ends — instead of dropping every 5 minutes.
  */
 export function createUserManager(cfg: OidcConfig): UserManager {
   const redirect = currentRedirectUri()
@@ -25,7 +26,9 @@ export function createUserManager(cfg: OidcConfig): UserManager {
     response_type: 'code',
     scope: 'openid',
     loadUserInfo: false,
-    automaticSilentRenew: false,
+    // Silently refresh the access token before it expires (via the refresh_token grant;
+    // CORS-allowed by the realm client's webOrigins, so no silent-renew iframe is needed).
+    automaticSilentRenew: true,
     userStore: new WebStorageStateStore({ store: window.sessionStorage }),
   })
 }
