@@ -100,6 +100,8 @@ class SecurityConfig {
                         .requestMatchers(POST, "/api/journeys/instances/*/retry").hasRole(OFFICER)
                         // officer approval step: VERIFIED -> APPROVED (fires the disbursement)
                         .requestMatchers(POST, "/api/journeys/instances/*/approve").hasRole(OFFICER)
+                        // officer rejection step: non-terminal -> REJECTED (with a reason; nothing disburses)
+                        .requestMatchers(POST, "/api/journeys/instances/*/reject").hasRole(OFFICER)
                         .requestMatchers(GET, "/api/journeys/exceptions", "/api/journeys/instances/*").hasRole(OFFICER)
                         // officer bank-account review (no holder name is ever returned)
                         .requestMatchers(GET, "/api/officer/bank-reviews").hasRole(OFFICER)
