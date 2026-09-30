@@ -5,7 +5,7 @@ import org.springframework.core.Ordered;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/** GET forwards for the three citizen skins (scholarship, licence, farmer). */
+/** GET forwards for the three citizen skins (scholarship, licence, farmer) and the React SPA. */
 @Configuration
 class CivicPortalsWeb implements WebMvcConfigurer {
 
@@ -17,6 +17,10 @@ class CivicPortalsWeb implements WebMvcConfigurer {
         registry.addViewController("/licence/").setViewName("forward:/licence/index.html");
         registry.addViewController("/farmer").setViewName("forward:/farmer/index.html");
         registry.addViewController("/farmer/").setViewName("forward:/farmer/index.html");
+        // The React SPA (frontend/, built into static/app by the `frontend` Maven profile).
+        // It uses hash routing, so every in-app route is /app/#/...; only /app/ needs a forward.
+        registry.addViewController("/app").setViewName("forward:/app/index.html");
+        registry.addViewController("/app/").setViewName("forward:/app/index.html");
         registry.setOrder(Ordered.HIGHEST_PRECEDENCE);
     }
 }

@@ -101,7 +101,7 @@ export function ApplicationsReviewPage() {
                         {sla !== 'none' ? <Badge tone={SLA_BADGE[sla].tone}>{SLA_BADGE[sla].label}</Badge> : null}
                       </td>
                       <td className="mono" title={a.citizenId}>
-                        {shortId(a.citizenId)}
+                        <Link to={`/staff/officer/citizens/${encodeURIComponent(a.citizenId)}`}>{shortId(a.citizenId)}</Link>
                       </td>
                     </tr>
                   )

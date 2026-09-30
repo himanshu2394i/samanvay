@@ -8,6 +8,7 @@ import { ExceptionsPage } from './pages/ExceptionsPage'
 import { BankReviewsPage } from './pages/BankReviewsPage'
 import { ApplicationsReviewPage } from './pages/ApplicationsReviewPage'
 import { ApplicationReviewPage } from './pages/ApplicationReviewPage'
+import { CitizenViewPage } from './pages/CitizenViewPage'
 import { MetricsPage } from './pages/MetricsPage'
 import { AuditPage } from './pages/AuditPage'
 import { CatalogPage } from './pages/CatalogPage'
@@ -40,6 +41,7 @@ export function StaffApp() {
             <Route path="officer/bank-reviews" element={<BankReviewsPage />} />
             <Route path="officer/applications" element={<ApplicationsReviewPage />} />
             <Route path="officer/applications/:ref" element={<ApplicationReviewPage />} />
+            <Route path="officer/citizens/:citizenId" element={<CitizenViewPage />} />
           </Route>
           <Route element={<RequireRole allow={OPS} />}>
             <Route path="ops/metrics" element={<MetricsPage />} />

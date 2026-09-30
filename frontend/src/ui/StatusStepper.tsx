@@ -26,13 +26,16 @@ function stageIndex(status: string): number {
 
 export function StatusStepper({ status }: { status: string }) {
   const current = stageIndex(status)
-  const stages = status === 'REJECTED' ? [...STAGES.slice(0, 3), 'Rejected'] : STAGES
+  const rejected = status === 'REJECTED'
+  const stages = rejected ? [...STAGES.slice(0, 3), 'Rejected'] : STAGES
   return (
     <ol className="steps" aria-label="Application progress">
       {stages.map((label, i) => (
         <li
           key={label}
-          className={i < current ? 'done' : i === current ? 'now' : ''}
+          // A rejected application's terminal step reads as an error (red), never the
+          // same blue "current" style that an approved application ends on.
+          className={i < current ? 'done' : i === current ? (rejected ? 'bad' : 'now') : ''}
           aria-current={i === current ? 'step' : undefined}
         >
           <span className="n">{i + 1}</span> {label}

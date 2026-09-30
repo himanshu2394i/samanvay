@@ -16,26 +16,36 @@ export function LandingPage() {
   return (
     <>
       <section className="hero">
-        <span className="eyebrow">{t('landing.eyebrow')}</span>
-        <h1>{t('landing.title')}</h1>
-        <p className="lede">{t('landing.lede')}</p>
-        {notice ? (
-          <p className="notice warn" role="alert">
-            {notice}
-          </p>
-        ) : null}
-        {status === 'authenticated' ? (
-          <Link className="btn primary" to="/services">
-            {t('landing.browseServices')}
-          </Link>
-        ) : (
-          <>
-            <button type="button" className="btn primary" onClick={() => void signIn('/services')}>
-              {t('landing.signInToStart')}
-            </button>
-            <p className="hint">{t('landing.signInHint')}</p>
-          </>
-        )}
+        <div className="hero-main">
+          <span className="eyebrow">{t('landing.eyebrow')}</span>
+          <h1>{t('landing.title')}</h1>
+          <p className="lede">{t('landing.lede')}</p>
+          {notice ? (
+            <p className="notice warn" role="alert">
+              {notice}
+            </p>
+          ) : null}
+          {status === 'authenticated' ? (
+            <Link className="btn primary" to="/services">
+              {t('landing.browseServices')}
+            </Link>
+          ) : (
+            <>
+              <button type="button" className="btn primary" onClick={() => void signIn('/services')}>
+                {t('landing.signInToStart')}
+              </button>
+              <p className="hint">{t('landing.signInHint')}</p>
+            </>
+          )}
+        </div>
+        <aside className="card assurance" aria-labelledby="assure-h">
+          <h2 id="assure-h">{t('landing.assure.title')}</h2>
+          <ul>
+            <li>{t('landing.assure.point1')}</li>
+            <li>{t('landing.assure.point2')}</li>
+            <li>{t('landing.assure.point3')}</li>
+          </ul>
+        </aside>
       </section>
       <section aria-labelledby="how">
         <h2 id="how">{t('landing.howItWorks')}</h2>
