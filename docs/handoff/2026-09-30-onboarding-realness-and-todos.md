@@ -156,3 +156,21 @@ After onboarding, show a **department detail page**: the department's documents 
 4. §4.4 + §8.4 self-service journeys + per-journey controls — the management layer.
 5. §8.1 remove-a-department migration + hand the user creds to re-onboard live — the end-to-end demo.
 Each is a real chunk; expect multiple PRs. None require storing citizen data (keep the control-plane/data-plane split from §4.5).
+
+### 8.6 Un-onboard a department (keep the simulator running) + the reachability gap
+"Remove" = un-onboard (delete the catalog rows), **not** delete the simulator. Catalog schema + FKs (`V20__catalog_init.sql`): `catalog_data_source.department_code`→`catalog_department`, `catalog_connector.data_source_code`→`catalog_data_source`, `catalog_mapping.connector_ref`→`catalog_connector`; `catalog_journey` has **no** FK to department (categories are a `TEXT[]`, sources live in `policy` JSON). So un-onboarding **DBT** is a clean child→parent delete (run as the migrate superuser inside the container):
+```sql
+BEGIN;
+DELETE FROM catalog_mapping     WHERE connector_ref = 'dbt-bank@1';
+DELETE FROM catalog_connector   WHERE ref = 'dbt-bank@1';
+DELETE FROM catalog_data_source WHERE code IN ('dbt-rest-mock','dept-bank-rest');
+DELETE FROM catalog_department  WHERE code = 'DBT';
+COMMIT;
+```
+`ssh … 'docker exec samanvay-postgres-1 psql -U samanvay_migrate -d samanvay -v ON_ERROR_STOP=1 -c "<the SQL on one line>"'`. Effect: scholarship + farmer **bank** step goes `PENDING_SOURCE` until DBT is re-onboarded (that's the demo; ties to §4.5).
+
+**CRITICAL reachability gap (why a naive re-onboard won't connect):** the seeded sources reach the simulator only because (a) they were **inserted via SQL, bypassing `DataSourceHostPolicy.assertAllowed`** (the SSRF guard that rejects blank/loopback/private/unresolvable hosts — `CatalogServices.register` calls it, the seed does not), **and** (b) the demo profile remaps them to the real service **by source CODE** (`application-demo.yml` → `samanvay.sources.department-service.urls: { dept-bank-rest: http://localhost:8090, … }`), not by host. So a source freshly created through the **wizard** must: pass `assertAllowed` (its `base_host` must be public-looking **and resolvable**), and then actually be reachable — but the runtime will try the literal `base_host`, which won't be the simulator unless it's remapped. **To make self-service onboarding genuinely connect, do ONE of:**
+1. Give the simulator a real, allow-listed, resolvable hostname the app can reach (e.g. expose `department-service` at a nip.io host + an `/etc/hosts`/DNS entry), and onboard against that host (no code-remap needed). **← cleanest; unblocks the whole §8 vision.**
+2. Or extend the demo URL-remap to be keyed by host (or add the new source code to the remap) — demo-only hack.
+3. Or relax `DataSourceHostPolicy` for an explicit demo allow-list of simulator hosts.
+Until one of these is done, "onboard DBT and watch it fetch live" will fail at the fetch even though registration succeeds. This is the concrete blocker to close first for the live-onboard demo (fold into §4.3/§8.2).
