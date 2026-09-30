@@ -78,7 +78,10 @@ Rework `ConnectStep` / `DepartmentCard` in `frontend/src/surfaces/citizen/pages/
   - i18n: add `connect.howProve`, `connect.oneProvider`, `connect.connectAll`, `connect.connecting` to `en.ts` + `mr.ts` (existing keys at en.ts lines ~83-105; mr.ts ~84-106). Unused `dept.idType`/`dept.howProve`/`dept.connect` can be left (harmless).
 - **Verify:** `npm test` + `npm run build` + walk the citizen connect step live (log in as `dev-citizen`, code from Mailpit).
 
-### 4.3 — Make onboarding demonstrably REAL: live probe at the Test step  (HIGH VALUE — directly answers "is it real?")
+### 4.3 — DONE (PR #75): live connectivity probe + per-source health monitoring
+`POST /api/catalog/data-sources/{code}/probe` (ADMIN) makes a live HTTPS connection to a source now and records `health_status` GREEN/RED/UNKNOWN (was always UNKNOWN). `GET /api/catalog/data-sources` (OFFICER, ADMIN) lists sources with health. Catalog page has a **"Data sources & connectivity"** table with a per-source **Check** button. Isolated from the existing Test flow (no regression). Deployed + verified (401 unauth). Note: this is an explicit "Check" button, not yet auto-run at the wizard Test step or on a schedule — that + per-journey rollup is the remaining monitoring polish (§9.3).
+
+### 4.3-orig — (superseded by 4.3 above) live probe at the Test step
 Change the connector **Test** (`CatalogServices.test(...)`, `:120`) from a config-only dry check into a **real trial fetch** against the data source: use the same connector runtime/adapter the live path uses to make one sample call, and set the data source `healthStatus` (currently always `"UNKNOWN"`) to `HEALTHY`/`UNREACHABLE` based on the result. Then a broken/unreachable source **fails at Test time**, not silently at runtime, and the wizard proves the department is actually wired. Surface `healthStatus` in the catalog UI. This is the single most convincing "it's real" improvement for the demo. (Backend + a bit of frontend; add an IT that points at a simulator and asserts a real probe passes, and a down host fails.)
 
 ### 4.4 — Self-service journeys ("aid the journey onboarding")  (LARGER feature)
