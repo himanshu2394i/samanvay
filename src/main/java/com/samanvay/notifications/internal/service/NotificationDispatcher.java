@@ -22,7 +22,10 @@ import com.samanvay.orchestration.api.ManualUploadRequested;
 import com.samanvay.orchestration.api.SlaBreached;
 import com.samanvay.orchestration.api.StepPendingSource;
 import com.samanvay.registry.api.PointerUpserted;
+import com.samanvay.shared.OpsMetrics;
 import com.samanvay.tracking.api.ApplicationReferenceIssued;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Instant;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
@@ -46,7 +50,9 @@ class NotificationDispatcher {
     private final Map<Channel, NotificationChannel> channels = new HashMap<>();
     private final ApplicationEventPublisher events;
     private final PendingCandidateAlerts candidateAlerts;
+    private final MeterRegistry meters;
 
+    /** No metrics registry: deliveries go to a throwaway registry (used by unit tests). */
     NotificationDispatcher(
             SubscriptionRepository subscriptions,
             DeliveryRepository deliveries,
@@ -54,12 +60,25 @@ class NotificationDispatcher {
             List<NotificationChannel> channelList,
             ApplicationEventPublisher events,
             PendingCandidateAlerts candidateAlerts) {
+        this(subscriptions, deliveries, renderer, channelList, events, candidateAlerts, new SimpleMeterRegistry());
+    }
+
+    @Autowired
+    NotificationDispatcher(
+            SubscriptionRepository subscriptions,
+            DeliveryRepository deliveries,
+            TemplateRenderer renderer,
+            List<NotificationChannel> channelList,
+            ApplicationEventPublisher events,
+            PendingCandidateAlerts candidateAlerts,
+            MeterRegistry meters) {
         this.subscriptions = subscriptions;
         this.deliveries = deliveries;
         this.renderer = renderer;
         channelList.forEach(c -> this.channels.put(c.channel(), c));
         this.events = events;
         this.candidateAlerts = candidateAlerts;
+        this.meters = meters;
     }
 
     @ApplicationModuleListener
@@ -248,10 +267,12 @@ class NotificationDispatcher {
             row.setStatus("SENT");
             row.setSentAt(Instant.now());
             deliveries.save(row);
+            OpsMetrics.countNotificationDelivery(meters, channel.name(), OpsMetrics.OUTCOME_SENT);
         } catch (Exception e) {
             row.setStatus("FAILED");
             row.setLastError(truncate(e.getMessage()));
             deliveries.save(row);
+            OpsMetrics.countNotificationDelivery(meters, channel.name(), OpsMetrics.OUTCOME_FAILED);
             events.publishEvent(new DeliveryFailed(row.getId(), channel, e.getMessage()));
         }
     }
@@ -289,10 +310,12 @@ class NotificationDispatcher {
             row.setStatus("SENT");
             row.setSentAt(Instant.now());
             deliveries.save(row);
+            OpsMetrics.countNotificationRetry(meters, channel.name(), OpsMetrics.OUTCOME_SENT);
             return true;
         } catch (Exception e) {
             row.setLastError(truncate(e.getMessage()));
             deliveries.save(row);
+            OpsMetrics.countNotificationRetry(meters, channel.name(), OpsMetrics.OUTCOME_FAILED);
             return false;
         }
     }

@@ -17,6 +17,8 @@ import com.samanvay.notifications.internal.domain.DeliveryEntity;
 import com.samanvay.notifications.internal.domain.SubscriptionEntity;
 import com.samanvay.notifications.internal.repository.DeliveryRepository;
 import com.samanvay.notifications.internal.repository.SubscriptionRepository;
+import com.samanvay.shared.OpsMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -110,6 +112,37 @@ class NotificationRetryTest {
 
         assertThat(dispatcher(deliveries, channel(Channel.EMAIL, new DeliveryOutcome(true, null))).retry(row.getId()))
                 .isFalse();
+    }
+
+    @Test
+    void retryIncrementsTheRetryMetricForTheChannelAndOutcome() {
+        DeliveryEntity row = failedEmail();
+        DeliveryRepository deliveries = mock(DeliveryRepository.class);
+        when(deliveries.findById(row.getId())).thenReturn(Optional.of(row));
+        when(deliveries.save(any(DeliveryEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        SubscriptionRepository subs = mock(SubscriptionRepository.class);
+        when(subs.findByRecipientIdAndEventTypeAndEnabledTrue(any(), any()))
+                .thenReturn(List.of(emailSub("asha@example.test")));
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
+        var dispatcher = new NotificationDispatcher(
+                subs,
+                deliveries,
+                mock(TemplateRenderer.class),
+                List.of(channel(Channel.EMAIL, new DeliveryOutcome(true, null))),
+                mock(ApplicationEventPublisher.class),
+                mock(PendingCandidateAlerts.class),
+                meters);
+
+        dispatcher.retry(row.getId());
+
+        assertThat(meters.counter(
+                                OpsMetrics.NOTIFICATION_RETRY,
+                                OpsMetrics.TAG_CHANNEL,
+                                "EMAIL",
+                                OpsMetrics.TAG_OUTCOME,
+                                OpsMetrics.OUTCOME_SENT)
+                        .count())
+                .isEqualTo(1.0);
     }
 
     @Test
