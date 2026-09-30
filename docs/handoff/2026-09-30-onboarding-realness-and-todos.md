@@ -183,3 +183,35 @@ Verified facts that make the live-onboard work end-to-end:
 **Solution (no new servers, no SG change, no code change):** give each department its own Caddy vhost → `revenue.3.109.201.126.nip.io` / `dbt.…` / `education.…` → `reverse_proxy 127.0.0.1:8090` (all hit the one simulator; split onto separate boxes later for true physical independence). Script: `scratchpad/department-hostnames.sh` (user runs — Caddy edits are exposure-guarded for the assistant). Then **onboard DBT** in the wizard with **base host `dbt.3.109.201.126.nip.io`, protocol REST, auth NONE, category BANK_ACCOUNT, endpoint `/bank`**, mapping `accountRef→accountRef` onto `Credential/BankAccount@1`. The runtime then fetches `https://dbt.3.109.201.126.nip.io/bank?dbtId=<linked id>` live. **This is the genuine "plug in a real, independently-addressed department and the layer connects" moment.**
 - **Remaining nicety (optional):** the wizard's **Test** step still only checks config (§4.3) — it won't *prove* connectivity during onboarding. Adding a real trial-fetch at Test (backend) would make onboarding show green/red live. Recommended next PR.
 - **For true physical independence** (the user's "other servers"): deploy the `simulators/` app on separate hosts (another EC2, or a free PaaS like Render/Fly giving `something.onrender.com`) and onboard against those public hostnames — identical flow, no hairpin needed. The single-instance nip.io approach above is the cheapest way to demonstrate it now.
+
+## 9. Standardized department discovery manifest (the "publish what you hold" contract)
+
+The vision: each department publishes, at a well-known path, non-sensitive **capability metadata** — the documents it holds (structure + how to fetch) and the journeys it offers (with required document categories). Then onboarding is just "enter the base URL" → the middle layer fetches the manifest → auto-creates department + data source + connectors + suggested mappings, and can monitor/kill per department and per journey. The department's only change is publishing this manifest (minimal, aided — not avoiding the department-side change, just shrinking it).
+
+### 9.1 DONE (department side): manifest endpoint on the simulator
+`GET /.well-known/samanvay/manifest` → `simulators/…/department/SamanvayManifestController.java` (+ `SamanvayManifestTest`, green). Contract:
+```json
+{
+  "manifestVersion": 1,
+  "department": { "code": "SANDBOX", "name": "...", "description": "..." },
+  "documents": [
+    { "category": "BANK_ACCOUNT", "title": "Bank account", "protocol": "REST", "method": "GET",
+      "path": "/bank", "inputs": [ { "name":"dbtId","in":"query","required":true,"description":"..." } ],
+      "fields": [ { "name":"accountRef","type":"string","sensitive":true }, ... ] }
+  ],
+  "journeys": [ { "code":"...","name":"...","requiredCategories":["INCOME_CERTIFICATE","BANK_ACCOUNT"] } ]
+}
+```
+`sensitive` flags personal-data fields; **values are never in the manifest** (capability metadata only). Live after the simulator container is rebuilt: `docker compose build department-service && docker compose up -d department-service` → then `https://dbt.3.109.201.126.nip.io/.well-known/samanvay/manifest`.
+
+### 9.2 NEXT (middle-layer side): consume the manifest during onboarding
+Build `POST /api/catalog/discover {baseUrl}` (ADMIN): the middle layer fetches `{baseUrl}/.well-known/samanvay/manifest` (host still goes through `DataSourceHostPolicy` — public host required), returns a preview of the department + its documents + journeys. Then the onboarding wizard, given just a base URL, shows the discovered documents and **creates department + data source + one connector per document + suggested mappings** in one pass (this is also the clean answer to "4 documents = 4 onboards?" → no: discovery creates N connectors under one department). Map manifest fields → `catalog_*`: `document.category`→connector `data_category`; `protocol`/`path`/`inputs`→data source + connector capabilities/inputs; `fields`→output schema + mapping suggestions; `journeys`→(with §4.4 journey write path) create/join journeys with their required categories.
+
+### 9.3 NEXT (monitoring/control): per-department & per-journey status
+With the live probe (§4.3) + a periodic health check hitting each source (or its manifest), show each department/journey as connected/running/down, and allow enable/disable ("kill") a journey or department. `catalog_data_source.health_status` already exists (currently always UNKNOWN) — populate it. This is the "monitor if they're connected/running and kill a journey/department" layer.
+
+### 9.4 Build order
+1. Rebuild the simulator container so 9.1 is live; verify the manifest over HTTPS.
+2. `POST /api/catalog/discover` + wizard "onboard from URL" (9.2) — the headline demo.
+3. Journey write path (§4.4) so discovered journeys become real; per-journey controls (§8.4).
+4. Live probe + health monitoring (§4.3, 9.3).
