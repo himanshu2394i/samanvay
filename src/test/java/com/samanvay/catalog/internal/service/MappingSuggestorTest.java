@@ -68,4 +68,17 @@ class MappingSuggestorTest {
                 .allMatch(s -> !s.approved())
                 .allMatch(s -> !s.rationale().isBlank());
     }
+
+    @Test
+    void semanticPassKnowsMaharashtraRevenueVocabulary() {
+        var suggestions = suggestor.suggest(
+                List.of("zilla", "tehsil", "gatNumber", "gramName"),
+                List.of("district", "taluka", "surveyNumber", "village"));
+
+        assertThat(suggestions).hasSize(4).allMatch(s -> s.rationale().equals("semantic") && !s.approved());
+        assertThat(forTarget(suggestions, "district").orElseThrow().source()).isEqualTo("zilla");
+        assertThat(forTarget(suggestions, "taluka").orElseThrow().source()).isEqualTo("tehsil");
+        assertThat(forTarget(suggestions, "surveyNumber").orElseThrow().source()).isEqualTo("gatNumber");
+        assertThat(forTarget(suggestions, "village").orElseThrow().source()).isEqualTo("gramName");
+    }
 }

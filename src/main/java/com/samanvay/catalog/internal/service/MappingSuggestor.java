@@ -122,6 +122,16 @@ class MappingSuggestor {
         register(m, "CASTE_CATEGORY", "caste", "category", "socialCategory", "casteCategory");
         register(m, "MARKS", "marks", "score", "percentage", "grade", "cgpa", "marksObtained");
         register(m, "ACADEMIC_YEAR", "academicYear", "yearOfStudy");
+        // Maharashtra revenue / DBT / land-record vocabulary (zilla-taluka-gram, survey/gat numbers).
+        register(m, "DISTRICT", "district", "districtName", "zilla", "zillaName");
+        register(m, "TALUKA", "taluka", "tehsil", "taluk", "talukaName");
+        register(m, "VILLAGE", "village", "villageName", "gram", "gramName");
+        register(m, "STATE", "state", "stateName");
+        register(m, "FATHER_NAME", "fatherName", "fathersName", "guardianName");
+        register(m, "SURVEY_NUMBER", "surveyNumber", "surveyNo", "gatNumber", "gatNo", "khasraNumber");
+        register(m, "LAND_AREA", "landArea", "areaHectares", "areaInHectares", "cultivableArea");
+        register(m, "CROP", "crop", "cropName", "cropType");
+        register(m, "RATION_CARD", "rationCard", "rationCardNumber", "rationCardNo");
         return Map.copyOf(m);
     }
 
