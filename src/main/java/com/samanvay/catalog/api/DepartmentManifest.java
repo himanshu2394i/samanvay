@@ -29,5 +29,16 @@ public record DepartmentManifest(
 
     public record Field(String name, String type, boolean sensitive) {}
 
-    public record Journey(String code, String name, String description, List<String> requiredCategories) {}
+    public record Journey(
+            String code,
+            String name,
+            String description,
+            String referencePrefix,
+            int slaHours,
+            String consentPurpose,
+            String requester,
+            List<RequiredCategory> requiredCategories) {}
+
+    /** A document category a journey needs, and the department that provides it. */
+    public record RequiredCategory(String category, String department) {}
 }

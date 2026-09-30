@@ -6,6 +6,7 @@ import static com.samanvay.shared.InvalidRequestException.requireText;
 import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
 import com.samanvay.catalog.api.ConnectorCatalog;
+import com.samanvay.catalog.api.DataSourceHealth;
 import com.samanvay.catalog.api.DepartmentManifest;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
@@ -17,6 +18,8 @@ import com.samanvay.catalog.api.DepartmentCatalog;
 import com.samanvay.catalog.api.DepartmentDraft;
 import com.samanvay.catalog.api.JourneyCatalog;
 import com.samanvay.catalog.api.JourneyDefinition;
+import com.samanvay.catalog.api.JourneyDraft;
+import com.samanvay.catalog.api.JourneyWrite;
 import com.samanvay.catalog.api.ImportPreview;
 import com.samanvay.catalog.api.MappingDefinition;
 import com.samanvay.catalog.api.MappingDraft;
@@ -36,6 +39,7 @@ class CatalogController {
 
     private final DepartmentCatalog departments;
     private final JourneyCatalog journeys;
+    private final JourneyWrite journeyWrite;
     private final ConnectorCatalog connectors;
     private final CatalogOnboarding onboarding;
     private final CatalogDiscovery discovery;
@@ -45,6 +49,7 @@ class CatalogController {
     CatalogController(
             DepartmentCatalog departments,
             JourneyCatalog journeys,
+            JourneyWrite journeyWrite,
             ConnectorCatalog connectors,
             CatalogOnboarding onboarding,
             CatalogDiscovery discovery,
@@ -52,6 +57,7 @@ class CatalogController {
             SchemaCatalog schemas) {
         this.departments = departments;
         this.journeys = journeys;
+        this.journeyWrite = journeyWrite;
         this.connectors = connectors;
         this.onboarding = onboarding;
         this.discovery = discovery;
@@ -77,6 +83,18 @@ class CatalogController {
     @GetMapping("/connectors")
     List<ConnectorDefinition> connectors() {
         return connectors.published();
+    }
+
+    @PostMapping("/journeys")
+    JourneyDefinition createJourney(@RequestBody JourneyDraft draft) {
+        requireText(draft.code(), "code");
+        requireText(draft.name(), "name");
+        return journeyWrite.createJourney(draft);
+    }
+
+    @PostMapping("/journeys/{code}/publish")
+    JourneyDefinition publishJourney(@PathVariable String code) {
+        return journeyWrite.publishJourney(code);
     }
 
     @PostMapping("/departments")
@@ -130,6 +148,16 @@ class CatalogController {
     }
 
     record DiscoverBody(String baseUrl) {}
+
+    @GetMapping("/data-sources")
+    List<DataSourceHealth> dataSources() {
+        return discovery.listDataSources();
+    }
+
+    @PostMapping("/data-sources/{code}/probe")
+    DataSourceHealth probe(@PathVariable String code) {
+        return discovery.probe(code);
+    }
 
     @PostMapping("/import/openapi")
     ImportPreview importOpenApi(@RequestBody ImportBody body) {

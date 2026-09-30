@@ -97,6 +97,10 @@ public class DataSourceEntity {
         this.breakerConfig = breakerConfig;
     }
 
+    public String getHealthStatus() {
+        return healthStatus;
+    }
+
     public void setHealthStatus(String healthStatus) {
         this.healthStatus = healthStatus;
     }

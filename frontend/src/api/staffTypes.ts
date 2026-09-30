@@ -273,15 +273,47 @@ export interface ManifestDocument {
   inputs: ManifestInput[]
   fields: ManifestField[]
 }
+/** A document category a journey needs, and the department that provides it. */
+export interface ManifestRequiredCategory {
+  category: string
+  department: string
+}
 export interface ManifestJourney {
   code: string
   name: string
   description: string | null
+  referencePrefix: string
+  slaHours: number
+  consentPurpose: string
+  requester: string
+  requiredCategories: ManifestRequiredCategory[]
+}
+
+/** Body for POST /api/catalog/journeys (mirrors the Java JourneyDraft record). */
+export interface JourneyDraft {
+  code: string
+  name: string
+  referencePrefix: string
+  slaHours: number
+  consentPurpose: string
+  requester: string
   requiredCategories: string[]
+  /** category -> department that provides it */
+  sources: Record<string, string>
 }
 export interface DepartmentManifest {
   manifestVersion: number
   department: { code: string; name: string; description: string | null }
   documents: ManifestDocument[]
   journeys: ManifestJourney[]
+}
+
+// --- data source health (live connectivity probe / monitoring) ---
+export interface DataSourceHealth {
+  code: string
+  departmentCode: string
+  protocol: string
+  baseHost: string
+  healthStatus: string
+  detail: string | null
 }

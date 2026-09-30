@@ -1,6 +1,8 @@
 package com.samanvay.catalog.api;
 
-/** Reads a department's published capability manifest so it can be onboarded from just a base URL. */
+import java.util.List;
+
+/** Reads a department's published capability manifest, and probes/monitors data source health. */
 public interface CatalogDiscovery {
 
     /**
@@ -9,4 +11,10 @@ public interface CatalogDiscovery {
      * the URL is invalid, unreachable, or does not serve a Samanvay manifest.
      */
     DepartmentManifest discover(String baseUrl);
+
+    /** Every registered data source with its last known connectivity health. */
+    List<DataSourceHealth> listDataSources();
+
+    /** Live connectivity check: reaches the source over the network and records GREEN/RED/UNKNOWN. */
+    DataSourceHealth probe(String dataSourceCode);
 }

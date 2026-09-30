@@ -3,7 +3,12 @@ package com.samanvay.catalog.internal.service;
 import com.samanvay.catalog.api.Capability;
 import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
+import com.samanvay.catalog.api.DataSourceHealth;
 import com.samanvay.catalog.api.DepartmentManifest;
+import com.samanvay.catalog.api.JourneyDefinition;
+import com.samanvay.catalog.api.JourneyDraft;
+import com.samanvay.catalog.api.JourneyPolicy;
+import com.samanvay.catalog.api.JourneyWrite;
 import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
@@ -27,6 +32,7 @@ import com.samanvay.catalog.api.ValidationResult;
 import com.samanvay.catalog.internal.domain.ConnectorEntity;
 import com.samanvay.catalog.internal.domain.DataSourceEntity;
 import com.samanvay.catalog.internal.domain.DepartmentEntity;
+import com.samanvay.catalog.internal.domain.JourneyEntity;
 import com.samanvay.catalog.internal.domain.MappingEntity;
 import com.samanvay.catalog.internal.repository.ConnectorRepository;
 import com.samanvay.catalog.internal.repository.DataSourceRepository;
@@ -44,7 +50,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import org.springframework.context.ApplicationEventPublisher;
@@ -54,7 +64,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
-class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCatalog, CatalogOnboarding, CatalogDiscovery {
+class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCatalog, CatalogOnboarding, CatalogDiscovery, JourneyWrite {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     // Lenient: a department may add manifest fields we do not model yet.
@@ -67,6 +77,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
     private final DataSourceRepository dataSources;
     private final ConnectorRepository connectors;
     private final MappingRepository mappings;
+    private final JourneyRepository journeys;
     private final SchemaRepository schemas;
     private final MappingCatalog mappingCatalog;
     private final ApplicationEventPublisher events;
@@ -99,6 +110,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         this.dataSources = dataSources;
         this.connectors = connectors;
         this.mappings = mappings;
+        this.journeys = journeys;
         this.schemas = schemas;
         this.mappingCatalog = mappingCatalog;
         this.events = events;
@@ -318,6 +330,99 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
                 e.getBreakerConfig());
     }
 
+    // --- Journeys onboarded from a department manifest ------------------------------------------
+
+    @Override
+    @Transactional
+    public JourneyDefinition createJourney(JourneyDraft draft) {
+        String code = InvalidRequestException.requireText(draft.code(), "code");
+        InvalidRequestException.requireText(draft.name(), "name");
+        if (draft.requiredCategories() == null || draft.requiredCategories().isEmpty()) {
+            throw new InvalidRequestException("requiredCategories is required");
+        }
+        if (journeys.existsById(code)) {
+            throw new InvalidRequestException("A journey with code " + code + " already exists");
+        }
+        JourneyEntity e = new JourneyEntity();
+        e.setCode(code);
+        e.setName(draft.name().trim());
+        e.setBpmnRef(code.toLowerCase()); // ponytail: orchestration resolves generically by categories; a generic ref is fine
+        e.setRequiredCategories(draft.requiredCategories().toArray(new String[0]));
+        Map<String, Object> policy = new LinkedHashMap<>();
+        policy.put("accept_stale", false);
+        policy.put("sla_hours", draft.slaHours());
+        policy.put("requester", draft.requester());
+        policy.put("purpose", draft.consentPurpose());
+        policy.put("reference_prefix", draft.referencePrefix());
+        policy.put("sources", draft.sources() == null ? Map.of() : draft.sources());
+        e.setPolicy(JSON.writeValueAsString(policy));
+        e.setStatus("DRAFT");
+        journeys.save(e);
+        return toDefinition(e);
+    }
+
+    @Override
+    @Transactional
+    public JourneyDefinition publishJourney(String code) {
+        String c = InvalidRequestException.requireText(code, "code");
+        JourneyEntity e = journeys.findById(c).orElseThrow(() -> new InvalidRequestException("No journey " + c));
+        List<String> missing = missingCoverage(e);
+        if (!missing.isEmpty()) {
+            throw new InvalidRequestException(
+                    "Cannot publish " + c + " yet: no published connector for " + String.join(", ", missing));
+        }
+        e.setStatus("PUBLISHED");
+        journeys.save(e);
+        return toDefinition(e);
+    }
+
+    /** Required categories with no PUBLISHED connector whose data source belongs to the named provider department. */
+    private List<String> missingCoverage(JourneyEntity e) {
+        JsonNode policy = e.getPolicy() == null ? JSON.createObjectNode() : JSON.readTree(e.getPolicy());
+        JsonNode sources = policy.get("sources");
+        String[] cats = e.getRequiredCategories() == null ? new String[0] : e.getRequiredCategories();
+        List<String> missing = new ArrayList<>();
+        for (String cat : cats) {
+            String dept = (sources != null && sources.get(cat) != null) ? sources.get(cat).asString() : null;
+            boolean covered = dept != null && connectors.findAll().stream().anyMatch(cn ->
+                    "PUBLISHED".equals(cn.getStatus())
+                            && cat.equals(cn.getDataCategory())
+                            && dataSources.findById(cn.getDataSourceCode())
+                                    .map(ds -> dept.equals(ds.getDepartmentCode()))
+                                    .orElse(false));
+            if (!covered) {
+                missing.add(cat + (dept != null ? " (" + dept + ")" : ""));
+            }
+        }
+        return missing;
+    }
+
+    // ponytail: mirrors JourneyCatalogService.toJourney; extract one shared parser if a third caller shows up.
+    private JourneyDefinition toDefinition(JourneyEntity e) {
+        JsonNode policy = e.getPolicy() == null ? JSON.createObjectNode() : JSON.readTree(e.getPolicy());
+        boolean acceptStale = policy.get("accept_stale") != null && policy.get("accept_stale").booleanValue();
+        int sla = policy.get("sla_hours") == null ? 72 : policy.get("sla_hours").intValue();
+        String requester = policyText(policy, "requester", "UNKNOWN");
+        String purpose = policyText(policy, "purpose", "UNKNOWN");
+        String prefix = policyText(policy, "reference_prefix", "APP");
+        Map<String, String> sources = new LinkedHashMap<>();
+        JsonNode src = policy.get("sources");
+        if (src != null && src.isObject()) {
+            src.properties().forEach(p -> sources.put(p.getKey(), p.getValue().asString()));
+        }
+        List<String> cats = e.getRequiredCategories() == null ? List.of() : Arrays.asList(e.getRequiredCategories());
+        return new JourneyDefinition(
+                e.getCode(), e.getName(), e.getBpmnRef(), cats,
+                new JourneyPolicy(acceptStale, sla, requester, purpose, prefix, Map.copyOf(sources)),
+                e.getStatus(), e.getAcademicYearStartMonth());
+    }
+
+    private static String policyText(JsonNode policy, String field, String fallback) {
+        return policy.get(field) == null || policy.get(field).asString().isBlank()
+                ? fallback
+                : policy.get(field).asString();
+    }
+
     @Override
     public DepartmentManifest discover(String baseUrl) {
         String base = InvalidRequestException.requireText(baseUrl, "baseUrl").trim().replaceAll("/+$", "");
@@ -347,6 +452,57 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             throw e;
         } catch (Exception e) {
             throw new InvalidRequestException("Could not read a Samanvay manifest at " + uri + ": " + e.getMessage());
+        }
+    }
+
+    @Override
+    public List<DataSourceHealth> listDataSources() {
+        return dataSources.findAll().stream()
+                .map(e -> new DataSourceHealth(e.getCode(), e.getDepartmentCode(), e.getProtocol(), e.getBaseHost(),
+                        e.getHealthStatus() == null ? "UNKNOWN" : e.getHealthStatus(), null))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public DataSourceHealth probe(String dataSourceCode) {
+        DataSourceEntity e = dataSources.findById(InvalidRequestException.requireText(dataSourceCode, "dataSourceCode"))
+                .orElseThrow(() -> new InvalidRequestException("No data source " + dataSourceCode));
+        String protocol = e.getProtocol();
+        String health;
+        String detail;
+        if ("REST".equals(protocol) || "SOAP".equals(protocol)) {
+            URI uri;
+            try {
+                uri = URI.create("https://" + e.getBaseHost() + "/");
+            } catch (RuntimeException ex) {
+                uri = null;
+            }
+            if (uri == null || uri.getHost() == null) {
+                health = "RED";
+                detail = "Invalid host";
+            } else {
+                String probed = probeHttp(uri);
+                health = probed == null ? "GREEN" : "RED";
+                detail = probed == null ? "Reachable" : "Unreachable: " + probed;
+            }
+        } else {
+            health = "UNKNOWN";
+            detail = "Live probe not supported over " + protocol + "; checked at fetch time";
+        }
+        e.setHealthStatus(health);
+        dataSources.save(e);
+        return new DataSourceHealth(e.getCode(), e.getDepartmentCode(), protocol, e.getBaseHost(), health, detail);
+    }
+
+    /** GET the URL; null means reachable (any HTTP status), else the failure message. */
+    private static String probeHttp(URI uri) {
+        try {
+            HTTP.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8)).GET().build(),
+                    HttpResponse.BodyHandlers.discarding());
+            return null;
+        } catch (Exception ex) {
+            return ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
         }
     }
 

@@ -51,4 +51,32 @@ public class JourneyEntity {
     public Integer getAcademicYearStartMonth() {
         return academicYearStartMonth;
     }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setBpmnRef(String bpmnRef) {
+        this.bpmnRef = bpmnRef;
+    }
+
+    public void setRequiredCategories(String[] requiredCategories) {
+        this.requiredCategories = requiredCategories;
+    }
+
+    public void setPolicy(String policy) {
+        this.policy = policy;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public void setAcademicYearStartMonth(Integer academicYearStartMonth) {
+        this.academicYearStartMonth = academicYearStartMonth;
+    }
 }

@@ -46,7 +46,9 @@ class SamanvayManifestController {
                                         new Field("exam", "string", false)))),
                 List.of(
                         new Journey("SANDBOX_SUBSIDY", "Sandbox subsidy", "A sample service this department offers.",
-                                List.of("INCOME_CERTIFICATE", "BANK_ACCOUNT"))));
+                                "SBX", 96, "SANDBOX_ELIGIBILITY", "SANDBOX",
+                                List.of(new RequiredCategory("INCOME_CERTIFICATE", "SANDBOX"),
+                                        new RequiredCategory("BANK_ACCOUNT", "SANDBOX")))));
     }
 
     record Manifest(int manifestVersion, Dept department, List<Document> documents, List<Journey> journeys) {}
@@ -60,5 +62,8 @@ class SamanvayManifestController {
 
     record Field(String name, String type, boolean sensitive) {}
 
-    record Journey(String code, String name, String description, List<String> requiredCategories) {}
+    record Journey(String code, String name, String description, String referencePrefix, int slaHours,
+                   String consentPurpose, String requester, List<RequiredCategory> requiredCategories) {}
+
+    record RequiredCategory(String category, String department) {}
 }

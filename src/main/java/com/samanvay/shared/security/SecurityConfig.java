@@ -80,7 +80,7 @@ class SecurityConfig {
                         // catalog: reads for everyone signed in, operational detail for staff, writes admin-only
                         .requestMatchers(GET, "/api/catalog/departments", "/api/catalog/journeys", "/api/catalog/journeys/*")
                                 .hasAnyRole(CITIZEN, OFFICER, REVIEWER, ADMIN, DEPARTMENT)
-                        .requestMatchers(GET, "/api/catalog/connectors", "/api/catalog/schemas").hasAnyRole(OFFICER, ADMIN)
+                        .requestMatchers(GET, "/api/catalog/connectors", "/api/catalog/schemas", "/api/catalog/data-sources").hasAnyRole(OFFICER, ADMIN)
                         .requestMatchers(POST, "/api/catalog/**").hasRole(ADMIN)
                         // identity: no-auto-link layer 1 of 3 (edge) - only reviewers confirm/reject
                         .requestMatchers(POST, "/api/identity/candidates/*/confirm", "/api/identity/candidates/*/reject")

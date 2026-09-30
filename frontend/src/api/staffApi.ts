@@ -9,10 +9,12 @@ import type {
   ConnectorTestReport,
   DataSourceDefinition,
   DataSourceDraft,
+  DataSourceHealth,
   DepartmentDraft,
   DepartmentManifest,
   IdentityCandidate,
   ImportPreview,
+  JourneyDraft,
   JourneyException,
   JourneyState,
   MappingDraft,
@@ -86,6 +88,14 @@ export function createStaffApi(client: ApiClient) {
     importOpenApi: (body: OpenApiImportRequest) => client.post<ImportPreview>('/api/catalog/import/openapi', body),
     /** Fetch a department's published capability manifest so it can be onboarded from just a base URL. */
     discover: (baseUrl: string) => client.post<DepartmentManifest>('/api/catalog/discover', { baseUrl }),
+    /** Registered data sources with last-known connectivity health. OFFICER, ADMIN. */
+    listDataSources: () => client.get<DataSourceHealth[]>('/api/catalog/data-sources'),
+    /** Live connectivity check for one data source; records and returns GREEN/RED/UNKNOWN. ADMIN. */
+    probeDataSource: (code: string) => client.post<DataSourceHealth>(`/api/catalog/data-sources/${enc(code)}/probe`),
+    /** Create a journey (service) onboarded from a manifest, as a DRAFT. ADMIN. */
+    createJourney: (draft: JourneyDraft) => client.post<JourneyDefinition>('/api/catalog/journeys', draft),
+    /** Publish a ready DRAFT journey (make it live to citizens); 400 if a required connector is missing. ADMIN. */
+    publishJourney: (code: string) => client.post<JourneyDefinition>(`/api/catalog/journeys/${enc(code)}/publish`),
     saveMapping: (draft: MappingDraft) => client.post<MappingDraft>('/api/catalog/mappings', draft),
     testConnector: (ref: string) => client.post<ConnectorTestReport>(`/api/catalog/connectors/${enc(ref)}/test`),
     publishConnector: (ref: string, report: ConnectorTestReport) =>
