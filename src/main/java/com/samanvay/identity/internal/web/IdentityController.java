@@ -2,6 +2,7 @@ package com.samanvay.identity.internal.web;
 
 import com.samanvay.identity.api.AuthProof;
 import com.samanvay.identity.api.Candidate;
+import com.samanvay.identity.api.CitizenMatch;
 import com.samanvay.identity.api.CitizenProfiles;
 import com.samanvay.identity.api.ConnectAccounts;
 import com.samanvay.identity.api.IdentityLinking;
@@ -57,6 +58,12 @@ class IdentityController {
         InvalidRequestException.requireText(draft.dobPrecision(), "dobPrecision");
         Caller caller = Callers.require();
         return caller.isCitizen() ? profiles.registerSelf(draft, caller.subject()) : profiles.register(draft);
+    }
+
+    /** Officer "Find a citizen": literal route, wins over {id}; gated OFFICER-only in SecurityConfig. */
+    @GetMapping("/citizens/search")
+    List<CitizenMatch> search(@RequestParam String q) {
+        return profiles.search(q);
     }
 
     @GetMapping("/citizens/{id}")

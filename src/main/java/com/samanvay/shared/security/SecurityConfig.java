@@ -87,6 +87,8 @@ class SecurityConfig {
                                 .hasRole(REVIEWER)
                         .requestMatchers(GET, "/api/identity/review-queue").hasRole(REVIEWER)
                         .requestMatchers(POST, "/api/identity/citizens").hasAnyRole(CITIZEN, OFFICER)
+                        // officer "Find a citizen" search: staff only - must sit before the citizen-readable /citizens/**
+                        .requestMatchers(GET, "/api/identity/citizens/search").hasRole(OFFICER)
                         .requestMatchers(GET, "/api/identity/citizens/**").hasAnyRole(CITIZEN, OFFICER, REVIEWER)
                         .requestMatchers(GET, "/api/identity/proof-providers").hasAnyRole(CITIZEN, OFFICER)
                         .requestMatchers(POST, "/api/identity/links").hasRole(CITIZEN)

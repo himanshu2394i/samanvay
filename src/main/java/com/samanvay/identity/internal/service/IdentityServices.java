@@ -13,6 +13,7 @@ import com.samanvay.identity.api.Candidate;
 import com.samanvay.identity.api.CandidateNotFoundException;
 import com.samanvay.identity.api.CandidateRaised;
 import com.samanvay.identity.api.CandidateRef;
+import com.samanvay.identity.api.CitizenMatch;
 import com.samanvay.identity.api.CitizenProfiles;
 import com.samanvay.identity.api.ConnectAccounts;
 import com.samanvay.identity.api.DepartmentLinkNeed;
@@ -49,6 +50,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Pageable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -61,6 +64,8 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
 
     static final double NOISE_FLOOR = 0.60;
     static final double HIGH_CONFIDENCE = 0.90;
+    static final int MIN_SEARCH_CHARS = 2;
+    static final int MAX_SEARCH_HITS = 20;
 
     private final CitizenRepository citizens;
     private final ProfileRepository profiles;
@@ -149,6 +154,34 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
     public Profile profile(UUID citizenId) {
         ProfileEntity p = profiles.findById(citizenId).orElseThrow();
         return toProfile(p);
+    }
+
+    @Override
+    public List<CitizenMatch> search(String query) {
+        String q = query == null ? "" : query.trim();
+        if (q.length() < MIN_SEARCH_CHARS) {
+            return List.of();
+        }
+        Map<UUID, ProfileEntity> hits = new LinkedHashMap<>();
+        parseUuid(q).flatMap(profiles::findById).ifPresent(p -> hits.put(p.getCitizenId(), p));
+        profiles.findByNameLatinContainingIgnoreCaseOrNameDevanagariContainingIgnoreCase(
+                        q, q, PageRequest.of(0, MAX_SEARCH_HITS, Sort.by("nameLatin")))
+                .forEach(p -> hits.putIfAbsent(p.getCitizenId(), p));
+        return hits.values().stream()
+                .map(p -> new CitizenMatch(
+                        p.getCitizenId(),
+                        p.getNameLatin(),
+                        p.getNameDevanagari(),
+                        p.getDob() == null ? null : p.getDob().getYear()))
+                .toList();
+    }
+
+    private static Optional<UUID> parseUuid(String q) {
+        try {
+            return Optional.of(UUID.fromString(q));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
     }
 
     @Override

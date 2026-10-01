@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../../auth/authContext'
-import { STAFF_LINKS } from '../nav'
+import { OFFICER, STAFF_LINKS } from '../nav'
 import { useStaffSession } from '../StaffContext'
 import { StaffAttention } from '../StaffAttention'
+import { CitizenSearch } from '../CitizenSearch'
 
 export function StaffHomePage() {
   const { user } = useAuth()
@@ -19,6 +20,7 @@ export function StaffHomePage() {
         {department ? ` for ${department}` : ''}. You see only what your role may use.
       </p>
       <StaffAttention />
+      {can(OFFICER) ? <CitizenSearch /> : null}
       <h2 className="spaced">Consoles</h2>
       <ul className="grid plain">
         {links.map((l) => (
