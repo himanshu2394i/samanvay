@@ -1,5 +1,6 @@
 package com.samanvay.identity.api;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface CitizenProfiles {
@@ -13,4 +14,7 @@ public interface CitizenProfiles {
     UUID registerSelf(ProfileDraft draft, String authSubject);
 
     Profile profile(UUID citizenId);
+
+    /** Officer search: name (case-insensitive substring) or exact citizen id; capped, coarse fields only. */
+    List<CitizenMatch> search(String query);
 }

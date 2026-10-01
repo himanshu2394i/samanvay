@@ -4,6 +4,7 @@ import type {
   AuditRecord,
   AuditVerification,
   BankReview,
+  CitizenMatch,
   ConnectorDefinition,
   ConnectorDraft,
   ConnectorTestReport,
@@ -64,6 +65,10 @@ export function createStaffApi(client: ApiClient) {
     /** Reject a non-terminal application (→REJECTED, terminal) with a reason; a 409 if already terminal. */
     rejectApplication: (instanceId: Uuid, reason: string) =>
       client.post<{ instanceId: string; status: string }>(`/api/journeys/instances/${enc(instanceId)}/reject`, { reason }),
+
+    // --- officer: find a citizen (IdentityController; OFFICER) ---
+    /** Name substring (Latin or Devanagari) or exact citizen id; capped, coarse fields only. */
+    searchCitizens: (q: string) => client.get<CitizenMatch[]>('/api/identity/citizens/search', { q }),
 
     // --- officer + admin: ops dashboards (OpsMetricsController; OFFICER, ADMIN) ---
     getMetrics: () => client.get<OpsMetrics>('/api/ops/metrics'),

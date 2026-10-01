@@ -449,3 +449,54 @@ describe('officer and admin: audit ledger', () => {
     expect(m.unhandled).toEqual([])
   })
 })
+
+describe('officer: find a citizen from the staff home', () => {
+  const CZ = '33333333-3333-4333-8333-333333333333'
+  // The home strip (StaffAttention) always loads these; keep them quiet so the search is isolated.
+  const homeNoise = [
+    { method: 'GET', path: '/api/ops/metrics', reply: { body: {} } },
+    { method: 'GET', path: '/api/officer/bank-reviews', reply: { body: [] } },
+  ]
+  const match = { citizenId: CZ, nameLatin: 'Ramesh Kumar', nameDevanagari: 'रमेश', birthYear: 2004 }
+
+  it('searches by name, then opens that citizen’s 360° file', async () => {
+    const m = mockFetch([
+      ...homeNoise,
+      { method: 'GET', path: '/api/identity/citizens/search?q=ramesh', reply: { body: [match] } },
+      // The file itself, assembled on CitizenViewPage once we navigate there.
+      { method: 'GET', path: '/api/applications?size=200', reply: { body: [] } },
+      { method: 'GET', path: '/api/audit/entries?size=200', reply: { body: [] } },
+    ])
+    renderStaff({ route: '/staff', fetchImpl: m.fetchImpl, auth: officer() })
+
+    await userEvent.type(await screen.findByRole('searchbox', { name: /citizen name or id/i }), 'ramesh')
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+
+    const hit = await screen.findByRole('link', { name: /Ramesh Kumar/ })
+    expect(hit).toHaveAttribute('href', `/staff/officer/citizens/${CZ}`)
+    await userEvent.click(hit)
+
+    expect(await screen.findByRole('heading', { name: 'Citizen file' })).toBeInTheDocument()
+    expect(screen.getByText(CZ)).toBeInTheDocument()
+    expect(m.find('GET', '/api/identity/citizens/search?q=ramesh')).toHaveLength(1)
+  })
+
+  it('says when nothing matches', async () => {
+    const m = mockFetch([
+      ...homeNoise,
+      { method: 'GET', path: '/api/identity/citizens/search?q=zzz', reply: { body: [] } },
+    ])
+    renderStaff({ route: '/staff', fetchImpl: m.fetchImpl, auth: officer() })
+    await userEvent.type(await screen.findByRole('searchbox', { name: /citizen name or id/i }), 'zzz')
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(await screen.findByText(/No citizens match/)).toBeInTheDocument()
+  })
+
+  it('does not query the server for a one-character term', async () => {
+    const m = mockFetch(homeNoise)
+    renderStaff({ route: '/staff', fetchImpl: m.fetchImpl, auth: officer() })
+    await userEvent.type(await screen.findByRole('searchbox', { name: /citizen name or id/i }), 'r')
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(m.find('GET', /citizens\/search/)).toHaveLength(0)
+  })
+})

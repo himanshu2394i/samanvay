@@ -159,6 +159,7 @@ abstract class AbstractApiAccessMatrixIT extends PostgresIntegrationTest {
         return switch (pattern) {
             case "/api/applications" -> "?citizenId=" + ownCitizen;
             case "/api/identity/citizens/{id}/connect-accounts" -> "?journeyCode=POST_MATRIC_SCHOLARSHIP";
+            case "/api/identity/citizens/search" -> "?q=matrix";
             case "/api/connector/issued-documents" -> "?departmentCode=REVENUE";
             default -> "";
         };

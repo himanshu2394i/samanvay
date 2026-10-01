@@ -153,6 +153,14 @@ export interface IdentityCandidate {
   status: string
 }
 
+/** GET /api/identity/citizens/search — one officer-search hit; coarse fields only (birth year, not DOB). */
+export interface CitizenMatch {
+  citizenId: Uuid
+  nameLatin: string
+  nameDevanagari: string | null
+  birthYear: number | null
+}
+
 /** Spring Data page as serialised by the API; only `content` is relied on. */
 export interface Page<T> {
   content: T[]

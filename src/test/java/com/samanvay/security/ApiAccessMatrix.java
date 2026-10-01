@@ -62,6 +62,7 @@ final class ApiAccessMatrix {
         allow("POST /api/catalog/data-sources/{code}/probe", ADMIN);
         // identity
         allow("POST /api/identity/citizens", CITIZEN, OFFICER);
+        allow("GET /api/identity/citizens/search", OFFICER);
         allow("GET /api/identity/citizens/{id}", CITIZEN, OFFICER, REVIEWER);
         allow("GET /api/identity/citizens/{id}/links", CITIZEN, OFFICER, REVIEWER);
         allow("GET /api/identity/citizens/{id}/connect-accounts", CITIZEN, OFFICER, REVIEWER);
