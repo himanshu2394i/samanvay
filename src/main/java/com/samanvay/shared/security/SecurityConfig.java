@@ -140,7 +140,9 @@ class SecurityConfig {
             RealmIssuerStartupCheck issuersChecked) {
         Map<String, AuthenticationManager> managers = new LinkedHashMap<>();
         register(managers, realms.audience(), realms.staff(), KeycloakJwtConverter.RealmKind.STAFF);
-        register(managers, realms.audience(), realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);
+        if (realms.citizen() != null && realms.citizen().issuerUri() != null && !realms.citizen().issuerUri().isBlank()) {
+            register(managers, realms.audience(), realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);
+        }
         // Unknown issuer -> null manager -> InvalidBearerTokenException -> 401.
         return new JwtIssuerAuthenticationManagerResolver(managers::get);
     }

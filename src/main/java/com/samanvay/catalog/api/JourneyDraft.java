@@ -16,4 +16,19 @@ public record JourneyDraft(
         String consentPurpose,
         String requester,
         List<String> requiredCategories,
-        Map<String, String> sources) {}
+        Map<String, String> sources,
+        String portalUrl) {
+
+    /** A journey with no portal address. */
+    public JourneyDraft(
+            String code,
+            String name,
+            String referencePrefix,
+            int slaHours,
+            String consentPurpose,
+            String requester,
+            List<String> requiredCategories,
+            Map<String, String> sources) {
+        this(code, name, referencePrefix, slaHours, consentPurpose, requester, requiredCategories, sources, null);
+    }
+}

@@ -405,6 +405,9 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         policy.put("purpose", draft.consentPurpose());
         policy.put("reference_prefix", draft.referencePrefix());
         policy.put("sources", draft.sources() == null ? Map.of() : draft.sources());
+        if (draft.portalUrl() != null && !draft.portalUrl().isBlank()) {
+            policy.put("portal_url", draft.portalUrl());
+        }
         e.setPolicy(JSON.writeValueAsString(policy));
         e.setStatus("DRAFT");
         journeys.save(e);

@@ -376,6 +376,39 @@ class ManifestOnboardingPlannerTest {
         assertThat(ManifestOnboardingPlanner.identityHostProblem(CatalogServices.parseManifest(json), "https://x.example.gov")).isEmpty();
     }
 
+    // --- journeys carry the address of the department's own portal ---------------------------------------------
+
+    static String withPortal(String portalUrl) {
+        return "{\"manifestVersion\":2,\"department\":{\"code\":\"X\",\"name\":\"X\",\"description\":\"d\"},\"documents\":[],\"journeys\":["
+                + "{\"code\":\"J1\",\"name\":\"Journey\",\"description\":\"d\",\"referencePrefix\":\"JJ\",\"slaHours\":24,"
+                + "\"consentPurpose\":\"P\",\"requester\":\"X\",\"requiredCategories\":[],\"portalUrl\":" + (portalUrl == null ? "null" : "\"" + portalUrl + "\"") + "}]}";
+    }
+
+    @Test
+    void a_journeys_portal_address_on_the_manifests_own_host_is_kept_in_the_plan() {
+        var m = CatalogServices.parseManifest(withPortal("https://x.example.gov/portal/"));
+        assertThat(ManifestOnboardingPlanner.identityHostProblem(m, "https://x.example.gov")).isEmpty();
+        var plan = new ManifestOnboardingPlanner().plan(m, "https://x.example.gov", null, env()).plan();
+        assertThat(plan.journeys()).singleElement().satisfies(j -> assertThat(j.portalUrl()).isEqualTo("https://x.example.gov/portal/"));
+    }
+
+    @Test
+    void a_journeys_portal_address_on_another_host_is_refused() {
+        var problem = ManifestOnboardingPlanner.identityHostProblem(CatalogServices.parseManifest(withPortal("https://evil.example.net/portal/")), "https://x.example.gov");
+        assertThat(problem).isPresent();
+        assertThat(problem.get()).contains("evil.example.net");
+    }
+
+    @Test
+    void a_portal_address_that_is_not_http_or_https_is_refused() {
+        assertThat(ManifestOnboardingPlanner.identityHostProblem(CatalogServices.parseManifest(withPortal("javascript:alert(1)")), "https://x.example.gov")).isPresent();
+    }
+
+    @Test
+    void a_journey_without_a_portal_address_is_still_fine() {
+        assertThat(ManifestOnboardingPlanner.identityHostProblem(CatalogServices.parseManifest(withPortal(null)), "https://x.example.gov")).isEmpty();
+    }
+
     // --- grouping -------------------------------------------------------------------------------------------
 
     @Test

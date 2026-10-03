@@ -163,8 +163,8 @@ final class ManifestOnboardingPlanner {
             Map<String, String> src = new LinkedHashMap<>();
             j.requiredCategories().forEach(rc -> src.put(rc.category(), rc.department()));
             boolean exists = env.existingJourneys().contains(j.code());
-            journeys.add(new JourneySpec(new JourneyDraft(j.code(), j.name(), j.referencePrefix(), j.slaHours(), j.consentPurpose(), j.requester(), cats, src), exists));
-            journeyPlans.add(new JourneyPlan(j.code(), j.name(), exists, cats));
+            journeys.add(new JourneySpec(new JourneyDraft(j.code(), j.name(), j.referencePrefix(), j.slaHours(), j.consentPurpose(), j.requester(), cats, src, j.portalUrl()), exists));
+            journeyPlans.add(new JourneyPlan(j.code(), j.name(), exists, cats, j.portalUrl()));
         }
 
         boolean changed = env.departmentExists() && env.storedDigest() != null && !env.storedDigest().equals(digest);
@@ -296,10 +296,25 @@ final class ManifestOnboardingPlanner {
      * ponytail: host-only match; a department that serves login from another host needs an operator allow-list.
      */
     static Optional<String> identityHostProblem(DepartmentManifest m, String baseUrl) {
+        String expected = hostOf(baseUrl);
+        // Each journey's portal address is where a citizen is sent to use this department's service: it must be this department's own.
+        if (m.journeys() != null) {
+            for (DepartmentManifest.Journey j : m.journeys()) {
+                String url = j.portalUrl();
+                if (url == null || url.isBlank()) {
+                    continue;
+                }
+                String scheme = schemeOf(url);
+                String host = hostOf(url);
+                if (!("http".equals(scheme) || "https".equals(scheme)) || host == null || !host.equals(expected)) {
+                    return Optional.of("The portal address " + url + " of journey " + j.code() + " is not an http(s) address on the manifest's own host ("
+                            + expected + ").");
+                }
+            }
+        }
         if (m.identity() == null) {
             return Optional.empty();
         }
-        String expected = hostOf(baseUrl);
         for (String url : new String[] {m.identity().loginUrl(), m.identity().jwksUrl()}) {
             if (url == null || url.isBlank()) {
                 continue;
@@ -311,6 +326,15 @@ final class ManifestOnboardingPlanner {
             }
         }
         return Optional.empty();
+    }
+
+    private static String schemeOf(String url) {
+        try {
+            String s = URI.create(url.trim()).getScheme();
+            return s == null ? null : s.toLowerCase(Locale.ROOT);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private static String hostOf(String url) {

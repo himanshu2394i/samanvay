@@ -30,6 +30,12 @@ class JourneyCatalogService implements JourneyCatalog, com.samanvay.shared.secur
     }
 
     @Override
+    public java.util.Optional<String> portalUrl(String journeyCode) {
+        return journeys.findById(journeyCode).map(JourneyEntity::getPolicy).map(JSON::readTree)
+                .map(p -> p.get("portal_url")).filter(n -> n.isString()).map(n -> n.asString());
+    }
+
+    @Override
     public java.util.Optional<String> requesterOf(String journeyCode) {
         return journeys.findById(journeyCode).map(this::toJourney).map(j -> j.policy().requester());
     }

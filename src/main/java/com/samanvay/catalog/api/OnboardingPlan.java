@@ -62,5 +62,5 @@ public record OnboardingPlan(
             List<String> problems,
             boolean ready) {}
 
-    public record JourneyPlan(String code, String name, boolean exists, List<String> requiredCategories) {}
+    public record JourneyPlan(String code, String name, boolean exists, List<String> requiredCategories, String portalUrl) {}
 }
