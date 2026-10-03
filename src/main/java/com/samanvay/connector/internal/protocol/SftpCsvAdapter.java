@@ -17,6 +17,7 @@ import tools.jackson.databind.node.ObjectNode;
 @Component
 class SftpCsvAdapter implements ProtocolAdapter {
 
+    /** Default key column for connectors that do not declare one (the original demo CSV). */
     private static final String ID_COLUMN = "propertyId";
 
     private final MockSftpStore store;
@@ -35,15 +36,16 @@ class SftpCsvAdapter implements ProtocolAdapter {
 
     @Override
     public AdapterResponse execute(AdapterRequest request) {
+        String keyColumn = request.access().getOrDefault("key_column", ID_COLUMN);
         String id = request.boundInputs() == null
                 ? ""
-                : request.boundInputs().getOrDefault(ID_COLUMN, request.boundInputs().values().stream().findFirst().orElse(""));
+                : request.boundInputs().getOrDefault(keyColumn, request.boundInputs().values().stream().findFirst().orElse(""));
         MockSftpStore.JsonRow row;
         if (MockDepartmentBackend.HOST.equals(request.host())) {
-            row = store.lookup(request.dataSourceCode(), ID_COLUMN, id);
+            row = store.lookup(request.dataSourceCode(), keyColumn, id);
         } else {
             String csv = sftp.download(request.dataSourceCode(), request.authConfigRef(), request.host(), request.endpoint());
-            row = MockSftpStore.findRow(csv, ID_COLUMN, id);
+            row = MockSftpStore.findRow(csv, keyColumn, id);
         }
         ObjectNode body = json.createObjectNode();
         if (row == null) {

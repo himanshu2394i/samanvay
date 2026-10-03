@@ -21,27 +21,27 @@ the platform is generic**, not as the product .
 
 **Live:** <https://app.3.109.201.126.nip.io/app/> — demo data only; nothing here is a real record.
 
-Normally the platform requires real sign-in (staff: a passkey, or a password **and** an authenticator
-code; citizens: a one-time code emailed to them). So you can walk the demo without any of that, the
-**demo build puts one-click "Demo: …" buttons on every sign-in screen** — no password, no code:
+There is **no demo login**: everyone signs in through Keycloak.
 
-| Open this | Click | You become | What to look at |
-|---|---|---|---|
-| [`/app/#/staff/admin/onboarding`](https://app.3.109.201.126.nip.io/app/#/staff/admin/onboarding) | **Demo: Admin** | an admin | Onboard a department from just its URL; it picks up the department's documents **and its services (journeys)** |
-| [`/app/#/staff/admin/catalog`](https://app.3.109.201.126.nip.io/app/#/staff/admin/catalog) | **Demo: Admin** | an admin | Each journey's **readiness** is computed from real connector availability; publish a ready one |
-| [`/app/#/staff/officer/exceptions`](https://app.3.109.201.126.nip.io/app/#/staff/officer/exceptions) | **Demo: Officer** | an officer | Exception queue, retries, bank-account review, live ops metrics |
-| [`/app/#/staff/reviewer/queue`](https://app.3.109.201.126.nip.io/app/#/staff/reviewer/queue) | **Demo: Reviewer** | a reviewer | The identity-matching review queue (machines propose, humans dispose) |
+- **Citizens** sign up on the portal's sign-in page with their name, email and a password (the email is the user name; a
+  passkey or "Forgot password" also work). To connect a department they then **log in at that department's own page**.
+- **Staff** use the ready-made accounts `dev-officer`, `dev-reviewer` and `dev-admin` (temporary password `<user>-change-me`):
+  the first sign-in asks for a new password and for an authenticator code (TOTP) to be enrolled, as for any real staff
+  account. A passkey also works.
+
+| Open this | Sign in as | What to look at |
+|---|---|---|
+| [`/app/#/staff/admin/onboarding`](https://app.3.109.201.126.nip.io/app/#/staff/admin/onboarding) | `dev-admin` | Onboard a department from just its URL; it picks up the department's documents **and its services (journeys)**; "Run trial fetch" |
+| [`/app/#/staff/admin/schemas`](https://app.3.109.201.126.nip.io/app/#/staff/admin/schemas) | `dev-admin` | The **central schema** the departments' fields are matched onto; add a schema or a new version |
+| [`/app/#/staff/admin/catalog`](https://app.3.109.201.126.nip.io/app/#/staff/admin/catalog) | `dev-admin` | Each journey's **readiness** is computed from real connector availability; publish a ready one |
+| [`/app/#/staff/officer/exceptions`](https://app.3.109.201.126.nip.io/app/#/staff/officer/exceptions) | `dev-officer` | Exception queue, retries, bank-account review, live ops metrics |
+| [`/app/#/staff/reviewer/queue`](https://app.3.109.201.126.nip.io/app/#/staff/reviewer/queue) | `dev-reviewer` | The identity-matching review queue (machines propose, humans dispose) |
 
 The `#` in the staff URLs matters — the app uses hash routing. The **citizen** experience is the
 static department portals at [`/`](https://app.3.109.201.126.nip.io/) (Scholarship, Business licence,
 Farmer subsidy) — apply, watch the fan-out, and, on the scholarship desk, mark a department
 unavailable and retry. (The SPA is the staff/operator console only; a citizen who opens it is sent to
 the portals.)
-
-The one-click demo login exists **only in the demo build**: a normal (production) boot serves neither
-the button nor the endpoint behind it, and the demo token it would mint is refused there. Real sign-in
-still goes through Keycloak (passkey / password + TOTP / email code) and is unchanged — so the demo
-convenience never weakens the real auth model. See `DemoSignIn` (backend) and `RequireAuth` (SPA).
 
 ## Design principles
 
@@ -62,6 +62,8 @@ convenience never weakens the real auth model. See `DemoSignIn` (backend) and `R
 | [docs/architecture/hld/](docs/architecture/hld/README.md) | High Level Design — one charter per module, plus the dependency graph |
 | [docs/architecture/LLD.md](docs/architecture/LLD.md) | **Low Level Design — combined.** Package layout, DB conventions, error handling, testing, cross-module sequence diagrams |
 | [docs/architecture/lld/](docs/architecture/lld/README.md) | Low Level Design — one document per module: DDL, class design, sequences, tests |
+| [docs/FINAL-CHANGES.md](docs/FINAL-CHANGES.md) | The department-services redesign: decisions, build log and what is still open |
+| [docs/contracts/login-assertion.md](docs/contracts/login-assertion.md) | The signed assertion a department login returns (how a citizen proves who they are there) |
 
 ### Modules
 
@@ -104,20 +106,19 @@ Use the `dev` or `demo` profile locally: only those two point at the compose Key
 
 Every `/api/**` call needs a Keycloak bearer token (the actor is taken only from the token).
 Pages have a sign-in bar (Authorization Code + PKCE; the issuer and client come from
-`GET /ui/auth-config`). Under `dev`/`demo` two extra conveniences appear (and only there): the static
-pages get a **Dev sign-in** bar with a paste-token button, and the SPA's sign-in screens get
-**one-click "Demo: …" buttons** (see the live-demo section above) — a demo-only endpoint,
-`POST /ui/demo-signin`, mints a short-lived token the API trusts, with no MFA. A normal boot serves
-neither. Dev realms are imported from `keycloak/realms/`
-(regenerate with `python3 keycloak/gen_realms.py`):
+`GET /ui/auth-config`). There is no demo or paste-token sign-in in any profile. Dev realms are imported from
+`keycloak/realms/` (regenerate with `python3 keycloak/gen_realms.py`; set `SAMANVAY_EXTRA_ORIGINS` to add a deployed
+https origin; the default is the AWS demo's, so regenerating reproduces the committed files):
 
 | Realm | Dev users | Sign-in |
 |---|---|---|
 | `samanvay-staff` | `dev-officer` (department `SCHOLARSHIP`), `dev-reviewer`, `dev-admin`; temporary password `<user>-change-me` | passkey (user verification required) **or** password + TOTP; no password-only path |
-| `samanvay-citizen` | `dev-citizen` (no password) | email one-time code (inbox: Mailpit, `http://localhost:8025`) **or** passkey; self-registration without password; direct grants denied |
+| `samanvay-citizen` | `dev-citizen` / `dev-citizen-change-me`, or sign up | email + password (sign-up asks for first name, last name, email, password; email is the user name) **or** passkey; no TOTP; direct grants denied |
 
-Department service account `dept-scholarship-dev` (client credentials, secret generated by Keycloak —
-read it in the admin console) gets `ROLE_DEPARTMENT` plus one `source:<code>` scope per data source.
+Department service accounts (client credentials, secret generated by Keycloak, read it in the admin console) get
+`ROLE_DEPARTMENT` plus one `source:<code>` scope per data source: `dept-revenue`, `dept-dbt`, `dept-education`,
+`dept-agriculture` (the clients the onboarding plan's "Issue caller credential" step names) and the older
+`dept-scholarship-dev`.
 Issuers are configurable with `SAMANVAY_STAFF_ISSUER_URI` / `SAMANVAY_CITIZEN_ISSUER_URI`.
 
 Judge path: `http://localhost:8080/` — Maharashtra **Citizen services** (three independent portals).
@@ -136,7 +137,46 @@ Officer desk (all portals): the in-page `officer` / `demo-2026` form only opens 
 
 Samanvay remains the interoperability middle layer. The portals are callers, not the product.
 
+## Department services: four separate stand-in departments (dev/demo only)
+
+`departments/` holds **four separate department services** (Revenue, DBT, Education, Agriculture), each its own Spring Boot
+app with its own fake data, its own protocols and security, its own published manifest, and its own citizen login. Samanvay
+learns each one from its manifest and onboards it in one go; it never holds their documents.
+
+| Dept | Port | Documents | Protocols | Security Samanvay satisfies | Citizen login |
+|---|---|---|---|---|---|
+| `revenue/` | 8091 | income / caste / domicile certificates (own keys, so a `resolve` step), 7/12 land parcel | REST + SFTP | API key (+ optional IP allow-list); SFTP password | user ID + password |
+| `dbt/` | 8092 | bank account | REST | OAuth2 client credentials | mobile + one-time code |
+| `education/` | 8093 | marks | SOAP | WS-Security UsernameToken | seat number + date of birth |
+| `agriculture/` | 8094 | farmer record (DB view), crop record | JDBC + SFTP | read-only DB account; SFTP password | user ID + password |
+
+How it fits together (details and decisions: [docs/FINAL-CHANGES.md](docs/FINAL-CHANGES.md)):
+
+1. **Manifest.** Each department publishes `GET /.well-known/samanvay/manifest` (v2): documents, how to reach each over its
+   protocol, the security parameters it needs (names only, never values), whether a `resolve` step is needed, its journeys,
+   and an `identity` block for its login.
+2. **One-go onboarding.** `POST /api/catalog/onboard/plan` reads the manifest and returns a plan (nothing changes);
+   `POST /api/catalog/onboard` creates the department, data sources, connectors, mappings and journeys as drafts, in one
+   transaction, for exactly the documents an admin ticked (refused if the manifest changed since). Field matches are proposals an
+   admin approves. The staff console has the screen: **Onboard a department in one go**. Secrets and SFTP/JDBC hosts stay with the
+   operator: the plan lists each step (provision a secret, pin a host key, issue the department portal a caller credential).
+3. **Central schema stays seeded** (V203): a department's document types are seeded first, then its fields are mapped onto them.
+4. **Linking is per department, by that department's own login.** The citizen logs in at the department; it returns a signed
+   assertion ([contract](docs/contracts/login-assertion.md)); Samanvay verifies it and saves the link. Later journeys need
+   only consent.
+5. **Fetching** sends the person ID (or the document key from the optional `resolve` step) plus Samanvay's credentials over the
+   declared protocol.
+
+Run one: `./mvnw -f departments/revenue/pom.xml spring-boot:run`. Run all with their data stores:
+`docker compose up -d dept-revenue dept-dbt dept-education dept-agriculture revenue-sftp agriculture-db agriculture-sftp`.
+More: [departments/README.md](departments/README.md).
+
 ## Department simulators (dev/CI only)
+
+> **The shared sandbox department is gone.** `simulators/` used to also serve a fake income / marks / bank "department" on one
+> service. The four separate [department services](#department-services-four-separate-stand-in-departments-devdemo-only) in
+> `departments/` replace it; see [docs/runbooks/department-cutover.md](docs/runbooks/department-cutover.md). `simulators/` now holds
+> only the bank-check simulator below, which core's bank verification still uses.
 
 `simulators/` is a **separate** Spring Boot app (own `pom.xml`, package `in.samanvay.simulators`,
 port 8090). It stands in for external department APIs. The first one implements our own
@@ -157,43 +197,11 @@ reaches it only over HTTP, through the same client it will use for the live API.
 response carries `X-Samanvay-Simulator: true`. Which endpoint a source uses will be selected by
 `samanvay.sources.<code>.mode=sandbox|simulator|live`, which comes in a separate PR.
 
-### Standalone department service: real REST and SOAP over the network (dev/demo only)
+### Property (SFTP) and pollution (JDBC) fixtures for the licence journey
 
-The same `simulators/` app also serves a fake "sandbox department" so the connector's **real** `RestAdapter`
-and `SoapAdapter` can be shown fetching from a separate networked service, not the in-process
-`MockDepartmentBackend`. It serves invented data only and is never a real government system.
-
-| Protocol | Endpoint | Answer |
-|---|---|---|
-| REST | `GET /v1/income?rationCard=RC-1001` | JSON `annualIncome`, `holderName`, `district`, ... |
-| SOAP 1.1 | `POST /marks/service` (`text/xml`, body carries `<studentId>`) | `GetMarksResponse` with `percentage`, `board`, `exam`; a bad request gets a SOAP `Fault` (HTTP 500) |
-
-Named fixtures: `RC-1001`, `RC-1002`, `S-1001`, `S-1002`. Any other id gets a record derived from the id, so a
-given id always answers the same.
-
-```bash
-docker compose up -d                     # postgres, keycloak, mailpit and department-service (:8090)
-./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.profiles.active=demo   # or: dev
-curl 'localhost:8090/v1/income?rationCard=RC-1001'
-curl -H 'Content-Type: text/xml' -d '<Envelope><Body><GetMarks><studentId>S-1001</studentId></GetMarks></Body></Envelope>' \
-  localhost:8090/marks/service
-```
-
-Under the `dev` or `demo` profile, `application-dev.yml` / `application-demo.yml` set
-`samanvay.sources.department-service.urls`, which points the V193 sandbox sources (`sandbox-income-rest`,
-`sandbox-marks-soap`, seeded with unresolvable `*.example` hosts) at `http://localhost:8090`
-(`SAMANVAY_DEPT_SERVICE_URL` changes it). A fetch through `ConnectorRuntimeImpl` for those sources is then a
-real HTTP exchange with the service. Nothing else changes: the mock sources and the real journeys' sources
-keep their hosts, the setting is empty by default, and the app refuses to start with it set under any other
-profile. Without Docker: `./mvnw -f simulators/pom.xml spring-boot:run`.
-
-`StandaloneDepartmentServiceTest` is the proof: it builds and starts the service as its own JVM process on a free
-port and runs both sandbox connectors through the real adapters, asserting values only that service produces.
-
-### All four protocols, deployable (REST, SOAP, SFTP, JDBC)
-
-`department-service` above already covers **REST** and **SOAP**. Two more compose services make **SFTP** and
-**JDBC** real and deployable too, each with FAKE sandbox data over a real transport (never a real system):
+REST and SOAP are served by the [department services](#department-services-four-separate-stand-in-departments-devdemo-only). Two more
+compose services keep the licence journey's **SFTP** (property) and **JDBC** (pollution) sources on real transports, each with FAKE
+sandbox data (never a real system):
 
 - **`department-db`** (Postgres, `:5433`) — the **JDBC** source `sandbox-pollution-jdbc` (catalog V198). Seeded
   by `docker/department-db/init.sql` with a `pcb_clearance` table and a read-only role `pcb_ro`. A fetch runs a

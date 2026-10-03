@@ -30,9 +30,9 @@ class DevSignInExposureIT extends PostgresIntegrationTest {
     int port;
 
     @Test
-    void authConfigHasNoDevSignInAndOnlyHttpsIssuers() {
+    void authConfigHasNoDevSignInSwitchAndOnlyHttpsIssuers() {
         Map<?, ?> cfg = TestHttp.anonymous().get().uri(url("/ui/auth-config")).retrieve().body(Map.class);
-        assertThat(cfg.get("devSignIn")).isEqualTo(false);
+        assertThat(cfg.containsKey("devSignIn")).as("no dev sign-in switch exists any more").isFalse();
         Map<?, ?> realms = (Map<?, ?>) cfg.get("realms");
         for (String realm : List.of("staff", "citizen")) {
             Map<?, ?> r = (Map<?, ?>) realms.get(realm);

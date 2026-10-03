@@ -182,7 +182,7 @@ class DefaultJourneyService implements JourneyService {
         var inputs = new ExecutionInputs(
                 DataCategory.of(category),
                 processId,
-                link == null ? Map.of() : Map.of("localIdToken", link.localIdToken()),
+                linkInputs(link),
                 Map.of(),
                 Map.of());
         ConnectorResult result = fetch.executeForResult(request, inputs);
@@ -192,6 +192,17 @@ class DefaultJourneyService implements JourneyService {
         String protocol = connectors.dataSourceFor(connector).protocol();
         String source = "SFTP_CSV".equals(protocol) || "JDBC".equals(protocol) ? "BATCH" : "API";
         return new CategoryFetch(category, dept, source, result);
+    }
+
+    /**
+     * What a connector can bind with {@code from: link.<name>}: the department's person ID as {@code personId} (what a
+     * department manifest's input is named after), its type as {@code localIdType}, and the original {@code localIdToken}
+     * so connectors written before manifests keep working.
+     */
+    static Map<String, String> linkInputs(Link link) {
+        return link == null
+                ? Map.of()
+                : Map.of("personId", link.localIdToken(), "localIdType", link.localIdType(), "localIdToken", link.localIdToken());
     }
 
     void applyFetches(UUID instanceId, List<CategoryFetch> fetches) {

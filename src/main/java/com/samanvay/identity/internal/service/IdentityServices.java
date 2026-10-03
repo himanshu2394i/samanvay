@@ -232,7 +232,8 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
                             List.copyOf(entry.getValue()),
                             link.isPresent(),
                             link.map(Link::localIdType).orElse(null),
-                            link.map(Link::localIdToken).orElse(null));
+                            link.map(Link::localIdToken).orElse(null),
+                            departments.identity(entry.getKey()).isPresent());
                 })
                 .toList();
         return new ConnectAccounts(journey.code(), needs, availableProofProviders());

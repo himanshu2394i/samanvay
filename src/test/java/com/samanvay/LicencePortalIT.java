@@ -78,9 +78,9 @@ class LicencePortalIT extends PostgresIntegrationTest {
                             "localId",
                             "LICENCE-" + department + "-" + suffix,
                             "provider",
-                            "DIGILOCKER",
+                            "LOCAL_ID_OTP",
                             "proof",
-                            "sandbox"))
+                            "000000"))
                     .retrieve()
                     .body(Map.class);
             assertThat(link.get("status")).isEqualTo("ACTIVE");

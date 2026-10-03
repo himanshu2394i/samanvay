@@ -33,7 +33,7 @@ async function start() {
     }
     root.render(
       <StrictMode>
-        <App manager={manager} realm={realm} devSignIn={cfg.devSignIn} />
+        <App manager={manager} realm={realm} />
       </StrictMode>,
     )
   } catch (e) {

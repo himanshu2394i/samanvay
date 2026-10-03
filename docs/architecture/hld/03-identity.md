@@ -185,3 +185,14 @@ rather than to population — the mitigation for the reviewer-volume risk in
 - Confidence bands: what auto-rejects as noise, what queues, and whether the queue is
   ordered by score or by application urgency.
 - Whether `identity_match_key` needs periodic regeneration when a profile is edited.
+
+## Addendum (2026-10): linking by the department's own login
+
+Departments have no shared sign-on, so a citizen links a department by logging in at that department's own login. The identity
+module gained a `DEPT_ASSERTION` link proof (`DepartmentAssertionLinkProofProvider`): the department returns a signed ES256
+assertion ([contract](../../contracts/login-assertion.md)); Samanvay verifies it against the keys the department published
+(one forced re-fetch on an unknown key ID), checks issuer, audience, department, person-ID type, short lifetime and a recent
+login, and requires the one-time `state` + `nonce` issued to THIS citizen for THIS department (consumed atomically, so a replay
+fails; consumed last, so a bad assertion cannot burn a pending login). `POST /api/identity/department-login` starts a login and
+returns the department login URL; `ConnectAccounts` says which departments offer one. The person ID the assertion carries is
+what later fetches send (connectors bind `from: link.personId`). DigiLocker is only an optional document source, never the link.

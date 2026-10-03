@@ -1,0 +1,30 @@
+# Revenue department - a standalone stand-in service, never a live source.
+spring:
+  application:
+    name: samanvay-dept-revenue
+  jackson:
+    # Manifest blocks that do not apply to a document (lookup, access...) are left out, not null.
+    default-property-inclusion: non_null
+server:
+  # 8080 = samanvay-core, 8090 = shared simulators, 8180 = dev Keycloak.
+  port: ${REVENUE_PORT:8091}
+
+revenue:
+  # The address Samanvay uses to reach this service; published in the manifest identity block.
+  public-base-url: ${REVENUE_PUBLIC_URL:http://localhost:8091}
+  login:
+    assertion-ttl: PT5M
+    # Samanvay addresses a login may redirect back to (prefix match). Anything else gets a 400, never a redirect.
+    allowed-return-uris: ${REVENUE_ALLOWED_RETURN_URIS:http://localhost:8080/,https://app.3.109.201.126.nip.io/}
+    # Shown on the login page so a demo user knows which FAKE account to use. Empty hides it.
+    demo-hint: "${REVENUE_LOGIN_HINT:Demo account (fake data): user ID asha.patil, password asha-demo-pass}"
+    # Demo citizens: username|password|personId. FAKE dev accounts only.
+    users: ${REVENUE_LOGIN_USERS:asha.patil|asha-demo-pass|RV-1001,ravi.deshmukh|ravi-demo-pass|RV-1002}
+  # Samanvay must send this in the X-Api-Key header on every /v1 call. Dev default only.
+  api-key: ${REVENUE_API_KEY:revenue-dev-key-change-me}
+  sftp:
+    # Where Samanvay finds the 7/12 CSV (docker-compose service revenue-sftp, host port 2223).
+    host: ${REVENUE_SFTP_HOST:localhost}
+    port: ${REVENUE_SFTP_PORT:2223}
+    # SHA-256 fingerprint of the SFTP server's host key. Published only when set, so Samanvay can pin it.
+    host-key-sha256: ${REVENUE_SFTP_HOSTKEY:}

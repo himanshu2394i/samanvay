@@ -9,8 +9,8 @@ import type {
   Uuid,
 } from '../../../api/types'
 
-/** Proof kinds this app can complete on its own. DEPT_IDP needs a separate brokered sign-in. */
-export const SUPPORTED_PROOFS: readonly LinkProofKind[] = ['DIGILOCKER', 'LOCAL_ID_OTP']
+/** Proof kinds this app can complete on its own. DEPT_IDP and DEPT_ASSERTION need a department sign-in the static portals handle. */
+export const SUPPORTED_PROOFS: readonly LinkProofKind[] = ['LOCAL_ID_OTP']
 
 export function supportedProviders(providers: LinkProofProviderInfo[]): LinkProofProviderInfo[] {
   return providers.filter((p) => SUPPORTED_PROOFS.includes(p.kind))
@@ -35,8 +35,7 @@ export interface LinkForm {
 }
 
 /**
- * Body for POST /api/identity/links. DIGILOCKER uses the sandbox authorization code the
- * mock client accepts; LOCAL_ID_OTP sends the entered one-time code.
+ * Body for POST /api/identity/links. LOCAL_ID_OTP (a labelled demo) sends the entered one-time code.
  */
 export function buildLinkRequest(f: LinkForm): LinkRequest {
   return {
@@ -45,7 +44,7 @@ export function buildLinkRequest(f: LinkForm): LinkRequest {
     localIdType: f.localIdType.trim(),
     localId: f.localId.trim(),
     provider: f.provider,
-    proof: f.provider === 'DIGILOCKER' ? 'sandbox' : f.otp.trim(),
+    proof: f.otp.trim(),
   }
 }
 

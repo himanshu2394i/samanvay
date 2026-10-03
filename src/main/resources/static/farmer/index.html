@@ -11,7 +11,7 @@
   <a class="skip-link" href="#content">Skip to main content</a>
   <p id="live" class="visually-hidden" aria-live="polite"></p>
   <div class="tricolor" aria-hidden="true"></div>
-  <p class="sandbox"><strong>Demonstration portal.</strong> DigiLocker sandbox and OTP demo here are labelled mocks — not live DigiLocker, not live Aadhaar SSO, and no secrets are used. <strong>DEV SIGN-IN</strong> — sign-in uses the local dev Keycloak, not production SSO.</p>
+  <p class="sandbox"><strong>Demonstration portal</strong> with fake data. Sign up or sign in with your name, email and password. To connect a department you log in at that department\'s own page; where a department has no login yet, a labelled OTP demo stands in. Not production SSO.</p>
   <div class="util">
     <div class="util-inner">
       <p class="lang-switch" role="group" aria-label="Language">
@@ -114,7 +114,7 @@
       <div id="panel-connect" hidden>
         <h2>Connect accounts</h2>
         <p>This subsidy needs three department accounts — Revenue, Agriculture, and DBT.</p>
-        <p class="callout honesty"><strong>DigiLocker sandbox</strong> and <strong>OTP demo</strong> are labelled mocks. They are <strong>not live SSO</strong>.</p>
+        <p class="callout honesty">A department with its own login asks you to <strong>log in there</strong>. The <strong>OTP demo</strong> appears only for a department that has no login yet, and is a labelled mock, <strong>not live SSO</strong>.</p>
         <p id="connectProgress" class="progress" role="status">Linked 0 of 3 departments</p>
         <div class="meter" aria-hidden="true"><span id="connectMeter"></span></div>
         <ul id="deptList" class="depts" role="list"></ul>
@@ -212,6 +212,7 @@
     <p class="cutaway">This is a separate government service. The journey is catalog configuration; this page is only a caller. Optional cutaway: <a href="/">Citizen services</a> · <a href="/demo.html">Samanvay operations</a></p>
   </footer>
   <script src="/shared/auth.js" data-realm="citizen"></script>
+  <script src="/shared/dept-login.js"></script>
   <script src="/shared/records.js"></script>
   <script src="/farmer/portal.js"></script>
 </body>

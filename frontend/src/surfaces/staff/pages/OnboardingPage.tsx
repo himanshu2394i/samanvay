@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useStaffApi } from '../../../api/apiContext'
+import { PlanOnboardingPanel } from './PlanOnboardingPanel'
 import type {
   ConnectorDefinition,
   ConnectorTestReport,
@@ -73,6 +74,7 @@ export function OnboardingPage() {
         Published connectors appear in the <Link to="/staff/admin/catalog">catalog</Link>.
       </p>
 
+      <PlanOnboardingPanel />
       <DiscoverPanel />
 
       <h2 className="spaced">Or onboard step by step</h2>

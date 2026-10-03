@@ -22,6 +22,12 @@ import type {
   OpenApiImportRequest,
   OpsMetrics,
   Page,
+  SchemaDraft,
+  SchemaSummary,
+  OnboardRequest,
+  OnboardingPlan,
+  OnboardingResult,
+  TrialResult,
 } from './staffTypes'
 import type { ApplicationSummary, ApplicationView, Department, IssuedRecord, JourneyDefinition, Link, StepView, Uuid } from './types'
 
@@ -87,6 +93,10 @@ export function createStaffApi(client: ApiClient) {
     listConnectors: () => client.get<ConnectorDefinition[]>('/api/catalog/connectors'),
     /** OFFICER, ADMIN: the target schema refs the importer can map onto. */
     listSchemas: () => client.get<string[]>('/api/catalog/schemas'),
+    /** OFFICER, ADMIN: the central schema with each field's type and whether it is required. */
+    listSchemaDetails: () => client.get<SchemaSummary[]>('/api/catalog/schema-details'),
+    /** ADMIN: adds a schema or a new version; the server refuses an existing ref. */
+    addSchema: (draft: SchemaDraft) => client.post<SchemaSummary>('/api/catalog/schemas', draft),
 
     // --- admin: onboarding writes (CatalogController; ADMIN) ---
     registerDepartment: (draft: DepartmentDraft) => client.post<Department>('/api/catalog/departments', draft),
@@ -96,6 +106,13 @@ export function createStaffApi(client: ApiClient) {
     importOpenApi: (body: OpenApiImportRequest) => client.post<ImportPreview>('/api/catalog/import/openapi', body),
     /** Fetch a department's published capability manifest so it can be onboarded from just a base URL. */
     discover: (baseUrl: string) => client.post<DepartmentManifest>('/api/catalog/discover', { baseUrl }),
+    /** Review what onboarding a department from its manifest would do. Changes nothing. ADMIN. */
+    onboardPlan: (baseUrl: string) => client.post<OnboardingPlan>('/api/catalog/onboard/plan', { baseUrl }),
+    /** Onboard what was reviewed and ticked (all drafts, one transaction); refused if the manifest changed. ADMIN. */
+    onboard: (req: OnboardRequest) => client.post<OnboardingResult>('/api/catalog/onboard', req),
+    /** Trial fetch of a connector for the department's fake sample person (or a named one). ADMIN. */
+    trialConnector: (ref: string, personId?: string) =>
+      client.post<TrialResult>(`/api/connector/trial/${enc(ref)}`, personId ? { personId } : {}),
     /** Registered data sources with last-known connectivity health. OFFICER, ADMIN. */
     listDataSources: () => client.get<DataSourceHealth[]>('/api/catalog/data-sources'),
     /** Live connectivity check for one data source; records and returns GREEN/RED/UNKNOWN. ADMIN. */

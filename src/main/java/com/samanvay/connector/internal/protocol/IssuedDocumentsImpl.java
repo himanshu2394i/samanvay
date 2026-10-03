@@ -3,7 +3,6 @@ package com.samanvay.connector.internal.protocol;
 import com.samanvay.connector.api.IssuedDocuments;
 import com.samanvay.connector.api.IssuedField;
 import com.samanvay.connector.api.IssuedRecord;
-import com.samanvay.connector.api.LockerDocument;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -12,38 +11,10 @@ import tools.jackson.databind.JsonNode;
 @Service
 class IssuedDocumentsImpl implements IssuedDocuments {
 
-    private static final String SANDBOX_NOTE =
-            "DigiLocker partner sandbox on this laptop — not live DigiLocker, not Aadhaar login.";
-
     private final MockDepartmentBackend mocks;
 
     IssuedDocumentsImpl(MockDepartmentBackend mocks) {
         this.mocks = mocks;
-    }
-
-    @Override
-    public List<LockerDocument> lockerForDepartment(String departmentCode) {
-        String code = departmentCode == null ? "" : departmentCode.toUpperCase();
-        return switch (code) {
-            case "REVENUE" -> List.of(
-                    doc("income", "Income certificate", "Revenue / Tahsildar", "Aaple Sarkar", "https://aaplesarkar.mahaonline.gov.in/"),
-                    doc("caste", "Caste certificate", "Revenue / Tahsildar", "Aaple Sarkar", "https://aaplesarkar.mahaonline.gov.in/"),
-                    doc("domicile", "Domicile certificate", "Revenue / Tahsildar", "Aaple Sarkar", "https://aaplesarkar.mahaonline.gov.in/"),
-                    doc("712", "7/12 extract (Record of Rights)", "Settlement Commissioner", "Mahabhulekh", "https://bhulekh.mahabhumi.gov.in/"));
-            case "EDUCATION" -> List.of(
-                    doc("marks", "HSC / equivalent marks", "Maharashtra State Board", "MSBSHSE", "https://mahahsscboard.in/"));
-            case "DBT" -> List.of(
-                    doc("bank", "Bank account for DBT", "Direct Benefit Transfer", "MahaDBT", "https://mahadbt.maharashtra.gov.in/"));
-            case "AGRICULTURE" -> List.of(
-                    doc("crop", "Crop / khate record", "Department of Agriculture", "MahaDBT Farmer", "https://mahadbt.maharashtra.gov.in/"));
-            case "MUNICIPAL" -> List.of(
-                    doc("property", "Property / assessment record", "Municipal Corporation", "MahaVastu / BPMS", "https://mahavastu.maharashtra.gov.in/"));
-            case "FIRE" -> List.of(
-                    doc("fire", "Fire NOC", "Maharashtra Fire & Emergency Services", "e-Fire approval", "https://mahafireservice.gov.in/e-fire.php"));
-            case "POLLUTION" -> List.of(
-                    doc("pcb", "Pollution consent", "Maharashtra Pollution Control Board", "MPCB via MAITRI", "https://maitri.maharashtra.gov.in/"));
-            default -> List.of();
-        };
     }
 
     @Override
@@ -109,10 +80,6 @@ class IssuedDocumentsImpl implements IssuedDocuments {
     private static String text(JsonNode n, String field) {
         JsonNode v = n.get(field);
         return v == null || v.isNull() ? "—" : v.asString();
-    }
-
-    private LockerDocument doc(String id, String title, String issuer, String system, String url) {
-        return new LockerDocument(id, title, issuer, system, url, SANDBOX_NOTE);
     }
 
     private static IssuedField field(String label, String value) {

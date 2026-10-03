@@ -224,9 +224,9 @@ class AuditAttributionIT extends PostgresIntegrationTest {
         UUID citizen = profiles.register(new ProfileDraft(
                 "Attr Citizen", "अट्र", "Attr", "Citizen", "Father", LocalDate.of(2003, 3, 3), "DAY", "F", "98****00"));
         String suffix = citizen.toString().substring(0, 8);
-        linking.assertLink(citizen, "REVENUE", "RATION", "ATTR-R-" + suffix, com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "EDUCATION", "STUDENT", "ATTR-E-" + suffix, com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "DBT", "DBT", "ATTR-D-" + suffix, com.samanvay.identity.api.AuthProof.digiLockerSandbox());
+        linking.assertLink(citizen, "REVENUE", "RATION", "ATTR-R-" + suffix, com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "EDUCATION", "STUDENT", "ATTR-E-" + suffix, com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "DBT", "DBT", "ATTR-D-" + suffix, com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         var request = consents.request(new ConsentRequestDraft(
                 citizen, "SCHOLARSHIP", "SCHOLARSHIP_ELIGIBILITY"));
         consents.grant(request.id(), citizen, new AuthProof("attr-session"));

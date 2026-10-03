@@ -17,8 +17,27 @@ public class SchemaEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     private String definition;
 
+    protected SchemaEntity() {}
+
+    public static SchemaEntity of(String ref, String name, int version, String definition) {
+        SchemaEntity e = new SchemaEntity();
+        e.ref = ref;
+        e.name = name;
+        e.version = version;
+        e.definition = definition;
+        return e;
+    }
+
     public String getRef() {
         return ref;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getVersion() {
+        return version;
     }
 
     public String getDefinition() {

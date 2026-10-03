@@ -14,6 +14,7 @@ const PAGES: { route: string; heading: string; roles: string[] }[] = [
   { route: '/staff/ops/audit', heading: 'Audit ledger', roles: ['officer', 'admin'] },
   { route: '/staff/admin/catalog', heading: 'Catalog', roles: ['admin'] },
   { route: '/staff/admin/onboarding', heading: 'Onboarding', roles: ['admin'] },
+  { route: '/staff/admin/schemas', heading: 'Central schema', roles: ['admin'] },
   { route: '/staff/reviewer/queue', heading: 'Identity review', roles: ['reviewer'] },
 ]
 
@@ -73,7 +74,7 @@ describe('staff route guards', () => {
 
     const admin = renderStaff({ route: '/staff', fetchImpl: EMPTY, auth: staffAuth(['admin']) })
     const adminNav = await screen.findByRole('navigation', { name: 'Staff' })
-    expect(within(adminNav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Metrics', 'Audit ledger', 'Catalog', 'Onboarding'])
+    expect(within(adminNav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Metrics', 'Audit ledger', 'Catalog', 'Central schema', 'Onboarding'])
     admin.unmount()
 
     renderStaff({ route: '/staff', fetchImpl: EMPTY, auth: staffAuth(['reviewer']) })
@@ -84,7 +85,7 @@ describe('staff route guards', () => {
   it('an account with several roles gets the union', async () => {
     renderStaff({ route: '/staff', fetchImpl: EMPTY, auth: staffAuth(['officer', 'admin']) })
     const nav = await screen.findByRole('navigation', { name: 'Staff' })
-    expect(within(nav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Exceptions', 'Bank reviews', 'Applications', 'Metrics', 'Audit ledger', 'Catalog', 'Onboarding'])
+    expect(within(nav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Exceptions', 'Bank reviews', 'Applications', 'Metrics', 'Audit ledger', 'Catalog', 'Central schema', 'Onboarding'])
   })
 
   it('shows who is signed in, with roles and department, and signs out', async () => {

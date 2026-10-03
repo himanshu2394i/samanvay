@@ -1,0 +1,34 @@
+# Agriculture department - a standalone stand-in service, never a live source.
+# This app publishes the manifest (and later the login); the farmer data itself lives in the
+# department's own Postgres (departments/agriculture/db) and SFTP server (departments/agriculture/sftp).
+spring:
+  application:
+    name: samanvay-dept-agriculture
+  jackson:
+    default-property-inclusion: non_null
+server:
+  # 8080 = samanvay-core, 8090 = simulators, 8091 = revenue, 8092 = dbt, 8093 = education, 8094 = agriculture.
+  port: ${AGRICULTURE_PORT:8094}
+
+agriculture:
+  # The address Samanvay uses to reach this service; published in the manifest identity block.
+  public-base-url: ${AGRICULTURE_PUBLIC_URL:http://localhost:8094}
+  login:
+    assertion-ttl: PT5M
+    # Samanvay addresses a login may redirect back to (prefix match). Anything else gets a 400, never a redirect.
+    allowed-return-uris: ${AGRICULTURE_ALLOWED_RETURN_URIS:http://localhost:8080/,https://app.3.109.201.126.nip.io/}
+    # Shown on the login page so a demo user knows which FAKE account to use. Empty hides it.
+    demo-hint: "${AGRICULTURE_LOGIN_HINT:Demo account (fake data): user ID asha.patil, password asha-farmer-pass}"
+    # Demo citizens: id|secret|personId. FAKE dev accounts only.
+    users: ${AGRICULTURE_LOGIN_USERS:asha.patil|asha-farmer-pass|AG-1001,ravi.deshmukh|ravi-farmer-pass|AG-1002}
+  db:
+    # Where Samanvay reaches the department database (docker-compose service agriculture-db, host port 5434).
+    host: ${AGRICULTURE_DB_HOST:localhost}
+    port: ${AGRICULTURE_DB_PORT:5434}
+    name: agridb
+  sftp:
+    # docker-compose service agriculture-sftp, host port 2224.
+    host: ${AGRICULTURE_SFTP_HOST:localhost}
+    port: ${AGRICULTURE_SFTP_PORT:2224}
+    # SHA-256 fingerprint of the SFTP server's host key. Published only when set, so Samanvay can pin it.
+    host-key-sha256: ${AGRICULTURE_SFTP_HOSTKEY:}

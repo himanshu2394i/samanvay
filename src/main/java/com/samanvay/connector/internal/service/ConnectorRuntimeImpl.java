@@ -12,6 +12,7 @@ import com.samanvay.consent.api.AccessGrant;
 import com.samanvay.consent.api.AccessGrantVerifier;
 import com.samanvay.consent.api.InvalidGrantException;
 import com.samanvay.connector.api.AdapterRequest;
+import com.samanvay.connector.api.IllegalConnectorConfigurationException;
 import com.samanvay.connector.api.BankCheckAdapter.BankCheckAnswer;
 import com.samanvay.connector.api.BankCheckAdapter.BankCheckRequest;
 import com.samanvay.connector.api.BankCheckAdapters;
@@ -84,7 +85,29 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
     @Override
     public ConnectorResult execute(AccessGrant grant, Capability capability, ExecutionInputs inputs) {
         verifyOrAuditAndThrow(grant, inputs.expectedCategory(), grant.connectorRef());
-        return executeVerified(grant, capability, inputs);
+        return executeVerified(grant, capability, inputs, false);
+    }
+
+    @Override
+    public ConnectorResult trial(String connectorRef, String samplePersonId, com.samanvay.shared.PrincipalRef by) {
+        com.samanvay.shared.InvalidRequestException.requireText(samplePersonId, "samplePersonId");
+        ConnectorDefinition connector = connectors.byRef(connectorRef);
+        String department = connectors.dataSourceFor(connector).departmentCode();
+        String person = samplePersonId.trim();
+        // A synthetic, never-stored grant only so the same fetch path runs; it names no real citizen.
+        var grant = new AccessGrant(java.util.UUID.randomUUID(), new byte[0], java.util.UUID.randomUUID(), 0,
+                new com.samanvay.shared.SubjectRef(java.util.UUID.randomUUID()), null, connector.category(), department, connectorRef, null, by,
+                Instant.now(), Instant.now().plusSeconds(60), new byte[0]);
+        var inputs = new ExecutionInputs(connector.category(), "trial", Map.of("personId", person, "localIdToken", person, "localIdType", "SAMPLE"),
+                Map.of(), Map.of());
+        Outcome outcome = Outcome.DENIED;
+        try {
+            ConnectorResult result = executeVerified(grant, Capability.FETCH, inputs, true);
+            outcome = result instanceof ConnectorResult.Success ? Outcome.ALLOWED : Outcome.DENIED;
+            return result;
+        } finally {
+            audit.record(new AuditEntry(ActorType.ADMIN, by.id(), "CONNECTOR_TRIAL", "sample", connectorRef, department, null, null, outcome, null, Map.of()));
+        }
     }
 
     /**
@@ -184,7 +207,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
         }
     }
 
-    private ConnectorResult executeVerified(AccessGrant grant, Capability capability, ExecutionInputs inputs) {
+    private ConnectorResult executeVerified(AccessGrant grant, Capability capability, ExecutionInputs inputs, boolean trial) {
         ConnectorDefinition connector = connectors.byRef(grant.connectorRef());
         DataSourceDefinition dataSource = connectors.dataSourceFor(connector);
         Map<String, String> bound = bindInputs(connector.inputsJson(), inputs);
@@ -194,6 +217,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
         String template = cap != null && cap.get("template") != null ? cap.get("template").asString() : null;
         String mappingRef = cap != null && cap.get("mapping_ref") != null ? cap.get("mapping_ref").asString() : null;
         String outputSchema = cap != null && cap.get("output_schema") != null ? cap.get("output_schema").asString() : null;
+        JsonNode resolveSpec = cap == null ? null : cap.get("resolve");
 
         var request = new AdapterRequest(
                 dataSource.code(),
@@ -202,7 +226,10 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                 endpoint,
                 template,
                 bound,
-                dataSource.authConfigRef());
+                dataSource.authConfigRef(),
+                dataSource.authType(),
+                dataSource.authSpecJson(),
+                accessDetails(cap));
         if (chaos.killed(dataSource.code())) {
             OpsMetrics.countConnectorCall(meters, dataSource.code(), OpsMetrics.OUTCOME_UNAVAILABLE);
             return new ConnectorResult.Unavailable(FailureKind.REMOTE_FAULT, true);
@@ -216,7 +243,11 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             com.samanvay.connector.api.AdapterResponse raw;
             // One total deadline for the whole exchange, every retry attempt included.
             try (ExchangeDeadline deadline = ExchangeDeadline.start(totalTimeout)) {
-                raw = timedExchange(dataSource.code(), () -> adapter.execute(request));
+                raw = timedExchange(dataSource.code(), () -> resolveThenExecute(adapter, request, resolveSpec));
+            }
+            if (raw == NO_DOCUMENT) {
+                // The department answered, but holds no document for this person: nothing was accessed.
+                return new ConnectorResult.NotFound("the department holds no such document for this person");
             }
             var mapped = mappingRef == null ? raw.body() : mapping.apply(connectors.mapping(mappingRef), raw.body());
             if (outputSchema != null) {
@@ -227,18 +258,20 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             }
             var provenance = new Provenance(
                     dataSource.departmentCode(), Instant.now(), connector.ref(), grant.id(), "REALTIME");
-            audit.record(new AuditEntry(
-                    actorType(grant),
-                    actorId(grant),
-                    "DATA_ACCESSED",
-                    grant.subject().citizenId().toString(),
-                    connector.ref(),
-                    dataSource.departmentCode(),
-                    grant.consentId(),
-                    grant.id(),
-                    Outcome.ALLOWED,
-                    null,
-                    attribution(grant)));
+            if (!trial) { // a trial involves no citizen: nothing was accessed on anyone's behalf
+                audit.record(new AuditEntry(
+                        actorType(grant),
+                        actorId(grant),
+                        "DATA_ACCESSED",
+                        grant.subject().citizenId().toString(),
+                        connector.ref(),
+                        dataSource.departmentCode(),
+                        grant.consentId(),
+                        grant.id(),
+                        Outcome.ALLOWED,
+                        null,
+                        attribution(grant)));
+            }
             return new ConnectorResult.Success(mapped, provenance);
         } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException e) {
             return new ConnectorResult.Unavailable(FailureKind.BREAKER_OPEN, true);
@@ -302,6 +335,102 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             meta.put("principalType", grant.principal().kind().name());
         }
         return meta;
+    }
+
+    /** Capability keys the runtime itself uses; every other textual key is protocol-specific access detail. */
+    private static final java.util.Set<String> RESERVED_CAPABILITY_KEYS =
+            java.util.Set.of("endpoint", "template", "mapping_ref", "output_schema", "resolve");
+
+    /** Returned from the exchange when the resolve step found the person holds no document (compared by identity). */
+    private static final com.samanvay.connector.api.AdapterResponse NO_DOCUMENT =
+            new com.samanvay.connector.api.AdapterResponse(tools.jackson.databind.node.JsonNodeFactory.instance.objectNode(), 0);
+
+    /**
+     * The optional resolve step (docs/FINAL-CHANGES.md section 12). When the connector's capability declares
+     * {@code resolve}, a department that keys each document separately is asked first "which documents does this
+     * person hold?" (person ID in, document keys out); one key is chosen and bound into the document call. Without
+     * it, the document call goes out as it always did, with the person ID as the key. Both calls run inside the one
+     * resilience-wrapped, deadline-bounded exchange, so ops metrics count them as a single exchange.
+     *
+     * <p>Only the inputs the resolve path names ({@code {personId}}) go to the resolve call, never every journey
+     * variable. REST only (the path is filled and queried by the REST adapter).
+     */
+    private static com.samanvay.connector.api.AdapterResponse resolveThenExecute(
+            ProtocolAdapter adapter, AdapterRequest request, JsonNode resolve) {
+        if (resolve == null || !resolve.isObject()) {
+            return adapter.execute(request);
+        }
+        String path = textOf(resolve, "path", null);
+        String into = textOf(resolve, "into", "key");
+        if (path == null) {
+            throw new IllegalConnectorConfigurationException("the connector's resolve step has no path");
+        }
+        if (request.boundInputs().containsKey(into)) {
+            throw new IllegalConnectorConfigurationException(
+                    "the connector's resolve step would overwrite the input '" + into + "' it already binds");
+        }
+        // The resolve call is its own request: it never inherits the document call's method or body (a POST document with a
+        // GET resolve must not turn the resolve into a POST). A POST resolve says which inputs travel in its body.
+        Map<String, String> resolveAccess = new HashMap<>(request.access());
+        resolveAccess.remove("method");
+        resolveAccess.remove("body_inputs");
+        String resolveMethod = textOf(resolve, "method", null);
+        String resolveBody = textOf(resolve, "body_inputs", "");
+        if (resolveMethod != null) {
+            resolveAccess.put("method", resolveMethod);
+        }
+        if (!resolveBody.isEmpty()) {
+            resolveAccess.put("body_inputs", resolveBody);
+        }
+        java.util.Set<String> bodyNames = java.util.Arrays.stream(resolveBody.split(",")).map(String::trim).collect(java.util.stream.Collectors.toSet());
+        Map<String, String> resolveInputs = new HashMap<>();
+        request.boundInputs().forEach((name, value) -> {
+            if (path.contains("{" + name + "}") || bodyNames.contains(name)) {
+                resolveInputs.put(name, value);
+            }
+        });
+        var answer = adapter.execute(new AdapterRequest(request.dataSourceCode(), request.protocol(), request.host(), path, null,
+                resolveInputs, request.authConfigRef(), request.authType(), request.authSpecJson(), resolveAccess));
+        JsonNode list = answer.body() == null ? null : answer.body().get(textOf(resolve, "list_field", "documents"));
+        if (list == null || !list.isArray() || list.isEmpty()) {
+            return NO_DOCUMENT;
+        }
+        JsonNode chosen = list.get(0);
+        if ("latest".equals(textOf(resolve, "select", "latest"))) {
+            String latestField = textOf(resolve, "latest_field", "latest");
+            for (JsonNode item : list) {
+                if (item.get(latestField) != null && item.get(latestField).asBoolean(false)) {
+                    chosen = item;
+                    break;
+                }
+            }
+        }
+        JsonNode key = chosen.get(textOf(resolve, "key_field", "key"));
+        if (key == null || key.asString().isBlank()) {
+            return NO_DOCUMENT;
+        }
+        Map<String, String> bound = new HashMap<>(request.boundInputs());
+        bound.put(into, key.asString());
+        return adapter.execute(new AdapterRequest(request.dataSourceCode(), request.protocol(), request.host(), request.endpoint(),
+                request.template(), bound, request.authConfigRef(), request.authType(), request.authSpecJson(), request.access()));
+    }
+
+    private static String textOf(JsonNode node, String field, String fallback) {
+        JsonNode v = node.get(field);
+        return v == null || v.isNull() || v.asString().isBlank() ? fallback : v.asString();
+    }
+
+    /** Protocol-specific, non-secret details the connector declares on its capability (e.g. key_column, view). */
+    private static Map<String, String> accessDetails(JsonNode cap) {
+        Map<String, String> out = new HashMap<>();
+        if (cap != null && cap.isObject()) {
+            cap.properties().forEach(e -> {
+                if (!RESERVED_CAPABILITY_KEYS.contains(e.getKey()) && e.getValue().isString()) {
+                    out.put(e.getKey(), e.getValue().asString());
+                }
+            });
+        }
+        return out;
     }
 
     private Map<String, String> bindInputs(String inputsJson, ExecutionInputs inputs) {

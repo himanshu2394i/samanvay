@@ -57,9 +57,9 @@ class ScholarshipJourneyIT extends PostgresIntegrationTest {
                 "DAY",
                 "M",
                 "99****21"));
-        linking.assertLink(citizen, "REVENUE", "RATION", "RC-4471-88", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "EDUCATION", "STUDENT", "STU-1001", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "DBT", "DBT", "DBT-55", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
+        linking.assertLink(citizen, "REVENUE", "RATION", "RC-4471-88", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "EDUCATION", "STUDENT", "STU-1001", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "DBT", "DBT", "DBT-55", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "SCHOLARSHIP",

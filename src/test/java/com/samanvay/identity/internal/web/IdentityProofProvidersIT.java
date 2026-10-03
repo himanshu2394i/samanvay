@@ -44,15 +44,16 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
                 .body(LinkProofProviderInfo[].class);
         assertThat(listed).isNotEmpty();
         assertThat(Arrays.stream(listed).map(LinkProofProviderInfo::kind))
-                .contains(LinkProofKind.DIGILOCKER, LinkProofKind.LOCAL_ID_OTP)
+                .contains(LinkProofKind.LOCAL_ID_OTP)
                 .doesNotContain(LinkProofKind.DEPT_IDP);
         assertThat(Arrays.stream(listed).map(LinkProofProviderInfo::label))
-                .contains("DigiLocker sandbox (mock)", "Local ID + OTP (demo)")
+                .contains("Local ID + OTP (demo)")
+                .noneMatch(label -> label.toLowerCase().contains("digilocker"))
                 .noneMatch(label -> label.toLowerCase().contains("keycloak"));
     }
 
     @Test
-    void digiLockerMockAssertSucceedsAndInvalidProofFails() {
+    void otpDemoAssertSucceedsAndInvalidProofFails() {
         Session session = citizen();
         UUID citizen = session.citizenId();
         Link link = session.http().post()
@@ -68,9 +69,9 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
                         "localId",
                         "RC-http-" + citizen,
                         "provider",
-                        "DIGILOCKER",
+                        "LOCAL_ID_OTP",
                         "proof",
-                        "sandbox"))
+                        "000000"))
                 .retrieve()
                 .body(Link.class);
         assertThat(link.status()).isEqualTo("ACTIVE");
@@ -90,9 +91,9 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
                         "localId",
                         "STU-bad",
                         "provider",
-                        "DIGILOCKER",
+                        "LOCAL_ID_OTP",
                         "proof",
-                        "not-a-sandbox-token"))
+                        "not-the-otp"))
                 .exchange((req, res) -> res.getStatusCode());
         assertThat(invalid.value()).isEqualTo(401);
 
@@ -119,8 +120,8 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
     void alreadyLinkedDepartmentIsSkippedAndDuplicateLocalIdRejected() {
         UUID first = register();
         String localId = "RC-dup-" + first;
-        Link firstLink = linking.assertLink(first, "REVENUE", "RATION", localId, com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        Link skipped = linking.assertLink(first, "REVENUE", "RATION", "RC-other", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
+        Link firstLink = linking.assertLink(first, "REVENUE", "RATION", localId, com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        Link skipped = linking.assertLink(first, "REVENUE", "RATION", "RC-other", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         assertThat(skipped.id()).isEqualTo(firstLink.id());
 
         Session second = citizen();
@@ -137,9 +138,9 @@ class IdentityProofProvidersIT extends PostgresIntegrationTest {
                         "localId",
                         localId,
                         "provider",
-                        "DIGILOCKER",
+                        "LOCAL_ID_OTP",
                         "proof",
-                        "sandbox"))
+                        "000000"))
                 .exchange((req, res) -> res.getStatusCode());
         assertThat(conflict.value()).isEqualTo(409);
     }

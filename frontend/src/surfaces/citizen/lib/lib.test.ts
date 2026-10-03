@@ -32,21 +32,21 @@ describe('connect step logic', () => {
 
   it('offers only the proof kinds the app can complete', () => {
     const providers = PROVIDERS as LinkProofProviderInfo[]
-    expect(supportedProviders(providers).map((p) => p.kind)).toEqual(['DIGILOCKER', 'LOCAL_ID_OTP'])
+    // the form handles the OTP demo only; DEPT_IDP needs a separate brokered sign-in
+    expect(supportedProviders(providers).map((p) => p.kind)).toEqual(['LOCAL_ID_OTP'])
     expect(unsupportedProviders(providers).map((p) => p.kind)).toEqual(['DEPT_IDP'])
   })
 
-  it('builds the link body: sandbox proof for DigiLocker, the typed code for OTP', () => {
+  it('builds the link body: the typed one-time code is the proof', () => {
     const base = { citizenId: 'c', departmentCode: 'REVENUE', localIdType: ' RATION ', localId: ' R-1 ', otp: ' 000000 ' }
-    expect(buildLinkRequest({ ...base, provider: 'DIGILOCKER' })).toEqual({
+    expect(buildLinkRequest({ ...base, provider: 'LOCAL_ID_OTP' })).toEqual({
       citizenId: 'c',
       departmentCode: 'REVENUE',
       localIdType: 'RATION',
       localId: 'R-1',
-      provider: 'DIGILOCKER',
-      proof: 'sandbox',
+      provider: 'LOCAL_ID_OTP',
+      proof: '000000',
     })
-    expect(buildLinkRequest({ ...base, provider: 'LOCAL_ID_OTP' }).proof).toBe('000000')
   })
 })
 

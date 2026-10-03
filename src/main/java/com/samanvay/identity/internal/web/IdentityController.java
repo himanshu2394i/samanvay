@@ -5,6 +5,7 @@ import com.samanvay.identity.api.Candidate;
 import com.samanvay.identity.api.CitizenMatch;
 import com.samanvay.identity.api.CitizenProfiles;
 import com.samanvay.identity.api.ConnectAccounts;
+import com.samanvay.identity.api.DepartmentLogin;
 import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.identity.api.IdentityResolution;
 import com.samanvay.identity.api.Link;
@@ -38,16 +39,19 @@ class IdentityController {
     private final IdentityLinking linking;
     private final IdentityResolution resolution;
     private final CitizenAccess citizenAccess;
+    private final DepartmentLogin departmentLogin;
 
     IdentityController(
             CitizenProfiles profiles,
             IdentityLinking linking,
             IdentityResolution resolution,
-            CitizenAccess citizenAccess) {
+            CitizenAccess citizenAccess,
+            DepartmentLogin departmentLogin) {
         this.profiles = profiles;
         this.linking = linking;
         this.resolution = resolution;
         this.citizenAccess = citizenAccess;
+        this.departmentLogin = departmentLogin;
     }
 
     /** A citizen token self-registers (bound to its subject, idempotent); an officer registers on someone's behalf. */
@@ -88,6 +92,13 @@ class IdentityController {
                 new AuthProof(parseProvider(body.provider()), body.proof()));
     }
 
+    /** Starts a login at a department: returns the department login URL to send the citizen's browser to. */
+    @PostMapping("/department-login")
+    DepartmentLoginStart startDepartmentLogin(@RequestBody DepartmentLoginBody body) {
+        citizenAccess.requireMayActOn(body.citizenId());
+        return new DepartmentLoginStart(departmentLogin.startLogin(body.citizenId(), body.departmentCode(), body.returnTo()));
+    }
+
     @GetMapping("/citizens/{id}/links")
     List<Link> links(@PathVariable UUID id) {
         citizenAccess.requireMayActOn(id);
@@ -115,6 +126,10 @@ class IdentityController {
     void reject(@PathVariable UUID id, @RequestBody(required = false) ReviewBody body) {
         resolution.reject(id, body == null ? null : body.note());
     }
+
+    record DepartmentLoginBody(UUID citizenId, String departmentCode, String returnTo) {}
+
+    record DepartmentLoginStart(String loginUrl) {}
 
     record LinkBody(
             UUID citizenId, String departmentCode, String localIdType, String localId, String provider, String proof) {}

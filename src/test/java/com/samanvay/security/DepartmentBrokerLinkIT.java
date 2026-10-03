@@ -5,7 +5,6 @@ import static com.samanvay.shared.test.KeycloakTestSupport.STAFF;
 import static com.samanvay.shared.test.KeycloakTestSupport.brokeredCitizenAccessToken;
 import static com.samanvay.shared.test.KeycloakTestSupport.claims;
 import static com.samanvay.shared.test.KeycloakTestSupport.importUser;
-import static com.samanvay.shared.test.KeycloakTestSupport.mailedCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -135,11 +134,10 @@ class DepartmentBrokerLinkIT extends PostgresContainerSupport {
         assertThatThrownBy(() -> linking.assertLink(citizen, "REVENUE", "RATION", localId, AuthProof.departmentIdp(tampered)))
                 .isInstanceOf(LinkProofInvalidException.class);
 
-        // a genuine citizen token from an email-code sign-in has no department claims
-        importUser(CITIZEN, "link-it-emailcode", null, null, "\"default-roles-samanvay-citizen\"", Map.of());
-        Instant sent = Instant.now();
-        BrowserLogin login = new BrowserLogin(CITIZEN, "samanvay-citizen-ui").submit(Map.of("username", "link-it-emailcode"));
-        login.submit(Map.of("emailCode", mailedCode("link-it-emailcode@test.samanvay.invalid", sent)));
+        // a genuine citizen token from a plain password sign-in has no department claims
+        importUser(CITIZEN, "link-it-password", "Link-it-cit-pw-1", null, "\"default-roles-samanvay-citizen\"", Map.of());
+        BrowserLogin login = new BrowserLogin(CITIZEN, "samanvay-citizen-ui")
+                .submit(Map.of("username", "link-it-password", "password", "Link-it-cit-pw-1"));
         String emailCodeToken = login.accessToken();
         UUID emailCodeCitizen = profiles.registerSelf(draft(), claims(emailCodeToken).get("sub").asString());
         assertThatThrownBy(() -> linking.assertLink(

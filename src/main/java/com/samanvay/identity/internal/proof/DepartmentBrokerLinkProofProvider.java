@@ -35,8 +35,8 @@ import org.springframework.stereotype.Component;
  *   <li>The broker claims are present and match: {@code dept_idp} is the configured broker
  *       alias, {@code dept_code} the department being linked, and {@code dept_local_id_type} /
  *       {@code dept_local_id} the local id being asserted - exactly, never "bind to whatever
- *       was asked" (unlike the DigiLocker sandbox). The claims exist only in a session the
- *       broker created (session notes, see keycloak/gen_realms.py); an email-code or passkey
+ *       was asked" (unlike the local-id OTP demo). The claims exist only in a session the
+ *       broker created (session notes, see keycloak/gen_realms.py); a password or passkey
  *       token has none.
  *   <li>Fresh: {@code auth_time} (the login itself, not a token refresh) is present and no
  *       older than {@code max-auth-age}, so a long-lived session cannot mint links later.

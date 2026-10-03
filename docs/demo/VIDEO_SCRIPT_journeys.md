@@ -12,12 +12,12 @@ Record against the deployed site. Total ~5–6 min; each scene stands alone, so 
 ## Sign-ins (all judge-friendly)
 
 - **Staff / operator — Scenes 3, 4, 6, 7 (the SPA):** open any staff URL, e.g.
-  `https://app.3.109.201.126.nip.io/app/#/staff/admin/onboarding`, and on the sign-in screen click
-  **"Demo: Admin"** — **no password, no code**. (Also **Demo: Officer** / **Demo: Reviewer**.) The `#`
-  matters. *(These one-click buttons appear once the demo-login change is redeployed.)*
-- **Citizen — Scene 1 (static portals):** at a portal (e.g. `/scholarship/`) sign in as `dev-citizen`;
-  it emails a one-time code — read it at `https://mail.3.109.201.126.nip.io/`. (No password.) Do this
-  once off-camera.
+  `https://app.3.109.201.126.nip.io/app/#/staff/admin/onboarding`, click **Sign in** and use `dev-admin` (or
+  `dev-officer` / `dev-reviewer`). The first sign-in asks for a new password and to enrol an authenticator
+  code; do this once off-camera. The `#` matters. There is no one-click demo login.
+- **Citizen — Scene 1 (static portals):** at a portal (e.g. `/scholarship/`) click **Sign in**, then **Register**
+  (first name, last name, email, password), or sign in as `dev-citizen` / `dev-citizen-change-me`. To connect a
+  department, use **Log in at …** and the demo account shown on that department's page.
 - **Officer desk for the "department down" beat — Scene 2 (scholarship portal):** the portal's own
   **Officer desk** uses a simple demo login — ID `officer`, password `demo-2026`. No code.
 

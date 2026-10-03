@@ -3,7 +3,6 @@ package com.samanvay.security;
 import static com.samanvay.shared.test.KeycloakTestSupport.CITIZEN;
 import static com.samanvay.shared.test.KeycloakTestSupport.STAFF;
 import static com.samanvay.shared.test.KeycloakTestSupport.importUser;
-import static com.samanvay.shared.test.KeycloakTestSupport.mailedCode;
 import static com.samanvay.shared.test.KeycloakTestSupport.tokenResponse;
 import static com.samanvay.shared.test.KeycloakTestSupport.totp;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -11,7 +10,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.samanvay.shared.test.KeycloakTestSupport;
 import com.samanvay.shared.test.KeycloakTestSupport.BrowserLogin;
 import java.net.http.HttpResponse;
-import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -60,30 +58,24 @@ class KeycloakSignInPathsIT {
     }
 
     @Test
-    void citizenSignsInWithAnEmailedCodeAndNothingElse() throws Exception {
-        importUser(CITIZEN, "paths-citizen", null, null, "\"default-roles-samanvay-citizen\"", Map.of());
-        String email = "paths-citizen@test.samanvay.invalid";
+    void citizenSignsInWithEmailAndPasswordAndNeedsNoSecondFactor() throws Exception {
+        importUser(CITIZEN, "paths-citizen", "Paths-citizen-pw-1", null, "\"default-roles-samanvay-citizen\"", Map.of());
 
-        Instant sent = Instant.now();
+        BrowserLogin wrong = new BrowserLogin(CITIZEN, "samanvay-citizen-ui")
+                .submit(Map.of("username", "paths-citizen", "password", "not-the-password"));
+        assertThat(wrong.finished()).as("wrong password").isFalse();
+
         BrowserLogin login = new BrowserLogin(CITIZEN, "samanvay-citizen-ui");
-        assertThat(login.page().body()).doesNotContain("name=\"password\"");
-        login.submit(Map.of("username", "paths-citizen"));
-        assertThat(login.finished()).isFalse();
-        assertThat(login.page().body()).contains("id=\"kc-email-otp-form\"").doesNotContain("name=\"password\"");
-
-        login.submit(Map.of("emailCode", "000000"));
-        assertThat(login.finished()).as("wrong code").isFalse();
-        assertThat(login.page().body()).contains("That code is not right");
-
-        login.submit(Map.of("emailCode", mailedCode(email, sent)));
-        assertThat(login.finished()).as("emailed code").isTrue();
+        assertThat(login.page().body()).contains("name=\"password\"");
+        login.submit(Map.of("username", "paths-citizen", "password", "Paths-citizen-pw-1"));
+        assertThat(login.finished()).as("password alone finishes a citizen sign-in").isTrue();
         assertThat(KeycloakTestSupport.claims(login.accessToken()).get("azp").asString()).isEqualTo("samanvay-citizen-ui");
     }
 
     @Test
     void citizenPasswordGrantIsDeniedEvenIfAPasswordExists() throws Exception {
-        // Before this change: a citizen with a password (the old registration form
-        // set one) and enrolled TOTP got a token from admin-cli this way.
+        // A citizen has a password, but the password grant (no browser, no brokered checks) stays closed
+        // for every client.
         String secret = "paths-cit-totp-secret-01";
         importUser(CITIZEN, "paths-pw-citizen", "Paths-cit-pw-1", secret, "\"default-roles-samanvay-citizen\"", Map.of());
         for (String client : new String[] {"admin-cli", "samanvay-citizen-ui"}) {

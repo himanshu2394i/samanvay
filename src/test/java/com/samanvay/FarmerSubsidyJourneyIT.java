@@ -66,9 +66,9 @@ class FarmerSubsidyJourneyIT extends PostgresIntegrationTest {
                 "DAY",
                 "M",
                 "77****09"));
-        linking.assertLink(citizen, "REVENUE", "RATION", "RC-712-1", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "AGRICULTURE", "FARMER", "AGR-1", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "DBT", "DBT", "DBT-712", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
+        linking.assertLink(citizen, "REVENUE", "RATION", "RC-712-1", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "AGRICULTURE", "FARMER", "AGR-1", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "DBT", "DBT", "DBT-712", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "AGRICULTURE",

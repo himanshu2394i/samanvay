@@ -176,3 +176,22 @@ deliberately not a foundational dependency.
   once more than three capabilities exist.
 - Mapping suggestion confidence thresholds, and whether below-threshold suggestions are
   shown at all or hidden to reduce reviewer fatigue.
+
+## Addendum (2026-10): onboarding a department from its manifest
+
+A department publishes one manifest (`/.well-known/samanvay/manifest`, v2) and Samanvay onboards it in one go. The catalog gained:
+
+- **`ManifestOnboarding`** (`plan` / `onboard`): `plan` fetches the manifest and returns what would be created, changing nothing;
+  `onboard` creates the department (with its `identity` block), data sources grouped by protocol + host + auth, connector DRAFTs
+  (capabilities, inputs, optional `resolve`), mappings and journey DRAFTs, in ONE transaction, after validating everything up
+  front. It refuses if the manifest changed since the reviewed digest (stored per department, V204). Mappings are propose-only.
+  An existing connector for the same department and category gets a NEW VERSION, so the live one keeps serving until published.
+- **Data source `auth_spec`** (V200): the manifest's non-secret `auth` block (scheme, parameter names and places). Secret values
+  are never stored; they are looked up by parameter name in the SecretStore.
+- **Department `identity_spec`** (V201): the login description used by the identity module's department-login proof.
+- **Central schemas are seeded** (V203): each declares its category (`x-category`) and fields; a department's document types are
+  seeded first, then onboarding maps its fields onto them.
+- Hosts for SFTP and JDBC stay OPERATOR-configured (`samanvay.sources.*`): a manifest cannot redirect Samanvay.
+  `samanvay.catalog.allowed-private-hosts` (dev/demo only) exempts named local hosts from the SSRF guard.
+
+See [docs/FINAL-CHANGES.md](../../FINAL-CHANGES.md).

@@ -82,32 +82,33 @@ class KeycloakRealmExportIT {
     }
 
     @Test
-    void citizenSignInIsEmailCodeOrPasskeyWithoutPasswordsOrTotp() throws Exception {
+    void citizenSignsUpWithNameEmailAndPasswordAndSignsInWithThemOrAPasskeyWithoutTotp() throws Exception {
         JsonNode realm = admin("/admin/realms/" + CITIZEN);
         assertThat(shape(CITIZEN, realm.get("browserFlow").asString())).containsExactly(
                 "0 auth-cookie ALTERNATIVE",
                 // acts only on kc_idp_hint (no default provider): the way in to the department IdP
                 "0 identity-provider-redirector ALTERNATIVE",
                 "0 [citizen browser forms] ALTERNATIVE",
-                "1 auth-username-form REQUIRED",
-                "1 [citizen email code] CONDITIONAL",
-                "2 conditional-credential REQUIRED {credentials=webauthn-passwordless, included=false}",
-                "2 samanvay-email-otp REQUIRED {length=6, maxAttempts=5, ttlSeconds=300}");
-        // no password or TOTP enrolment, ever
-        for (String action : List.of("CONFIGURE_TOTP", "UPDATE_PASSWORD")) {
-            JsonNode a = admin("/admin/realms/" + CITIZEN + "/authentication/required-actions/" + action);
-            assertThat(a.get("enabled").asBoolean()).as(action).isFalse();
-            assertThat(a.get("defaultAction").asBoolean()).as(action).isFalse();
-        }
-        assertThat(realm.get("resetPasswordAllowed").asBoolean()).isFalse();
-        // registration asks for no password; the email is verified by link before the first token
-        assertThat(realm.get("verifyEmail").asBoolean()).isTrue();
+                "1 auth-username-password-form REQUIRED");
+        // a password, never TOTP
+        JsonNode totp = admin("/admin/realms/" + CITIZEN + "/authentication/required-actions/CONFIGURE_TOTP");
+        assertThat(totp.get("enabled").asBoolean()).isFalse();
+        assertThat(totp.get("defaultAction").asBoolean()).isFalse();
+        JsonNode updatePassword = admin("/admin/realms/" + CITIZEN + "/authentication/required-actions/UPDATE_PASSWORD");
+        assertThat(updatePassword.get("enabled").asBoolean()).isTrue();
+        assertThat(updatePassword.get("defaultAction").asBoolean()).as("a password is never forced to change").isFalse();
+        assertThat(realm.get("resetPasswordAllowed").asBoolean()).isTrue();
+        assertThat(realm.get("registrationAllowed").asBoolean()).isTrue();
+        assertThat(realm.get("registrationEmailAsUsername").asBoolean()).as("the email is the user name").isTrue();
+        assertThat(realm.get("passwordPolicy").asString()).contains("length(8)").contains("notUsername");
+        // sign-up: name + email (profile) and a password
         assertThat(shape(CITIZEN, realm.get("registrationFlow").asString())).containsExactly(
                 "0 [citizen registration form] REQUIRED",
                 "1 registration-user-creation REQUIRED",
+                "1 registration-password-action REQUIRED",
                 "1 registration-recaptcha-action DISABLED",
                 "1 registration-terms-and-conditions DISABLED");
-        // mail goes to the dev/test catcher
+        // mail (password reset) goes to the dev/test catcher
         assertThat(realm.get("smtpServer").get("host").asString()).isEqualTo("mailpit");
     }
 
@@ -256,6 +257,37 @@ class KeycloakRealmExportIT {
         assertThat(names(claims.get("realm_access").get("roles"), null)).contains("department");
         assertThat(claims.get("scope").asString())
                 .contains("source:revenue-rest-mock", "source:education-soap-mock", "source:dbt-rest-mock");
+    }
+
+    @Test
+    void everyDepartmentGetsItsOwnCallerClientWithScopesForOnlyItsOwnSources() throws Exception {
+        Map<String, List<String>> expected = Map.of(
+                "dept-revenue", List.of("source:revenue-rest", "source:revenue-sftp"),
+                "dept-dbt", List.of("source:dbt-rest"),
+                "dept-education", List.of("source:education-soap"),
+                "dept-agriculture", List.of("source:agriculture-jdbc", "source:agriculture-sftp"));
+        for (var e : expected.entrySet()) {
+            JsonNode client = admin("/admin/realms/" + STAFF + "/clients?clientId=" + e.getKey()).get(0);
+            assertThat(client.get("serviceAccountsEnabled").asBoolean()).as(e.getKey()).isTrue();
+            assertThat(client.get("publicClient").asBoolean()).as(e.getKey()).isFalse();
+            assertThat(client.get("directAccessGrantsEnabled").asBoolean()).as(e.getKey()).isFalse();
+            List<String> sources = new ArrayList<>();
+            client.get("defaultClientScopes").forEach(n -> {
+                if (n.asString().startsWith("source:")) {
+                    sources.add(n.asString());
+                }
+            });
+            assertThat(sources).as(e.getKey()).containsExactlyInAnyOrderElementsOf(e.getValue());
+        }
+        String id = admin("/admin/realms/" + STAFF + "/clients?clientId=dept-revenue").get(0).get("id").asString();
+        String secret = admin("/admin/realms/" + STAFF + "/clients/" + id + "/client-secret").get("value").asString();
+        JsonNode claims = KeycloakTestSupport.claims(token(STAFF, Map.of(
+                "grant_type", "client_credentials", "client_id", "dept-revenue", "client_secret", secret))
+                .get("access_token").asString());
+        assertThat(claims.get("azp").asString()).isEqualTo("dept-revenue");
+        assertThat(claims.get("department").asString()).isEqualTo("REVENUE");
+        assertThat(names(claims.get("realm_access").get("roles"), null)).contains("department");
+        assertThat(claims.get("scope").asString()).contains("source:revenue-rest").doesNotContain("source:dbt-rest");
     }
 
     @Test

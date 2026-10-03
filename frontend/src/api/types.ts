@@ -74,7 +74,7 @@ export interface Profile {
   dobPrecision: DobPrecision
 }
 
-export type LinkProofKind = 'DIGILOCKER' | 'LOCAL_ID_OTP' | 'DEPT_IDP'
+export type LinkProofKind = 'LOCAL_ID_OTP' | 'DEPT_IDP' | 'DEPT_ASSERTION'
 
 export interface LinkProofProviderInfo {
   kind: LinkProofKind

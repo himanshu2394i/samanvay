@@ -140,7 +140,7 @@ function DepartmentCard({
   const t = useT()
   const usable = supportedProviders(providers)
   const other = unsupportedProviders(providers)
-  const [provider, setProvider] = useState<LinkProofKind>(usable[0]?.kind ?? 'DIGILOCKER')
+  const [provider, setProvider] = useState<LinkProofKind>(usable[0]?.kind ?? 'LOCAL_ID_OTP')
   const [localIdType, setLocalIdType] = useState(need.localIdType ?? need.departmentCode)
   const [localId, setLocalId] = useState('')
   const [otp, setOtp] = useState('')
@@ -200,9 +200,7 @@ function DepartmentCard({
               autoComplete="one-time-code"
               hint={t('dept.otpHint')}
             />
-          ) : (
-            <p className="hint">{t('dept.digilockerHint')}</p>
-          )}
+          ) : null}
           {error ? <ErrorNotice error={error} /> : null}
           <button type="submit" className="btn" disabled={busy} aria-busy={busy || undefined}>
             {busy ? t('dept.connecting') : t('dept.connect', { name: need.departmentName })}

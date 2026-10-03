@@ -17,7 +17,10 @@ public abstract class PostgresContainerSupport {
     public static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16")
             .withDatabaseName("samanvay")
             .withUsername("samanvay_migrate")
-            .withPassword("samanvay_migrate");
+            .withPassword("samanvay_migrate")
+            // Every cached Spring context (one per distinct test configuration, e.g. one per Keycloak IT) keeps its own
+            // connection pool; the default limit of 100 runs out once the whole suite has run.
+            .withCommand("postgres", "-c", "max_connections=400");
 
     static {
         POSTGRES.start();

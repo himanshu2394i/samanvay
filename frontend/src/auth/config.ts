@@ -5,12 +5,9 @@ export interface OidcConfig {
   authority: string
   /** The realm's public browser client (Authorization Code + PKCE, no secret). */
   clientId: string
-  /** True in the dev/demo build: enables the one-click demo sign-in for judges. Always false in prod. */
-  devSignIn: boolean
 }
 
 interface AuthConfigBody {
-  devSignIn?: boolean
   realms?: Partial<Record<RealmKey, { issuer?: string; clientId?: string }>>
 }
 
@@ -21,7 +18,7 @@ export function parseAuthConfig(body: unknown, realm: RealmKey): OidcConfig {
   if (!r?.issuer || !r.clientId) {
     throw new Error(`Sign-in is not configured for the ${realm} realm.`)
   }
-  return { authority: r.issuer, clientId: r.clientId, devSignIn: b?.devSignIn === true }
+  return { authority: r.issuer, clientId: r.clientId }
 }
 
 /**
@@ -37,7 +34,7 @@ export async function loadOidcConfig(
   const env = opts.env ?? (import.meta.env as Record<string, string | undefined>)
   const authority = realm === 'staff' ? env.VITE_STAFF_OIDC_AUTHORITY : env.VITE_OIDC_AUTHORITY
   const clientId = realm === 'staff' ? env.VITE_STAFF_OIDC_CLIENT_ID : env.VITE_OIDC_CLIENT_ID
-  if (authority && clientId) return { authority, clientId, devSignIn: false }
+  if (authority && clientId) return { authority, clientId }
   const doFetch = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => globalThis.fetch(...a))
   let res: Response
   try {

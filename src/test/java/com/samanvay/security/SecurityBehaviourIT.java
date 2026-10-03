@@ -175,7 +175,7 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
                 .isEqualTo(403);
         assertThat(post(attacker, "/api/identity/links", Map.of(
                         "citizenId", victim, "departmentCode", "REVENUE", "localIdType", "RATION",
-                        "localId", "X-" + victim, "provider", "DIGILOCKER", "proof", "sandbox")))
+                        "localId", "X-" + victim, "provider", "LOCAL_ID_OTP", "proof", "000000")))
                 .isEqualTo(403);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM identity_link WHERE citizen_id = ?", Integer.class, victim))
                 .isZero();

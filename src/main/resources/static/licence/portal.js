@@ -230,6 +230,9 @@ document.getElementById("detailsForm").addEventListener("submit", async (event) 
   }
 });
 
+// Departments whose manifest published a login the citizen can use to link (from the connect-accounts view).
+let loginAvailable = new Set();
+
 async function linkedCodes() {
   const id = citizenId();
   if (!id) return new Set();
@@ -237,6 +240,7 @@ async function linkedCodes() {
     const view = await api(
       "/api/identity/citizens/" + encodeURIComponent(id) + "/connect-accounts?journeyCode=" + encodeURIComponent(JOURNEY)
     );
+    loginAvailable = new Set((view.departments || []).filter((d) => d.departmentLoginAvailable).map((d) => d.departmentCode));
     return new Set((view.departments || []).filter((d) => d.linked).map((d) => d.departmentCode));
   } catch {
     const links = await api("/api/identity/citizens/" + encodeURIComponent(id) + "/links");
@@ -272,8 +276,12 @@ async function renderDepts() {
         ok
           ? "<p class=\"hint\">This department account is linked for this application.</p>"
           : `<div class="row">
-        <button type="button" class="btn primary" data-proof="digilocker">Pull issued documents (DigiLocker sandbox)</button>
-        <button type="button" class="btn" data-proof="otp">Connect with local ID + OTP (demo)</button>
+        <!-- legacy mock proofs only when the department has no login of its own -->
+        ${
+          loginAvailable.has(d.code)
+            ? `<button type="button" class="btn primary" data-proof="dept-login">Log in at ${esc(d.name)}</button>`
+            : `<button type="button" class="btn primary" data-proof="otp">Connect with local ID + OTP (demo)</button>`
+        }
       </div>`
       }
     </li>`;
@@ -296,6 +304,14 @@ function openProof(dept, kind) {
     showApplyPanel("details");
     return;
   }
+  if (kind === "dept-login") {
+    window.SamanvayDeptLogin.start({
+      citizenId: citizenId(),
+      departmentCode: dept,
+      returnPath: location.pathname + location.hash,
+    }).catch((e) => setStatus(document.getElementById("connectStatus"), "bad", friendly(e)));
+    return;
+  }
   pendingProof = { dept, kind };
   const dlg = document.getElementById("proofDlg");
   const otp = document.getElementById("otpFields");
@@ -304,26 +320,6 @@ function openProof(dept, kind) {
   const err = document.getElementById("otpError");
   if (err) err.hidden = true;
   const deptName = DEPTS.find((d) => d.code === dept).name;
-  if (kind === "digilocker") {
-    openLocker(dept, deptName, async () => {
-      await api("/api/identity/links", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          citizenId: citizenId(),
-          departmentCode: dept,
-          localIdType: dept,
-          localId: "DEMO-" + dept + "-" + Date.now(),
-          provider: "DIGILOCKER",
-          proof: "sandbox",
-        }),
-      });
-      setStatus(document.getElementById("connectStatus"), "ok", "Issued document pulled. Department account is linked.");
-      announce("Department account connected");
-      await renderDepts();
-    });
-    return;
-  }
   otp.hidden = false;
   title.textContent = "Local ID + OTP demo";
   body.textContent =
@@ -367,8 +363,8 @@ document.getElementById("proofForm").addEventListener("submit", async (event) =>
         departmentCode: dept,
         localIdType: dept,
         localId,
-        provider: kind === "digilocker" ? "DIGILOCKER" : "LOCAL_ID_OTP",
-        proof: kind === "digilocker" ? "sandbox" : "000000",
+        provider: "LOCAL_ID_OTP",
+        proof: "000000",
       }),
     });
     document.getElementById("proofDlg").close();
@@ -690,6 +686,7 @@ document.querySelectorAll("[data-text]").forEach((btn) => {
 });
 
 window.addEventListener("hashchange", () => showView({ focus: true }));
-showApplyPanel("details");
+if (window.SamanvayDeptLogin.takeReturned() && citizenId()) showApplyPanel("connect");
+else showApplyPanel("details");
 applyLang(sessionStorage.getItem(KEY_LANG) || "en");
 showView();

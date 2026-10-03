@@ -101,7 +101,7 @@ abstract class OneCheckITSupport extends PostgresIntegrationTest {
                 "Sunita Pawar", "सुनीता", "Sunita", "Pawar", "Ramesh",
                 LocalDate.of(2004, 6, 1), "DAY", "F", "98****11"), subject);
         linking.assertLink(citizen, "REVENUE", "RATION", "RC-p2f-" + Long.toHexString(System.nanoTime()),
-                com.samanvay.identity.api.AuthProof.digiLockerSandbox());
+                com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         var http = TestHttp.as(TestTokens.citizen(subject));
         Map<?, ?> created = http.post().uri(url("/api/consent/requests")).contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("citizenId", citizen, "purposeCode", "SCH_ELIGIBILITY_CHECK"))
@@ -128,6 +128,11 @@ abstract class OneCheckITSupport extends PostgresIntegrationTest {
         public ConnectorResult execute(AccessGrant grant, Capability capability, ExecutionInputs inputs) {
             calls.incrementAndGet();
             return onCall.apply(grant);
+        }
+
+        @Override
+        public ConnectorResult trial(String connectorRef, String samplePersonId, com.samanvay.shared.PrincipalRef by) {
+            throw new UnsupportedOperationException("not used by the one-check tests");
         }
 
         @Override

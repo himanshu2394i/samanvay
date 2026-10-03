@@ -204,3 +204,17 @@ denies a legitimate applicant or retries forever.
   retry layers can multiply. One must be authoritative.
 - Whether `connector_exception` raw-row retention needs a hard TTL independent of
   resolution.
+
+## Addendum (2026-10): declared security, key columns, and the optional resolve step
+
+- **Security is declared by the department** (manifest `auth`) and applied by the adapters: REST API key (header or query), HTTP
+  Basic, OAuth2 client credentials (token fetched from a path on the department's own host, cached per source); SOAP
+  WS-Security UsernameToken; SFTP and JDBC read credentials by name. Secret values come from the SecretStore by parameter name
+  and never appear in messages. A source with no declared scheme behaves exactly as before.
+- **Key columns and views:** an SFTP connector declares its `key_column`; a JDBC connector with no SQL builds the one fixed
+  `SELECT * FROM <view> WHERE <key> = :<key>` from a published read-only view and key column (plain identifiers only, value bound).
+- **Optional `resolve` step:** for a department that keys each document separately, the capability declares `resolve`; the
+  runtime first asks "which documents does this person hold?" (sending only the inputs the path names), picks one key (latest or
+  first), binds it, then fetches the document. Both calls are one resilience/deadline exchange. No documents means NotFound.
+
+See [docs/FINAL-CHANGES.md](../../FINAL-CHANGES.md).

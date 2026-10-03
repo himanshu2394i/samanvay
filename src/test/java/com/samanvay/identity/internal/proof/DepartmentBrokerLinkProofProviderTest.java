@@ -64,7 +64,7 @@ class DepartmentBrokerLinkProofProviderTest {
         assertThatThrownBy(() -> provider.verify(null, context("REVENUE", "RATION", "RC-1")))
                 .isInstanceOf(LinkProofInvalidException.class);
         assertThatThrownBy(() -> provider.verify(
-                        new AuthProof(LinkProofKind.DIGILOCKER, token(claims())), context("REVENUE", "RATION", "RC-1")))
+                        new AuthProof(LinkProofKind.LOCAL_ID_OTP, token(claims())), context("REVENUE", "RATION", "RC-1")))
                 .isInstanceOf(LinkProofInvalidException.class);
         assertRefused("  ", context("REVENUE", "RATION", "RC-1"));
         assertRefused(null, context("REVENUE", "RATION", "RC-1"));

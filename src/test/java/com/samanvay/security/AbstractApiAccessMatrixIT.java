@@ -160,7 +160,6 @@ abstract class AbstractApiAccessMatrixIT extends PostgresIntegrationTest {
             case "/api/applications" -> "?citizenId=" + ownCitizen;
             case "/api/identity/citizens/{id}/connect-accounts" -> "?journeyCode=POST_MATRIC_SCHOLARSHIP";
             case "/api/identity/citizens/search" -> "?q=matrix";
-            case "/api/connector/issued-documents" -> "?departmentCode=REVENUE";
             default -> "";
         };
     }
@@ -170,7 +169,7 @@ abstract class AbstractApiAccessMatrixIT extends PostgresIntegrationTest {
         String unique = UUID.randomUUID().toString().substring(0, 8);
         return """
                 {"citizenId":"%s","departmentCode":"REVENUE","localIdType":"RATION","localId":"MATRIX-%s",
-                 "provider":"DIGILOCKER","proof":"sandbox","requesterId":"SCHOLARSHIP",
+                 "provider":"LOCAL_ID_OTP","proof":"000000","requesterId":"SCHOLARSHIP",
                  "purposeCode":"SCHOLARSHIP_ELIGIBILITY","purposeText":"matrix","categories":["INCOME_CERTIFICATE"],
                  "note":"matrix","reason":"matrix","submission":{}}
                 """.formatted(ownCitizen, unique);

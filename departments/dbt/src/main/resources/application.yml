@@ -1,0 +1,28 @@
+# DBT (Direct Benefit Transfer) department - a standalone stand-in service, never a live source.
+spring:
+  application:
+    name: samanvay-dept-dbt
+  jackson:
+    default-property-inclusion: non_null
+server:
+  # 8080 = samanvay-core, 8090 = shared simulators, 8091 = revenue, 8092 = dbt.
+  port: ${DBT_PORT:8092}
+
+dbt:
+  # The address Samanvay uses to reach this service; published in the manifest identity block.
+  public-base-url: ${DBT_PUBLIC_URL:http://localhost:8092}
+  login:
+    assertion-ttl: PT5M
+    # Samanvay addresses a login may redirect back to (prefix match). Anything else gets a 400, never a redirect.
+    allowed-return-uris: ${DBT_ALLOWED_RETURN_URIS:http://localhost:8080/,https://app.3.109.201.126.nip.io/}
+    # Shown on the login page so a demo user knows which FAKE account to use. Empty hides it.
+    demo-hint: "${DBT_LOGIN_HINT:Demo account (fake data): mobile 9000000001, one-time code 123456}"
+    # Demo citizens: id|secret|personId. FAKE dev accounts only.
+    users: ${DBT_LOGIN_USERS:9000000001|123456|DBT-1001,9000000002|123456|DBT-1002}
+  oauth:
+    # Samanvay's OAuth2 client for DBT (client-credentials grant). Dev defaults only.
+    client-id: ${DBT_CLIENT_ID:samanvay-dev}
+    client-secret: ${DBT_CLIENT_SECRET:dbt-dev-secret-change-me}
+    scope: bank.read
+    # How long an issued access token stays valid.
+    token-ttl: ${DBT_TOKEN_TTL:PT10M}

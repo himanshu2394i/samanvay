@@ -2,7 +2,10 @@ package com.samanvay.connector.internal.protocol;
 
 import com.samanvay.connector.api.AdapterRequest;
 import com.samanvay.connector.api.AdapterResponse;
+import com.samanvay.connector.api.IllegalConnectorConfigurationException;
 import com.samanvay.connector.api.ProtocolAdapter;
+import com.samanvay.connector.internal.source.AuthSpec;
+import com.samanvay.connector.internal.source.SourceCredentials;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +29,7 @@ class SoapAdapter implements ProtocolAdapter {
     private final DeadlineHttp http;
     private final String scheme;
     private final DepartmentServiceOverrides overrides;
+    private final SourceCredentials credentials;
 
     /** Real department calls are SOAP 1.1 over HTTPS, bounded by {@link DeadlineHttp}'s total deadline. */
     SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http) {
@@ -37,6 +41,11 @@ class SoapAdapter implements ProtocolAdapter {
      * standalone department service; the call is still the real HTTP exchange either way.
      */
     @Autowired
+    SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http, DepartmentServiceOverrides overrides, SourceCredentials credentials) {
+        this(mocks, http, "https", overrides, credentials);
+    }
+
+    /** Without a credential store: only sources with no declared auth scheme (NONE) can be called. */
     SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http, DepartmentServiceOverrides overrides) {
         this(mocks, http, "https", overrides);
     }
@@ -47,10 +56,16 @@ class SoapAdapter implements ProtocolAdapter {
     }
 
     SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http, String scheme, DepartmentServiceOverrides overrides) {
+        this(mocks, http, scheme, overrides, new SourceCredentials(k -> null));
+    }
+
+    SoapAdapter(MockDepartmentBackend mocks, DeadlineHttp http, String scheme, DepartmentServiceOverrides overrides,
+            SourceCredentials credentials) {
         this.mocks = mocks;
         this.http = http;
         this.scheme = scheme;
         this.overrides = overrides;
+        this.credentials = credentials;
         dbf = DocumentBuilderFactory.newInstance();
         try {
             dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -75,15 +90,45 @@ class SoapAdapter implements ProtocolAdapter {
         if (MockDepartmentBackend.HOST.equals(request.host())) {
             raw = mocks.soapMarks();
         } else {
+            envelope = withAuth(request, envelope);
             String endpoint = request.endpoint() == null ? "" : request.endpoint();
             String origin = overrides.baseUrl(request.dataSourceCode()).orElse(scheme + "://" + request.host());
-            raw = http.post(URI.create(origin + endpoint), envelope, CONTENT_TYPE);
+            raw = http.post(URI.create(origin + endpoint), envelope, CONTENT_TYPE, soapActionHeader(request));
             if (raw == null) {
                 raw = "";
             }
         }
         Document doc = parseSafely(raw.getBytes(StandardCharsets.UTF_8));
         return new AdapterResponse(xmlToJson(doc), raw.length());
+    }
+
+    /** The SOAPAction header a connector declares ({@code soap_action}), quoted as SOAP 1.1 writes it; none when not declared. */
+    private static Map<String, String> soapActionHeader(AdapterRequest request) {
+        String action = request.access().get("soap_action");
+        if (action == null || action.isBlank()) {
+            return Map.of();
+        }
+        if (action.chars().anyMatch(c -> c < 0x20 || c == '"' || c == 0x7f)) {
+            throw new IllegalConnectorConfigurationException("SOAP source '" + request.dataSourceCode() + "' declares a soap_action with an illegal character");
+        }
+        return Map.of("SOAPAction", "\"" + action.trim() + "\"");
+    }
+
+    /** The envelope with the department's declared WS-Security header added; unchanged when no scheme is declared. */
+    private String withAuth(AdapterRequest request, String envelope) {
+        AuthSpec spec = AuthSpec.of(request.authType(), request.authSpecJson());
+        if (spec.isNone()) {
+            return envelope;
+        }
+        String source = request.dataSourceCode();
+        if (!"WS_SECURITY_USERNAME".equals(spec.scheme())) {
+            throw new IllegalConnectorConfigurationException(
+                    "SOAP source '" + source + "' has an unsupported auth scheme '" + spec.scheme() + "'");
+        }
+        String code = SourceCredentials.credentialCode(source, request.authConfigRef());
+        Map<String, String> secret = credentials.params(code);
+        return SoapSecurity.addUsernameToken(envelope, SourceCredentials.requireParam(source, code, secret, "username"),
+                SourceCredentials.requireParam(source, code, secret, "password"));
     }
 
     String renderTemplate(String template, Map<String, String> inputs) {

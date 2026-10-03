@@ -283,6 +283,66 @@
         "display.on.consent.screen": "false"
       },
       "protocolMappers": []
+    },
+    {
+      "name": "source:revenue-rest",
+      "description": "Department client may fetch from data source revenue-rest",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": []
+    },
+    {
+      "name": "source:revenue-sftp",
+      "description": "Department client may fetch from data source revenue-sftp",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": []
+    },
+    {
+      "name": "source:dbt-rest",
+      "description": "Department client may fetch from data source dbt-rest",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": []
+    },
+    {
+      "name": "source:education-soap",
+      "description": "Department client may fetch from data source education-soap",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": []
+    },
+    {
+      "name": "source:agriculture-jdbc",
+      "description": "Department client may fetch from data source agriculture-jdbc",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": []
+    },
+    {
+      "name": "source:agriculture-sftp",
+      "description": "Department client may fetch from data source agriculture-sftp",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": []
     }
   ],
   "defaultDefaultClientScopes": [
@@ -394,6 +454,212 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "dept-revenue",
+      "name": "Department caller: REVENUE (dev)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "roles",
+        "service_account",
+        "source:revenue-rest",
+        "source:revenue-sftp"
+      ],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "samanvay-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "samanvay-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "department",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "department",
+            "claim.value": "REVENUE",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "dept-dbt",
+      "name": "Department caller: DBT (dev)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "roles",
+        "service_account",
+        "source:dbt-rest"
+      ],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "samanvay-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "samanvay-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "department",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "department",
+            "claim.value": "DBT",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "dept-education",
+      "name": "Department caller: EDUCATION (dev)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "roles",
+        "service_account",
+        "source:education-soap"
+      ],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "samanvay-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "samanvay-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "department",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "department",
+            "claim.value": "EDUCATION",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "dept-agriculture",
+      "name": "Department caller: AGRICULTURE (dev)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "roles",
+        "service_account",
+        "source:agriculture-jdbc",
+        "source:agriculture-sftp"
+      ],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "samanvay-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "samanvay-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "department",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "department",
+            "claim.value": "AGRICULTURE",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "users": [
@@ -485,6 +751,38 @@
       "username": "service-account-dept-scholarship-dev",
       "enabled": true,
       "serviceAccountClientId": "dept-scholarship-dev",
+      "realmRoles": [
+        "department"
+      ]
+    },
+    {
+      "username": "service-account-dept-revenue",
+      "enabled": true,
+      "serviceAccountClientId": "dept-revenue",
+      "realmRoles": [
+        "department"
+      ]
+    },
+    {
+      "username": "service-account-dept-dbt",
+      "enabled": true,
+      "serviceAccountClientId": "dept-dbt",
+      "realmRoles": [
+        "department"
+      ]
+    },
+    {
+      "username": "service-account-dept-education",
+      "enabled": true,
+      "serviceAccountClientId": "dept-education",
+      "realmRoles": [
+        "department"
+      ]
+    },
+    {
+      "username": "service-account-dept-agriculture",
+      "enabled": true,
+      "serviceAccountClientId": "dept-agriculture",
       "realmRoles": [
         "department"
       ]
