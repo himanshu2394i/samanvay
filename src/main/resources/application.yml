@@ -59,7 +59,23 @@ samanvay:
   notifications:
     email:
       from: ${SAMANVAY_NOTIFICATIONS_EMAIL_FROM:no-reply@samanvay.local}
+  catalog:
+    # Hosts exempt from the private/loopback (SSRF) guard on manifest discovery and data sources. EMPTY by default and
+    # in production; only dev/demo name the local department stand-ins.
+    allowed-private-hosts: ${SAMANVAY_CATALOG_ALLOWED_PRIVATE_HOSTS:}
   identity:
+    department-assertion:
+      # Link proof kind DEPT_ASSERTION: the citizen logs in at the department itself and its signed assertion
+      # (docs/contracts/login-assertion.md) is the proof. Always available; a department can be linked this way
+      # only once its manifest's identity block has been onboarded.
+      # Where a department login may send the citizen back to (prefix match). EMPTY = refuse every address (fail closed):
+      # production must set this to the public portal address(es).
+      allowed-return-prefixes: ${SAMANVAY_DEPARTMENT_RETURN_PREFIXES:}
+      # Refuse a department's published-key URL on a private/loopback address (SSRF). Only dev/demo turn this off.
+      allow-private-hosts: false
+      # How recent the department login itself must be, and how long a started login stays valid.
+      max-auth-age: PT10M
+      login-ttl: PT10M
     department-idp:
       # Accept a department-brokered Keycloak sign-in as a link proof (LinkProofKind.DEPT_IDP,
       # DepartmentBrokerLinkProofProvider). Off by default: with it off the proof kind is refused
@@ -106,7 +122,7 @@ samanvay:
     staff:
       issuer-uri: ${SAMANVAY_STAFF_ISSUER_URI:}
       ui-client-id: samanvay-staff-ui
-      allowed-clients: samanvay-staff-ui, dept-scholarship-dev
+      allowed-clients: samanvay-staff-ui, dept-scholarship-dev, dept-revenue, dept-dbt, dept-education, dept-agriculture
     citizen:
       issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:}
       ui-client-id: samanvay-citizen-ui

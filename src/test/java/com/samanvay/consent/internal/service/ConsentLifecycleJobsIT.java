@@ -3,9 +3,14 @@ package com.samanvay.consent.internal.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samanvay.SamanvayApplication;
+import com.samanvay.audit.api.ActorType;
+import com.samanvay.audit.api.AuditEntry;
+import com.samanvay.audit.api.AuditService;
+import com.samanvay.audit.api.Outcome;
 import com.samanvay.shared.test.PostgresIntegrationTest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +25,9 @@ class ConsentLifecycleJobsIT extends PostgresIntegrationTest {
 
     @Autowired
     ConsentServices consents;
+
+    @Autowired
+    AuditService audit;
 
     @Autowired
     JdbcTemplate jdbc;
@@ -140,16 +148,13 @@ class ConsentLifecycleJobsIT extends PostgresIntegrationTest {
                 UUID.randomUUID());
     }
 
-    /** A raw audit row for the consent; chain hashes are irrelevant to what the purge must leave alone. */
+    /**
+     * A real audit row for the consent, appended through the service so the shared database's hash chain stays valid
+     * (a hand-made row with made-up hashes broke every later whole-chain verify, e.g. in AuditAttributionIT).
+     */
     private void insertAudit(UUID consentId) {
-        jdbc.update(
-                """
-                INSERT INTO audit.audit_entry (actor_type, actor_id, action, consent_id, outcome, prev_hash, hash)
-                VALUES ('CITIZEN', 'c', 'CONSENT_REVOKED', ?, 'ALLOWED', ?, ?)
-                """,
-                consentId,
-                new byte[] {0},
-                UUID.randomUUID().toString().getBytes());
+        audit.record(new AuditEntry(
+                ActorType.CITIZEN, "c", "CONSENT_REVOKED", null, null, null, consentId, null, Outcome.ALLOWED, null, Map.of()));
     }
 
     private String status(UUID id) {

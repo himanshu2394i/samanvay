@@ -80,7 +80,7 @@ class SecurityConfig {
                         // catalog: reads for everyone signed in, operational detail for staff, writes admin-only
                         .requestMatchers(GET, "/api/catalog/departments", "/api/catalog/journeys", "/api/catalog/journeys/*")
                                 .hasAnyRole(CITIZEN, OFFICER, REVIEWER, ADMIN, DEPARTMENT)
-                        .requestMatchers(GET, "/api/catalog/connectors", "/api/catalog/schemas", "/api/catalog/data-sources").hasAnyRole(OFFICER, ADMIN)
+                        .requestMatchers(GET, "/api/catalog/connectors", "/api/catalog/schemas", "/api/catalog/schema-details", "/api/catalog/data-sources").hasAnyRole(OFFICER, ADMIN)
                         .requestMatchers(POST, "/api/catalog/**").hasRole(ADMIN)
                         // identity: no-auto-link layer 1 of 3 (edge) - only reviewers confirm/reject
                         .requestMatchers(POST, "/api/identity/candidates/*/confirm", "/api/identity/candidates/*/reject")
@@ -92,6 +92,8 @@ class SecurityConfig {
                         .requestMatchers(GET, "/api/identity/citizens/**").hasAnyRole(CITIZEN, OFFICER, REVIEWER)
                         .requestMatchers(GET, "/api/identity/proof-providers").hasAnyRole(CITIZEN, OFFICER)
                         .requestMatchers(POST, "/api/identity/links").hasRole(CITIZEN)
+                        // starting a department login (the citizen proves who they are at that department)
+                        .requestMatchers(POST, "/api/identity/department-login").hasRole(CITIZEN)
                         // consent: only the citizen grants/revokes (own record, checked in controller)
                         .requestMatchers(POST, "/api/consent/requests").hasAnyRole(CITIZEN, OFFICER, DEPARTMENT)
                         .requestMatchers(POST, "/api/consent/requests/*/grant").hasRole(CITIZEN)
@@ -114,7 +116,8 @@ class SecurityConfig {
                         // tracking
                         .requestMatchers(GET, "/api/applications", "/api/applications/**").hasAnyRole(CITIZEN, OFFICER)
                         // connector
-                        .requestMatchers(GET, "/api/connector/issued-documents").hasAnyRole(CITIZEN, OFFICER)
+                        // onboarding trial fetch for the department's fake sample person: admin only
+                        .requestMatchers(POST, "/api/connector/trial/*").hasRole(ADMIN)
                         .requestMatchers("/api/connector/chaos/**").hasAnyRole(OFFICER, ADMIN) // @Profile("demo") only
                         // audit
                         .requestMatchers(POST, "/api/audit/demo/**").hasRole(ADMIN) // @Profile("demo") only
@@ -132,13 +135,10 @@ class SecurityConfig {
     @Bean
     JwtIssuerAuthenticationManagerResolver jwtIssuerResolver(
             SecurityRealmsProperties realms,
-            RealmIssuerStartupCheck issuersChecked,
-            org.springframework.beans.factory.ObjectProvider<AdditionalAuthManagers> extra) {
+            RealmIssuerStartupCheck issuersChecked) {
         Map<String, AuthenticationManager> managers = new LinkedHashMap<>();
         register(managers, realms.audience(), realms.staff(), KeycloakJwtConverter.RealmKind.STAFF);
         register(managers, realms.audience(), realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);
-        // Demo profile only: a demo-signin issuer the API also trusts (no such bean in prod).
-        extra.ifAvailable(a -> managers.putAll(a.byIssuer()));
         // Unknown issuer -> null manager -> InvalidBearerTokenException -> 401.
         return new JwtIssuerAuthenticationManagerResolver(managers::get);
     }

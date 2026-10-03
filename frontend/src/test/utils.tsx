@@ -72,8 +72,6 @@ export function signedInAuth(overrides: Partial<AuthContextValue> = {}): AuthCon
     getAccessToken: vi.fn(async () => 'test-token'),
     expireSession: vi.fn(),
     realm: 'citizen',
-    devSignIn: false,
-    demoSignIn: vi.fn(async () => {}),
     ...overrides,
   }
 }
@@ -168,7 +166,6 @@ export const DEPARTMENTS = [
 ]
 
 export const PROVIDERS = [
-  { kind: 'DIGILOCKER', label: 'DigiLocker sandbox (mock)' },
   { kind: 'LOCAL_ID_OTP', label: 'Local ID + OTP (demo)' },
   { kind: 'DEPT_IDP', label: 'Department sign-in (mock department IdP)' },
 ]

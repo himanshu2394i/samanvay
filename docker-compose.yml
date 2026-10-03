@@ -50,15 +50,11 @@ services:
       # SMTP for the app running on the host (dev profile: spring.mail.host=localhost).
       - "1025:1025"
 
-  # DEV/DEMO-ONLY standalone department service: a separate Spring Boot app (simulators/, built by
-  # simulators/Dockerfile) that serves FAKE data over real network endpoints, on http://localhost:8090:
-  #   REST  GET  /v1/income?rationCard=RC-1001   -> JSON {annualIncome, holderName, ...}
-  #   SOAP  POST /marks/service (SOAP 1.1, text/xml) with <studentId> -> GetMarksResponse {percentage, board, exam}
-  # With the dev or demo profile, the app points the V193 sandbox sources (sandbox-income-rest,
-  # sandbox-marks-soap) here (samanvay.sources.department-service.urls), so a fetch through the connector
-  # runtime crosses the network via the real RestAdapter/SoapAdapter, not the in-process mock backend.
-  # Never a real government system. See README "Department simulators".
-  department-service:
+  # DEV/DEMO-ONLY bank-check simulator: a separate Spring Boot app (simulators/, built by simulators/Dockerfile) on
+  # http://localhost:8090 that implements our bank-check contract v1 (docs/contracts/bank-check-v1.yaml) with FAKE data.
+  # The shared "sandbox department" that used to live here (income / marks / bank) is gone: the four separate department
+  # services below (dept-revenue, dept-dbt, dept-education, dept-agriculture) replace it. Never a real system.
+  bank-simulator:
     build: ./simulators
     ports:
       - "8090:8090"
@@ -95,5 +91,83 @@ services:
     volumes:
       - ./docker/department-sftp/property.csv:/home/fixtureuser/outbound/property.csv:ro
 
+  # DEV/DEMO-ONLY Revenue department SFTP server: serves Revenue's FAKE 7/12 land-record CSV
+  # (departments/revenue/sftp/712.csv) on host port 2223. Login is a dev credential; override with
+  # REVENUE_SFTP_PASSWORD. Samanvay pins the host key Revenue publishes in its manifest. Never real.
+  revenue-sftp:
+    image: atmoz/sftp:alpine
+    command: ["revenue-sftp:${REVENUE_SFTP_PASSWORD:-revenue-sftp-dev}:::outbound"]
+    ports:
+      - "2223:22"
+    volumes:
+      - ./departments/revenue/sftp/712.csv:/home/revenue-sftp/outbound/712.csv:ro
+
+  # DEV/DEMO-ONLY department services (fake data only; never real systems). Each is its own app with its
+  # own data, manifest, security scheme and login: Revenue :8091 (REST + API key, + SFTP above), DBT :8092
+  # (REST + OAuth2), Education :8093 (SOAP + WS-Security), Agriculture :8094 (JDBC view + SFTP below).
+  # Samanvay learns each from http://<host>:<port>/.well-known/samanvay/manifest.
+  # Each department SIGNS its manifest with a private key kept in /data (a named volume), so the key fingerprint an
+  # admin approved survives container re-creation. Losing the volume rotates the key: Samanvay then refuses the
+  # manifest until an admin approves the new fingerprint.
+  dept-revenue:
+    build: ./departments/revenue
+    ports:
+      - "8091:8091"
+    environment:
+      REVENUE_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+    volumes:
+      - dept-revenue-data:/data
+  dept-dbt:
+    build: ./departments/dbt
+    ports:
+      - "8092:8092"
+    environment:
+      DBT_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+    volumes:
+      - dept-dbt-data:/data
+  dept-education:
+    build: ./departments/education
+    ports:
+      - "8093:8093"
+    environment:
+      EDUCATION_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+    volumes:
+      - dept-education-data:/data
+  dept-agriculture:
+    build: ./departments/agriculture
+    ports:
+      - "8094:8094"
+    environment:
+      AGRICULTURE_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+    volumes:
+      - dept-agriculture-data:/data
+
+  # DEV/DEMO-ONLY Agriculture department DATABASE (JDBC protocol): its own Postgres on :5434, seeded with FAKE
+  # farmers by departments/agriculture/db/init.sql. Samanvay logs in as the read-only role agri_ro, which can
+  # SELECT from the view v_farmer_record only (not the base table). Never a real system.
+  agriculture-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: agridb
+      POSTGRES_USER: agri_admin
+      POSTGRES_PASSWORD: agri_admin_demo
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./departments/agriculture/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  # DEV/DEMO-ONLY Agriculture SFTP server: serves the FAKE crop-sowing CSV on :2224. Dev login only.
+  agriculture-sftp:
+    image: atmoz/sftp:alpine
+    command: ["agri-sftp:${AGRICULTURE_SFTP_PASSWORD:-agri-sftp-dev}:::outbound"]
+    ports:
+      - "2224:22"
+    volumes:
+      - ./departments/agriculture/sftp/crop.csv:/home/agri-sftp/outbound/crop.csv:ro
+
 volumes:
   samanvay-postgres-data:
+  dept-revenue-data:
+  dept-dbt-data:
+  dept-education-data:
+  dept-agriculture-data:

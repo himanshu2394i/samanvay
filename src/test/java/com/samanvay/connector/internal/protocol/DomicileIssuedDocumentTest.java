@@ -7,19 +7,12 @@ import com.samanvay.connector.api.IssuedRecord;
 import org.junit.jupiter.api.Test;
 
 /**
- * The demo issued-documents sandbox exposes the domicile certificate the same way
- * it exposes income/caste: listed under REVENUE, previewed with district and issue
- * date. (Docker-free; the fetch path is covered by ConsentRecordRevocationIT.)
+ * The demo issued-records preview shows the domicile certificate the same way
+ * it shows income/caste: district and issue date. (Docker-free; the fetch path is covered by ConsentRecordRevocationIT.)
  */
 class DomicileIssuedDocumentTest {
 
     private final IssuedDocumentsImpl docs = new IssuedDocumentsImpl(new MockDepartmentBackend());
-
-    @Test
-    void revenueLockerListsDomicile() {
-        assertThat(docs.lockerForDepartment("REVENUE"))
-                .anySatisfy(d -> assertThat(d.title()).isEqualTo("Domicile certificate"));
-    }
 
     @Test
     void domicilePreviewShowsDistrictAndIssueDateWhenComplete() {

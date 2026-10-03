@@ -325,3 +325,107 @@ export interface DataSourceHealth {
   healthStatus: string
   detail: string | null
 }
+
+// --- one-go onboarding from a manifest (docs/FINAL-CHANGES.md section 10) ---
+
+/** Something an operator must do that onboarding cannot: provision a secret, configure SFTP/JDBC, serve HTTPS. */
+export interface PendingStep {
+  kind: string
+  subject: string
+  detail: string
+  data: Record<string, string>
+}
+
+export interface DocumentPlan {
+  category: string
+  title: string
+  protocol: string
+  dataSourceCode: string
+  connectorId: string
+  newVersionOfExisting: boolean
+  /** null when no central schema is seeded for the category (seed it first). */
+  centralSchemaRef: string | null
+  suggestions: MappingSuggestion[]
+  unmappedRequired: string[]
+  problems: string[]
+  ready: boolean
+}
+
+export interface JourneyPlan {
+  code: string
+  name: string
+  exists: boolean
+  requiredCategories: string[]
+}
+
+/** What onboarding a department WOULD do; nothing is changed. The digest identifies the manifest that was reviewed. */
+export interface OnboardingPlan {
+  departmentCode: string
+  departmentName: string
+  manifestDigest: string
+  departmentExists: boolean
+  /** Onboarded from a manifest before (a seeded department that never was is false). */
+  onboardedFromManifest?: boolean
+  changedSinceOnboarding: boolean
+  documents: DocumentPlan[]
+  journeys: JourneyPlan[]
+  pendingSteps: PendingStep[]
+  /** Thumbprint of the key that signed the manifest just read; null/absent = the manifest is not signed. */
+  manifestKeyThumbprint?: string | null
+  /** The key an admin approved earlier for this department; null/absent = none yet. */
+  pinnedKeyThumbprint?: string | null
+}
+
+export interface OnboardRequest {
+  baseUrl: string
+  manifestDigest: string
+  categories: string[]
+  acceptSuggestedMappings: boolean
+  mappings: Record<string, FieldMapping[]>
+  /** The signing-key thumbprint the admin confirmed with the department (needed for a key that is new or changed). */
+  approvedManifestKey?: string
+}
+
+/** What was created; all connectors and journeys are DRAFT until tested and published. */
+export interface OnboardingResult {
+  departmentCode: string
+  dataSources: string[]
+  connectorRefs: string[]
+  mappingRefs: string[]
+  journeysCreated: string[]
+  skipped: string[]
+  pendingSteps: PendingStep[]
+}
+
+/** The result of a trial fetch of a connector for the department's published FAKE sample person. */
+export interface TrialResult {
+  ok: boolean
+  /** SUCCESS, NOT_FOUND, UNAVAILABLE, INVALID, or ERROR (the call itself failed: refused, misconfigured...). */
+  outcome: string
+  personId: string
+  /** The fields that came back (after mapping) when ok; null otherwise. */
+  fields: Record<string, unknown> | null
+  detail: string | null
+}
+
+/** One field of a central schema (type is string, integer, number or boolean; older schemas may say "unspecified"). */
+export interface SchemaField {
+  name: string
+  type: string
+  required: boolean
+}
+
+export interface SchemaSummary {
+  ref: string
+  name: string
+  version: number
+  /** The document category the schema describes; null for an older schema that has none. */
+  category: string | null
+  fields: SchemaField[]
+}
+
+export interface SchemaDraft {
+  ref: string
+  category: string
+  fields: SchemaField[]
+}

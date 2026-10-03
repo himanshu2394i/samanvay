@@ -21,9 +21,16 @@ import com.samanvay.catalog.api.JourneyDefinition;
 import com.samanvay.catalog.api.JourneyDraft;
 import com.samanvay.catalog.api.JourneyWrite;
 import com.samanvay.catalog.api.ImportPreview;
+import com.samanvay.catalog.api.ManifestOnboarding;
+import com.samanvay.catalog.api.OnboardRequest;
+import com.samanvay.catalog.api.OnboardingPlan;
+import com.samanvay.catalog.api.OnboardingResult;
 import com.samanvay.catalog.api.MappingDefinition;
 import com.samanvay.catalog.api.MappingDraft;
+import com.samanvay.catalog.api.SchemaAdmin;
 import com.samanvay.catalog.api.SchemaCatalog;
+import com.samanvay.catalog.api.SchemaDraft;
+import com.samanvay.catalog.api.SchemaSummary;
 import com.samanvay.catalog.api.SpecImport;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,6 +52,8 @@ class CatalogController {
     private final CatalogDiscovery discovery;
     private final SpecImport importer;
     private final SchemaCatalog schemas;
+    private final SchemaAdmin schemaAdmin;
+    private final ManifestOnboarding manifestOnboarding;
 
     CatalogController(
             DepartmentCatalog departments,
@@ -54,7 +63,10 @@ class CatalogController {
             CatalogOnboarding onboarding,
             CatalogDiscovery discovery,
             SpecImport importer,
-            SchemaCatalog schemas) {
+            SchemaCatalog schemas,
+            SchemaAdmin schemaAdmin,
+            ManifestOnboarding manifestOnboarding) {
+        this.manifestOnboarding = manifestOnboarding;
         this.departments = departments;
         this.journeys = journeys;
         this.journeyWrite = journeyWrite;
@@ -63,6 +75,7 @@ class CatalogController {
         this.discovery = discovery;
         this.importer = importer;
         this.schemas = schemas;
+        this.schemaAdmin = schemaAdmin;
     }
 
     @GetMapping("/departments")
@@ -141,6 +154,18 @@ class CatalogController {
         return schemas.refs();
     }
 
+    /** The central schema with each field's type and whether it is required (the admin screen). */
+    @GetMapping("/schema-details")
+    List<SchemaSummary> schemaDetails() {
+        return schemaAdmin.summaries();
+    }
+
+    /** Adds a schema (or a new version of one); never changes an existing ref. */
+    @PostMapping("/schemas")
+    SchemaSummary addSchema(@RequestBody SchemaDraft draft) {
+        return schemaAdmin.create(draft);
+    }
+
     @PostMapping("/discover")
     DepartmentManifest discover(@RequestBody DiscoverBody body) {
         requireText(body.baseUrl(), "baseUrl");
@@ -148,6 +173,21 @@ class CatalogController {
     }
 
     record DiscoverBody(String baseUrl) {}
+
+    /** Reviews what onboarding a department from its manifest would do. Changes nothing. */
+    @PostMapping("/onboard/plan")
+    OnboardingPlan onboardPlan(@RequestBody DiscoverBody body) {
+        requireText(body.baseUrl(), "baseUrl");
+        return manifestOnboarding.plan(body.baseUrl());
+    }
+
+    /** Onboards what the admin reviewed and ticked (all DRAFT, one transaction). */
+    @PostMapping("/onboard")
+    OnboardingResult onboard(@RequestBody OnboardRequest body) {
+        requireText(body.baseUrl(), "baseUrl");
+        requireText(body.manifestDigest(), "manifestDigest");
+        return manifestOnboarding.onboard(body);
+    }
 
     @GetMapping("/data-sources")
     List<DataSourceHealth> dataSources() {

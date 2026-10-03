@@ -27,7 +27,7 @@ Farmer subsidy’s **journey** was added as **catalog configuration** (`/schemes
 3. Licence and farmer portals — second and third callers, same APIs  
 4. `/audit.html` then `/schemes.html`
 
-Demo identity comes from the local dev Keycloak (bearer tokens, not production SSO). DigiLocker and OTP on the portals are labelled mocks.
+Sign-in is Keycloak (bearer tokens): citizens sign up with name, email and password, staff use the ready-made accounts. Connecting a department is that department's own login; the OTP on the portals is a labelled mock for a department that has no login yet.
 
 ## Principles (spoken)
 

@@ -57,10 +57,10 @@ class BusinessNocJourneyIT extends PostgresIntegrationTest {
                 "DAY",
                 "F",
                 "98****11"));
-        linking.assertLink(citizen, "MUNICIPAL", "PROPERTY", "PROP-88", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "FIRE", "PREMISE", "FIRE-1", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "POLLUTION", "PREMISE", "PCB-1", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "REVENUE", "RATION", "RC-NOC-1", com.samanvay.identity.api.AuthProof.digiLockerSandbox());
+        linking.assertLink(citizen, "MUNICIPAL", "PROPERTY", "PROP-88", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "FIRE", "PREMISE", "FIRE-1", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "POLLUTION", "PREMISE", "PCB-1", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "REVENUE", "RATION", "RC-NOC-1", com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "INDUSTRY",

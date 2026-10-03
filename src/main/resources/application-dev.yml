@@ -13,6 +13,17 @@ samanvay:
       issuer-uri: ${SAMANVAY_STAFF_ISSUER_URI:http://localhost:8180/realms/samanvay-staff}
     citizen:
       issuer-uri: ${SAMANVAY_CITIZEN_ISSUER_URI:http://localhost:8180/realms/samanvay-citizen}
+  catalog:
+    # DEV/DEMO ONLY: hosts exempt from the private/loopback (SSRF) guard, so the local department stand-ins
+    # (departments/*, localhost:809x) can be discovered and onboarded. Exact host names only.
+    allowed-private-hosts: ${SAMANVAY_CATALOG_ALLOWED_PRIVATE_HOSTS:localhost,127.0.0.1}
+  identity:
+    department-assertion:
+      # DEV/DEMO ONLY: the local department stand-ins (departments/*, localhost:809x) publish their keys on a
+      # loopback address, which is otherwise refused (SSRF guard).
+      allow-private-hosts: true
+      # Where a department login may send the citizen back to (prefix match; empty = refuse all).
+      allowed-return-prefixes: ${SAMANVAY_DEPARTMENT_RETURN_PREFIXES:http://localhost:8080/}
   sources:
     # DEV/DEMO ONLY. Points the V193 sandbox REST/SOAP sources at the standalone department service
     # (the simulators/ app: `docker compose up department-service`, or ./mvnw -f simulators/pom.xml
@@ -20,14 +31,28 @@ samanvay:
     # RestAdapter/SoapAdapter over the network. Refused at boot outside the dev/demo profiles.
     department-service:
       urls:
-        sandbox-income-rest: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
-        sandbox-marks-soap: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
-        # Journey REST/SOAP sources (V199): scholarship income+marks+bank consume the real department-service.
-        dept-income-rest: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
-        dept-marks-soap: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
-        dept-bank-rest: ${SAMANVAY_DEPT_SERVICE_URL:http://localhost:8090}
+        # The four department stand-ins (departments/*): REST/SOAP sources created by onboarding them from their manifests
+        # (docs/FINAL-CHANGES.md). Source codes are <dept>-<protocol>. Plain HTTP, so dev/demo only.
+        revenue-rest: ${SAMANVAY_REVENUE_URL:http://localhost:8091}
+        dbt-rest: ${SAMANVAY_DBT_URL:http://localhost:8092}
+        education-soap: ${SAMANVAY_EDUCATION_URL:http://localhost:8093}
     sftp:
       sources:
+        # Department stand-in SFTP sources (docker compose: revenue-sftp :2223, agriculture-sftp :2224). Host and host-key pin are
+        # operator-set, never taken from a manifest: capture each server's fingerprint after the first `up` and export it.
+        # Credentials: scripts/dev-department-secrets.sh prints the exports.
+        revenue-sftp:
+          mode: sandbox
+          host: ${SAMANVAY_REVENUE_SFTP_HOST:localhost}
+          port: ${SAMANVAY_REVENUE_SFTP_PORT:2223}
+          remote-path: /outbound/712.csv
+          host-key-sha256: ${SAMANVAY_REVENUE_SFTP_HOSTKEY:SHA256:REPLACE_WITH_REVENUE_SFTP_FINGERPRINT}
+        agriculture-sftp:
+          mode: sandbox
+          host: ${SAMANVAY_AGRICULTURE_SFTP_HOST:localhost}
+          port: ${SAMANVAY_AGRICULTURE_SFTP_PORT:2224}
+          remote-path: /outbound/crop.csv
+          host-key-sha256: ${SAMANVAY_AGRICULTURE_SFTP_HOSTKEY:SHA256:REPLACE_WITH_AGRICULTURE_SFTP_FINGERPRINT}
         # Journey PROPERTY source (V199): business-NOC property consumes the real department-sftp.
         # Credential resolves from SecretStore source-dept-property-sftp-credential (fixtureuser:fixturepass).
         dept-property-sftp:
@@ -38,6 +63,10 @@ samanvay:
           host-key-sha256: ${SAMANVAY_SANDBOX_SFTP_HOSTKEY:SHA256:REPLACE_WITH_SANDBOX_SERVER_FINGERPRINT}
     jdbc:
       sources:
+        # Agriculture's own database (docker compose: agriculture-db :5434). Read through the read-only account, view only.
+        agriculture-jdbc:
+          mode: sandbox
+          jdbc-url: ${SAMANVAY_AGRICULTURE_JDBC_URL:jdbc:postgresql://localhost:5434/agridb}
         # Journey POLLUTION source (V199): business-NOC pollution consumes the real department-db.
         # Credential resolves from SecretStore source-dept-pollution-jdbc-credential (pcb_ro:pcb_ro_demo).
         dept-pollution-jdbc:

@@ -57,16 +57,16 @@ class ConnectAccountsIT extends PostgresIntegrationTest {
         List<LinkProofProviderInfo> providers = linking.availableProofProviders();
         assertThat(providers)
                 .extracting(LinkProofProviderInfo::kind)
-                .containsExactlyInAnyOrder(LinkProofKind.DIGILOCKER, LinkProofKind.LOCAL_ID_OTP);
-        assertThat(providers).extracting(LinkProofProviderInfo::kind).doesNotContain(LinkProofKind.DEPT_IDP);
+                .containsExactlyInAnyOrder(LinkProofKind.LOCAL_ID_OTP, LinkProofKind.DEPT_ASSERTION);
+        // the department's own login is always offered as a proof kind; it only works for a department that has published one
         assertThat(providers.stream()
-                        .filter(p -> p.kind() == LinkProofKind.DIGILOCKER)
+                        .filter(p -> p.kind() == LinkProofKind.DEPT_ASSERTION)
                         .findFirst()
                         .orElseThrow()
                         .label())
-                .containsIgnoringCase("sandbox")
-                .containsIgnoringCase("mock")
-                .doesNotContain("Keycloak");
+                .containsIgnoringCase("department login");
+        assertThat(providers).extracting(LinkProofProviderInfo::kind).doesNotContain(LinkProofKind.DEPT_IDP);
+        // there is no DigiLocker proof any more
         assertThat(providers.stream()
                         .filter(p -> p.kind() == LinkProofKind.LOCAL_ID_OTP)
                         .findFirst()
@@ -84,7 +84,7 @@ class ConnectAccountsIT extends PostgresIntegrationTest {
                 .hasMessageContaining("DBT");
 
         Link first = linking.assertLink(
-                citizen, "REVENUE", "RATION", "RC-connect-1", AuthProof.digiLockerSandbox());
+                citizen, "REVENUE", "RATION", "RC-connect-1", AuthProof.localIdOtpDemo());
         Link skipped = linking.assertLink(
                 citizen, "REVENUE", "RATION", "OTHER", AuthProof.localIdOtpDemo());
         assertThat(skipped.id()).isEqualTo(first.id());
@@ -98,8 +98,8 @@ class ConnectAccountsIT extends PostgresIntegrationTest {
                 .extracting(DepartmentLinkNeed::departmentCode)
                 .containsExactly("EDUCATION", "DBT");
 
-        linking.assertLink(citizen, "EDUCATION", "STUDENT", "STU-connect-1", AuthProof.digiLockerSandbox());
-        linking.assertLink(citizen, "DBT", "DBT", "DBT-connect-1", AuthProof.digiLockerSandbox());
+        linking.assertLink(citizen, "EDUCATION", "STUDENT", "STU-connect-1", AuthProof.localIdOtpDemo());
+        linking.assertLink(citizen, "DBT", "DBT", "DBT-connect-1", AuthProof.localIdOtpDemo());
         ConnectAccounts done = linking.connectAccounts(citizen, "POST_MATRIC_SCHOLARSHIP");
         assertThat(done.departments()).allMatch(DepartmentLinkNeed::linked);
 

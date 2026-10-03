@@ -385,7 +385,7 @@ class ConsentRecordRevocationIT extends PostgresIntegrationTest {
                 "Sunita Pawar", "सुनीता", "Sunita", "Pawar", "Ramesh",
                 LocalDate.of(2004, 6, 1), "DAY", "F", "98****11"), subject);
         linking.assertLink(id, "REVENUE", "RATION", "RC-p2-" + Long.toHexString(System.nanoTime()),
-                com.samanvay.identity.api.AuthProof.digiLockerSandbox());
+                com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         return new Citizen(id, subject);
     }
 

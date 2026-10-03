@@ -4,12 +4,13 @@
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": true,
-  "registrationEmailAsUsername": false,
-  "verifyEmail": true,
+  "registrationEmailAsUsername": true,
+  "verifyEmail": false,
   "loginWithEmailAllowed": true,
   "bruteForceProtected": true,
-  "resetPasswordAllowed": false,
+  "resetPasswordAllowed": true,
   "accessTokenLifespan": 300,
+  "passwordPolicy": "length(8) and notUsername and notEmail",
   "smtpServer": {
     "host": "mailpit",
     "port": "1025",
@@ -341,7 +342,13 @@
           "DEV-ONLY test user - never import into a real environment"
         ]
       },
-      "credentials": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dev-citizen-change-me",
+          "temporary": false
+        }
+      ],
       "requiredActions": [],
       "realmRoles": [
         "citizen"
@@ -351,7 +358,7 @@
   "authenticationFlows": [
     {
       "alias": "citizen browser",
-      "description": "Email one-time code, or passkey, or a department IdP",
+      "description": "Email + password, or passkey, or a department IdP",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -381,7 +388,7 @@
     },
     {
       "alias": "citizen browser forms",
-      "description": "username/email (or passkey), then email code unless passkey",
+      "description": "email + password (or passkey)",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
@@ -391,39 +398,7 @@
           "priority": 10,
           "userSetupAllowed": false,
           "autheticatorFlow": false,
-          "authenticator": "auth-username-form"
-        },
-        {
-          "requirement": "CONDITIONAL",
-          "priority": 20,
-          "userSetupAllowed": false,
-          "autheticatorFlow": true,
-          "flowAlias": "citizen email code"
-        }
-      ]
-    },
-    {
-      "alias": "citizen email code",
-      "description": "Email one-time code for every non-passkey sign-in",
-      "providerId": "basic-flow",
-      "topLevel": false,
-      "builtIn": false,
-      "authenticationExecutions": [
-        {
-          "requirement": "REQUIRED",
-          "priority": 10,
-          "userSetupAllowed": false,
-          "autheticatorFlow": false,
-          "authenticator": "conditional-credential",
-          "authenticatorConfig": "not signed in with a passkey"
-        },
-        {
-          "requirement": "REQUIRED",
-          "priority": 20,
-          "userSetupAllowed": false,
-          "autheticatorFlow": false,
-          "authenticator": "samanvay-email-otp",
-          "authenticatorConfig": "email code settings"
+          "authenticator": "auth-username-password-form"
         }
       ]
     },
@@ -445,7 +420,7 @@
     },
     {
       "alias": "citizen registration",
-      "description": "Registration without a password",
+      "description": "Registration with name, email and password",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -462,7 +437,7 @@
     },
     {
       "alias": "citizen registration form",
-      "description": "Profile only",
+      "description": "Profile and password",
       "providerId": "form-flow",
       "topLevel": false,
       "builtIn": false,
@@ -473,6 +448,13 @@
           "userSetupAllowed": false,
           "autheticatorFlow": false,
           "authenticator": "registration-user-creation"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 50,
+          "userSetupAllowed": false,
+          "autheticatorFlow": false,
+          "authenticator": "registration-password-action"
         },
         {
           "requirement": "DISABLED",
@@ -514,14 +496,6 @@
         "credentials": "webauthn-passwordless",
         "included": "false"
       }
-    },
-    {
-      "alias": "email code settings",
-      "config": {
-        "length": "6",
-        "ttlSeconds": "300",
-        "maxAttempts": "5"
-      }
     }
   ],
   "browserFlow": "citizen browser",
@@ -537,6 +511,7 @@
       "storeToken": false,
       "addReadTokenRoleOnCreate": false,
       "linkOnly": false,
+      "hideOnLogin": true,
       "trustEmail": true,
       "firstBrokerLoginFlowAlias": "citizen first broker login",
       "config": {
@@ -605,7 +580,7 @@
       "alias": "UPDATE_PASSWORD",
       "name": "Update Password",
       "providerId": "UPDATE_PASSWORD",
-      "enabled": false,
+      "enabled": true,
       "defaultAction": false,
       "priority": 30,
       "config": {}

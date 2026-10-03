@@ -317,7 +317,6 @@ describe('apply: connect accounts, consent, submit, then track', () => {
 
   async function connectRevenue() {
     const card = (await screen.findByRole('heading', { name: /Revenue Department/ })).closest('li') as HTMLElement
-    await userEvent.selectOptions(within(card).getByLabelText('How do you want to prove it?'), 'LOCAL_ID_OTP')
     await userEvent.type(within(card).getByLabelText(/Your ID with this department/), 'MH-REV-42')
     await userEvent.type(within(card).getByLabelText(/One-time code/), '000000')
     await userEvent.click(within(card).getByRole('button', { name: 'Connect Revenue Department' }))
@@ -434,6 +433,7 @@ describe('apply: connect accounts, consent, submit, then track', () => {
     renderCitizen({ route: '/services/POST_MATRIC_SCHOLARSHIP/apply', fetchImpl, auth })
 
     await userEvent.type(await screen.findByLabelText(/Your ID with this department/), 'X-1')
+    await userEvent.type(screen.getByLabelText(/One-time code/), '111111')
     await userEvent.click(screen.getByRole('button', { name: 'Connect Revenue Department' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('That verification was not accepted')

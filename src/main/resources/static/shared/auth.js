@@ -5,16 +5,14 @@
  * "Authorization: Bearer <token>"; the server takes the actor only from that token.
  *
  * Config comes from the server (GET /ui/auth-config): each realm's issuer and
- * browser client, and whether the dev sign-in tools are on. Only the dev/demo
- * profiles turn those on and serve /shared/auth-dev.js (paste-token bar).
- * The page's default realm comes from the data-realm attribute on the
+ * browser client. There is no demo or paste-token sign-in: citizens sign up and
+ * sign in on Keycloak's own pages, staff use their staff accounts. The page's default realm comes from the data-realm attribute on the
  * <script> tag ("staff" or "citizen").
  */
 (function () {
   const script = document.currentScript;
   const REALM_KEYS = ["staff", "citizen"];
-  let cfg = null; // { devSignIn, realms: { staff: { issuer, clientId }, citizen: {...} } }
-  let dev = null; // window.SamanvayAuthDev once /shared/auth-dev.js has loaded (dev/demo only)
+  let cfg = null; // { realms: { staff: { issuer, clientId }, citizen: {...} } }
   const pageRealm = (script && script.dataset.realm) || "staff";
   const KEY_TOKEN = (r) => "samanvay.auth.token." + r;
   const KEY_ACTIVE = "samanvay.auth.active";
@@ -28,16 +26,6 @@
     const res = await fetch("/ui/auth-config", { cache: "no-store" });
     if (!res.ok) throw new Error("sign-in configuration unavailable");
     cfg = await res.json();
-    if (cfg.devSignIn) {
-      await new Promise((resolve) => {
-        const s = document.createElement("script");
-        s.src = "/shared/auth-dev.js";
-        s.onload = resolve;
-        s.onerror = resolve;
-        document.head.appendChild(s);
-      });
-      dev = window.SamanvayAuthDev || null;
-    }
   }
 
   function b64url(bytes) {
@@ -130,13 +118,6 @@
     }
   }
 
-  /** Stores a pasted access token; only the dev sign-in tools (dev/demo profiles) call this. */
-  function storeToken(realmKey, t) {
-    sessionStorage.setItem(KEY_TOKEN(realmKey), t);
-    sessionStorage.setItem(KEY_ACTIVE, realmKey);
-    render();
-  }
-
   function logout(realmKey) {
     sessionStorage.removeItem(KEY_TOKEN(realmKey || activeRealm()));
     render();
@@ -213,7 +194,6 @@
     } else {
       btn("Sign in", () => login(active));
     }
-    if (dev) dev.decorate(bar, { realm: active, signedIn: !!token(active), storeToken, claims, btn });
   }
 
   const ready = loadConfig()

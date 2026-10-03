@@ -5,6 +5,7 @@ import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
 import com.samanvay.catalog.api.DataSourceHealth;
 import com.samanvay.catalog.api.DepartmentManifest;
+import com.samanvay.catalog.api.DiscoveredManifest;
 import com.samanvay.catalog.api.JourneyDefinition;
 import com.samanvay.catalog.api.JourneyDraft;
 import com.samanvay.catalog.api.JourneyPolicy;
@@ -22,6 +23,7 @@ import com.samanvay.catalog.api.DataSourceDraft;
 import com.samanvay.catalog.api.Department;
 import com.samanvay.catalog.api.DepartmentCatalog;
 import com.samanvay.catalog.api.DepartmentDraft;
+import com.samanvay.catalog.api.DepartmentIdentity;
 import com.samanvay.catalog.api.DepartmentRegistered;
 import com.samanvay.catalog.api.IllegalConnectorStateException;
 import com.samanvay.catalog.api.MappingCatalog;
@@ -72,6 +74,8 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             JsonMapper.builder().configure(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).build();
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(6)).build();
     private static final String MANIFEST_PATH = "/.well-known/samanvay/manifest";
+    static final String DISCOVERY_HEADER = "X-Discovery-Key";
+    private Function<String, Optional<String>> discoveryCredentials = key -> Optional.empty();
 
     private final DepartmentRepository departments;
     private final DataSourceRepository dataSources;
@@ -92,8 +96,24 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             JourneyRepository journeys,
             SchemaRepository schemas,
             MappingCatalog mappingCatalog,
+            ApplicationEventPublisher events,
+            @org.springframework.beans.factory.annotation.Value("${samanvay.catalog.allowed-private-hosts:}") List<String> allowedPrivateHosts) {
+        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events, CatalogServices::resolveHost,
+                java.util.Set.copyOf(allowedPrivateHosts));
+    }
+
+    /** No exempt hosts: what every non-dev run and the unit tests use. */
+    CatalogServices(
+            DepartmentRepository departments,
+            DataSourceRepository dataSources,
+            ConnectorRepository connectors,
+            MappingRepository mappings,
+            JourneyRepository journeys,
+            SchemaRepository schemas,
+            MappingCatalog mappingCatalog,
             ApplicationEventPublisher events) {
-        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events, CatalogServices::resolveHost);
+        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events, CatalogServices::resolveHost,
+                java.util.Set.of());
     }
 
     CatalogServices(
@@ -106,6 +126,20 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             MappingCatalog mappingCatalog,
             ApplicationEventPublisher events,
             Function<String, InetAddress> resolver) {
+        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events, resolver, java.util.Set.of());
+    }
+
+    private CatalogServices(
+            DepartmentRepository departments,
+            DataSourceRepository dataSources,
+            ConnectorRepository connectors,
+            MappingRepository mappings,
+            JourneyRepository journeys,
+            SchemaRepository schemas,
+            MappingCatalog mappingCatalog,
+            ApplicationEventPublisher events,
+            Function<String, InetAddress> resolver,
+            java.util.Set<String> allowedPrivateHosts) {
         this.departments = departments;
         this.dataSources = dataSources;
         this.connectors = connectors;
@@ -114,7 +148,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         this.schemas = schemas;
         this.mappingCatalog = mappingCatalog;
         this.events = events;
-        this.hosts = new DataSourceHostPolicy(resolver);
+        this.hosts = new DataSourceHostPolicy(resolver, allowedPrivateHosts);
     }
 
     @Override
@@ -165,11 +199,20 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         e.setIdpRealm(draft.idpRealm());
         e.setContactEmail(draft.contactEmail());
         e.setDefaultSlaMs(draft.defaultSlaMs());
+        e.setIdentitySpec(draft.identity() == null ? null : JSON.writeValueAsString(draft.identity()));
         e.setStatus("ACTIVE");
         e.setCreatedAt(Instant.now());
         departments.save(e);
         events.publishEvent(new DepartmentRegistered(draft.code()));
         return new Department(e.getCode(), e.getName(), e.getStatus());
+    }
+
+    @Override
+    public Optional<DepartmentIdentity> identity(String code) {
+        return departments.findById(code).map(DepartmentEntity::getIdentitySpec).flatMap(spec -> {
+            DepartmentIdentity id = JSON.readValue(spec, DepartmentIdentity.class);
+            return id == null || id.personIdType() == null ? Optional.empty() : Optional.of(id);
+        });
     }
 
     @Override
@@ -183,6 +226,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         e.setBaseHost(draft.baseHost());
         e.setAuthType(draft.authType());
         e.setAuthConfigRef(draft.authConfigRef());
+        e.setAuthSpec(draft.authSpecJson());
         e.setRetryConfig("{\"max\":3}");
         e.setBreakerConfig("{\"failure_rate\":50}");
         e.setHealthStatus("UNKNOWN");
@@ -327,7 +371,8 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
                 e.getAuthType(),
                 e.getAuthConfigRef(),
                 e.getRetryConfig(),
-                e.getBreakerConfig());
+                e.getBreakerConfig(),
+                e.getAuthSpec());
     }
 
     // --- Journeys onboarded from a department manifest ------------------------------------------
@@ -423,8 +468,30 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
                 : policy.get(field).asString();
     }
 
+    /** Lenient parse of a department manifest (unknown fields ignored; v1 and v2 both accepted). */
+    static DepartmentManifest parseManifest(String json) {
+        return MANIFEST_JSON.readValue(json, DepartmentManifest.class);
+    }
+
+    /** Spring hands in the SecretStore; without one (unit tests) no discovery credential is ever sent. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void secrets(com.samanvay.shared.SecretStore store) {
+        this.discoveryCredentials = key -> store.find(key).map(s -> new String(s.bytes(), java.nio.charset.StandardCharsets.UTF_8).trim());
+    }
+
+    /** Test seam: where discovery credentials come from. */
+    void discoveryCredentials(Function<String, Optional<String>> source) {
+        this.discoveryCredentials = source;
+    }
+
+    /** SecretStore key of the credential a department asks for on its manifest: {@code manifest-<host[-port]>-credential}. */
+    static String discoverySecretKey(URI uri) {
+        String hostPort = uri.getHost().toLowerCase(java.util.Locale.ROOT) + (uri.getPort() > 0 ? "-" + uri.getPort() : "");
+        return "manifest-" + hostPort.replaceAll("[^a-z0-9]+", "-") + "-credential";
+    }
+
     @Override
-    public DepartmentManifest discover(String baseUrl) {
+    public DiscoveredManifest fetch(String baseUrl) {
         String base = InvalidRequestException.requireText(baseUrl, "baseUrl").trim().replaceAll("/+$", "");
         URI uri;
         try {
@@ -436,18 +503,26 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             throw new InvalidRequestException("baseUrl must include a scheme and host, for example https://dept.example.gov");
         }
         hosts.assertAllowed(uri.getHost()); // same SSRF guard as a data source: no private/loopback targets
+        String credentialKey = discoverySecretKey(uri);
         try {
-            HttpResponse<String> resp = HTTP.send(
-                    HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8)).header("Accept", "application/json").GET().build(),
-                    HttpResponse.BodyHandlers.ofString());
+            HttpRequest.Builder request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8)).header("Accept", "application/json").GET();
+            discoveryCredentials.apply(credentialKey).filter(c -> !c.isEmpty()).ifPresent(c -> request.header(DISCOVERY_HEADER, c));
+            HttpResponse<byte[]> resp = HTTP.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
+            if (resp.statusCode() == 401 || resp.statusCode() == 403) {
+                throw new InvalidRequestException("The department refused the manifest request (HTTP " + resp.statusCode() + "). If it asks for a "
+                        + "discovery credential, provision the SecretStore key " + credentialKey + " with the value it issued to Samanvay.");
+            }
             if (resp.statusCode() != 200) {
                 throw new InvalidRequestException("No Samanvay manifest at " + uri + " (HTTP " + resp.statusCode() + ")");
             }
-            DepartmentManifest m = MANIFEST_JSON.readValue(resp.body(), DepartmentManifest.class);
+            // Verify the signature over the exact bytes received, before parsing them.
+            String thumbprint = ManifestSignatures.verify(resp.body(), resp.headers().firstValue(ManifestSignatures.HEADER).orElse(null), Instant.now())
+                    .orElse(null);
+            DepartmentManifest m = parseManifest(new String(resp.body(), java.nio.charset.StandardCharsets.UTF_8));
             if (m == null || m.department() == null || m.documents() == null) {
                 throw new InvalidRequestException("The response at " + uri + " is not a Samanvay manifest");
             }
-            return m;
+            return new DiscoveredManifest(m, thumbprint);
         } catch (InvalidRequestException e) {
             throw e;
         } catch (Exception e) {

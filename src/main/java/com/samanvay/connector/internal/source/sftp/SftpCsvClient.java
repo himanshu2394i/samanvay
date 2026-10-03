@@ -1,15 +1,23 @@
 package com.samanvay.connector.internal.source.sftp;
 
 import com.samanvay.connector.internal.source.SourceCredentials;
-import com.samanvay.connector.internal.source.SourceCredentials.Credential;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayInputStream;
+import java.security.GeneralSecurityException;
+import java.security.KeyPair;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.session.ClientSession;
+import org.apache.sshd.common.NamedResource;
 import org.apache.sshd.common.config.keys.KeyUtils;
+import org.apache.sshd.common.config.keys.FilePasswordProvider;
+import org.apache.sshd.common.util.security.SecurityUtils;
 import org.apache.sshd.core.CoreModuleProperties;
 import org.apache.sshd.sftp.client.SftpClient;
 import org.apache.sshd.sftp.client.SftpClientFactory;
@@ -17,12 +25,13 @@ import org.apache.sshd.sftp.client.SftpClientFactory;
 /**
  * Downloads a CSV file from a real SFTP server (Apache MINA sshd client).
  *
- * <p>The username and password are the {@code keyId:keySecret} pair from SecretStore (see
- * {@link SourceCredentials}); they are read on every call, so rotation needs no restart. The
+ * <p>The login comes from SecretStore (see {@link SourceCredentials}) and is read on every call, so rotation needs no
+ * restart: either the older {@code username:password} pair, or a JSON credential with {@code username} and EITHER
+ * {@code password} OR {@code private_key} (a PKCS#8 or OpenSSH private key in PEM text, with an optional {@code passphrase}
+ * when the key is encrypted; an OpenSSH-format encrypted key works with the bundled crypto; the SecretStore protects both). A key credential never falls back to a password. The
  * server's host key must match the configured pinned fingerprint. Every exchange opens its own
  * client and session and closes them (try-with-resources); connect, auth, channel-open and idle
  * time are bounded by the configured timeouts, and the whole download by the read timeout.
- * Password authentication only for now; key authentication is a follow-up.
  */
 public class SftpCsvClient {
 
@@ -60,9 +69,15 @@ public class SftpCsvClient {
             throw new SftpTransportException("SFTP source '" + dataSourceCode + "' has no host or remote path");
         }
         String credentialCode = credentialCode(dataSourceCode, authConfigRef);
-        Credential credential = credentials.find(credentialCode).orElseThrow(() -> new SftpTransportException(
-                "SFTP source '" + dataSourceCode + "' credential is missing or malformed in SecretStore (key "
-                        + SourceCredentials.secretKey(credentialCode) + ", expected username:password)"));
+        Map<String, String> login = credentials.params(credentialCode);
+        String username = login.get("username");
+        String privateKey = login.get("private_key");
+        String password = login.get("password");
+        String passphrase = login.get("passphrase");
+        if (username == null || username.isBlank() || (privateKey == null && (password == null || password.isEmpty()))) {
+            throw new SftpTransportException("SFTP source '" + dataSourceCode + "' credential is missing or malformed in SecretStore (key "
+                    + SourceCredentials.secretKey(credentialCode) + ", expected a username and a password or a private_key, or username:password)");
+        }
 
         Duration connectTimeout = source.connectTimeout();
         Duration readTimeout = source.readTimeout();
@@ -72,10 +87,16 @@ public class SftpCsvClient {
             CoreModuleProperties.AUTH_TIMEOUT.set(client, connectTimeout);
             CoreModuleProperties.IDLE_TIMEOUT.set(client, readTimeout);
             client.start();
-            try (ClientSession session = client.connect(credential.keyId(), host, source.port())
+            try (ClientSession session = client.connect(username, host, source.port())
                     .verify(connectTimeout)
                     .getSession()) {
-                session.addPasswordIdentity(credential.keySecret());
+                if (privateKey != null) {
+                    for (KeyPair pair : loadKeys(privateKey, passphrase, dataSourceCode)) {
+                        session.addPublicKeyIdentity(pair);
+                    }
+                } else {
+                    session.addPasswordIdentity(password);
+                }
                 session.auth().verify(connectTimeout);
                 try (SftpClient sftp = SftpClientFactory.instance().createSftpClient(session)) {
                     return readCapped(sftp, path, source.maxBytes(), readTimeout, dataSourceCode);
@@ -89,6 +110,25 @@ public class SftpCsvClient {
             // The cause is kept for diagnosis; sshd exception text never contains the password.
             throw new SftpTransportException("SFTP download failed for source '" + dataSourceCode + "' (" + host + ":"
                     + source.port() + "): " + e.getClass().getSimpleName(), e);
+        }
+    }
+
+    /** The key pair(s) in the PEM text; the text itself is never put in a message. */
+    private static List<KeyPair> loadKeys(String pem, String passphrase, String code) {
+        try {
+            Iterable<KeyPair> pairs = SecurityUtils.loadKeyPairIdentities(
+                    null, NamedResource.ofName("samanvay-" + code), new ByteArrayInputStream(pem.getBytes(StandardCharsets.UTF_8)), passphrase == null || passphrase.isEmpty() ? FilePasswordProvider.EMPTY : FilePasswordProvider.of(passphrase));
+            List<KeyPair> out = new ArrayList<>();
+            pairs.forEach(out::add);
+            if (out.isEmpty()) {
+                throw new SftpTransportException("SFTP source '" + code + "' private_key holds no usable key (expected a PKCS#8 or OpenSSH PEM, plus its passphrase if it is encrypted)");
+            }
+            return out;
+        } catch (IOException | GeneralSecurityException | RuntimeException e) {
+            if (e instanceof SftpTransportException st) {
+                throw st;
+            }
+            throw new SftpTransportException("SFTP source '" + code + "' private_key could not be read (expected a PKCS#8 or OpenSSH PEM, plus its passphrase if it is encrypted)");
         }
     }
 

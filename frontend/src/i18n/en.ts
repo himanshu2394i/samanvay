@@ -37,7 +37,7 @@ export const en = {
   'landing.browseServices': 'Browse services',
   'landing.signInToStart': 'Sign in to start',
   'landing.signInHint':
-    'Sign in with a one-time code sent to your email, or with a passkey. There is no password.',
+    'Sign in with your email and password, or with a passkey. New here? Choose Register on the sign-in page.',
   'landing.assure.title': 'Your records stay where they are',
   'landing.assure.point1': 'Fetched only after you agree — never before.',
   'landing.assure.point2': 'Never stored by Samanvay; the department stays the source.',
@@ -100,7 +100,6 @@ export const en = {
   'dept.yourId': 'Your ID with this department',
   'dept.oneTimeCode': 'One-time code',
   'dept.otpHint': 'Development build: the demo code is 000000.',
-  'dept.digilockerHint': 'Development build: this uses the DigiLocker sandbox, not the live DigiLocker.',
   'dept.connecting': 'Connecting…',
   'dept.connect': 'Connect {name}',
 

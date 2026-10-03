@@ -23,6 +23,9 @@ public class DataSourceEntity {
     @Column(name = "auth_config_ref")
     private String authConfigRef;
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "auth_spec")
+    private String authSpec = "{}";
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "retry_config")
     private String retryConfig;
     @JdbcTypeCode(SqlTypes.JSON)
@@ -71,6 +74,14 @@ public class DataSourceEntity {
 
     public void setAuthType(String authType) {
         this.authType = authType;
+    }
+
+    public String getAuthSpec() {
+        return authSpec;
+    }
+
+    public void setAuthSpec(String authSpec) {
+        this.authSpec = authSpec == null || authSpec.isBlank() ? "{}" : authSpec;
     }
 
     public String getAuthConfigRef() {

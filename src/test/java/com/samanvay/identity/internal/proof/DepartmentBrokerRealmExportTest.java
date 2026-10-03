@@ -177,10 +177,7 @@ class DepartmentBrokerRealmExportTest {
                 assertThat(e.has("authenticatorConfig")).as("no default provider: acts only on kc_idp_hint").isFalse();
             }
         }
-        assertThat(executions(flow(citizen, "citizen browser forms")))
-                .containsExactly("auth-username-form REQUIRED", "[citizen email code] CONDITIONAL");
-        assertThat(executions(flow(citizen, "citizen email code")))
-                .containsExactly("conditional-credential REQUIRED", "samanvay-email-otp REQUIRED");
+        assertThat(executions(flow(citizen, "citizen browser forms"))).containsExactly("auth-username-password-form REQUIRED");
         assertThat(executions(flow(citizen, citizen.get("directGrantFlow").asString())))
                 .containsExactly("deny-access-authenticator REQUIRED");
     }

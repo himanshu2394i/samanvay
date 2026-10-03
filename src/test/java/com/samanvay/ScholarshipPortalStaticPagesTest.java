@@ -23,7 +23,7 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(html).contains("Revenue");
         assertThat(html).contains("Education");
         assertThat(html).contains("DBT");
-        assertThat(html).contains("DigiLocker sandbox");
+        assertThat(html).doesNotContainIgnoringCase("digilocker");
         assertThat(html).contains("not live");
         assertThat(html).containsIgnoringCase("OTP demo");
         assertThat(html).contains("share income");
@@ -76,16 +76,14 @@ class ScholarshipPortalStaticPagesTest {
         assertThat(js).contains("/api/applications");
         String shared = page("shared/records.js");
         assertThat(shared).contains("/issued-records");
-        assertThat(shared).contains("/api/connector/issued-documents");
-        assertThat(shared).contains("DigiLocker");
+        assertThat(shared).doesNotContainIgnoringCase("digilocker").doesNotContain("issued-documents");
         assertThat(shared).contains("not stored");
         assertThat(html).contains("/shared/records.js");
         assertThat(js).doesNotContain("X-Auth-Jti");
         assertThat(js).contains("SamanvayAuth.fetch");
         assertThat(html).contains("/shared/auth.js");
-        assertThat(js).contains("DIGILOCKER");
+        assertThat(js).doesNotContainIgnoringCase("digilocker");
         assertThat(js).contains("LOCAL_ID_OTP");
-        assertThat(js).contains("sandbox");
         assertThat(js).contains("000000");
         assertThat(js).contains("In progress");
         assertThat(js).contains("Needs action");

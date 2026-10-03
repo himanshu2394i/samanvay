@@ -119,8 +119,7 @@ class PhaseUiStaticPagesTest {
         assertThat(caller).contains("Already linked — skipped");
         assertThat(caller).contains("p.label");
         assertThat(caller).contains("p.kind");
-        assertThat(caller).contains("DIGILOCKER");
-        assertThat(caller).contains("sandbox");
+        assertThat(caller).doesNotContainIgnoringCase("digilocker");
         assertThat(caller).contains("LOCAL_ID_OTP");
         assertThat(caller).doesNotContain("Link + consent from policy");
         assertThat(caller).doesNotContain("proof: \"stub\"");

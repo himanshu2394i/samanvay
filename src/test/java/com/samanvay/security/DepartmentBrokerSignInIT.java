@@ -7,7 +7,6 @@ import static com.samanvay.shared.test.KeycloakTestSupport.admin;
 import static com.samanvay.shared.test.KeycloakTestSupport.brokeredCitizenAccessToken;
 import static com.samanvay.shared.test.KeycloakTestSupport.claims;
 import static com.samanvay.shared.test.KeycloakTestSupport.importUser;
-import static com.samanvay.shared.test.KeycloakTestSupport.mailedCode;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samanvay.shared.test.KeycloakTestSupport.BrowserLogin;
@@ -44,8 +43,9 @@ class DepartmentBrokerSignInIT {
         assertThat(claims.get("dept_local_id_type").asString()).isEqualTo("RATION");
         assertThat(claims.get("dept_local_id").asString()).isEqualTo(localId);
         assertThat(Instant.ofEpochSecond(claims.get("auth_time").asLong())).isAfter(before);
-        // a fresh, department-scoped citizen user - not the department's own username
-        assertThat(claims.get("preferred_username").asString()).startsWith(BROKER_ALIAS + ".");
+        // a fresh citizen user; the realm uses the email as the user name (a clash with an existing citizen fails closed,
+        // see aBrokeredSignInNeverAttachesToAnExistingCitizenWithTheSameEmail)
+        assertThat(claims.get("preferred_username").asString()).isEqualTo("broker-it-user@test.samanvay.invalid");
 
         // Keycloak recorded the federated identity for that user
         JsonNode identities = admin("/admin/realms/" + CITIZEN + "/users/" + claims.get("sub").asString() + "/federated-identity");
@@ -70,11 +70,10 @@ class DepartmentBrokerSignInIT {
     }
 
     @Test
-    void anEmailCodeSignInCarriesNoDepartmentClaims() throws Exception {
-        importUser(CITIZEN, "broker-it-emailcode", null, null, "\"default-roles-samanvay-citizen\"", Map.of());
-        Instant sent = Instant.now();
-        BrowserLogin login = new BrowserLogin(CITIZEN, "samanvay-citizen-ui").submit(Map.of("username", "broker-it-emailcode"));
-        login.submit(Map.of("emailCode", mailedCode("broker-it-emailcode@test.samanvay.invalid", sent)));
+    void aPasswordSignInCarriesNoDepartmentClaims() throws Exception {
+        importUser(CITIZEN, "broker-it-password", "Broker-it-cit-pw-1", null, "\"default-roles-samanvay-citizen\"", Map.of());
+        BrowserLogin login = new BrowserLogin(CITIZEN, "samanvay-citizen-ui")
+                .submit(Map.of("username", "broker-it-password", "password", "Broker-it-cit-pw-1"));
 
         JsonNode claims = claims(login.accessToken());
         for (String claim : new String[] {"dept_idp", "dept_code", "dept_local_id_type", "dept_local_id"}) {

@@ -57,7 +57,7 @@ class ConsentRevokeNextAccessIT extends PostgresIntegrationTest {
                 "REVENUE",
                 "RATION",
                 "RC-rv-" + Long.toHexString(System.nanoTime()),
-                com.samanvay.identity.api.AuthProof.digiLockerSandbox());
+                com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         var request = consents.request(new ConsentRequestDraft(
                 citizen,
                 "SCHOLARSHIP",

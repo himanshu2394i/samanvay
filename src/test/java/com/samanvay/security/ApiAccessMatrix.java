@@ -48,6 +48,8 @@ final class ApiAccessMatrix {
         allow("GET /api/catalog/journeys/{code}", CITIZEN, OFFICER, REVIEWER, ADMIN, DEPARTMENT);
         allow("GET /api/catalog/connectors", OFFICER, ADMIN);
         allow("GET /api/catalog/schemas", OFFICER, ADMIN);
+        allow("GET /api/catalog/schema-details", OFFICER, ADMIN);
+        allow("POST /api/catalog/schemas", ADMIN);
         allow("POST /api/catalog/departments", ADMIN);
         allow("POST /api/catalog/data-sources", ADMIN);
         allow("POST /api/catalog/connectors", ADMIN);
@@ -58,6 +60,8 @@ final class ApiAccessMatrix {
         allow("POST /api/catalog/connectors/{ref}/publish", ADMIN);
         allow("POST /api/catalog/import/openapi", ADMIN);
         allow("POST /api/catalog/discover", ADMIN);
+        allow("POST /api/catalog/onboard/plan", ADMIN);
+        allow("POST /api/catalog/onboard", ADMIN);
         allow("GET /api/catalog/data-sources", OFFICER, ADMIN);
         allow("POST /api/catalog/data-sources/{code}/probe", ADMIN);
         // identity
@@ -68,6 +72,7 @@ final class ApiAccessMatrix {
         allow("GET /api/identity/citizens/{id}/connect-accounts", CITIZEN, OFFICER, REVIEWER);
         allow("GET /api/identity/proof-providers", CITIZEN, OFFICER);
         allow("POST /api/identity/links", CITIZEN);
+        allow("POST /api/identity/department-login", CITIZEN);
         allow("GET /api/identity/review-queue", REVIEWER);
         allow("POST /api/identity/candidates/{id}/confirm", REVIEWER);
         allow("POST /api/identity/candidates/{id}/reject", REVIEWER);
@@ -97,7 +102,7 @@ final class ApiAccessMatrix {
         allow("GET /api/applications/{referenceNo}/issued-records", CITIZEN, OFFICER);
         allow("GET /api/applications/{referenceNo}/disbursement", CITIZEN, OFFICER);
         // connector
-        allow("GET /api/connector/issued-documents", CITIZEN, OFFICER);
+        allow("POST /api/connector/trial/{ref}", ADMIN);
         allow("GET /api/connector/chaos/{dataSourceCode}", OFFICER, ADMIN);
         allow("POST /api/connector/chaos/{dataSourceCode}/kill", OFFICER, ADMIN);
         allow("POST /api/connector/chaos/{dataSourceCode}/revive", OFFICER, ADMIN);

@@ -12,7 +12,7 @@ import org.springframework.mock.env.MockEnvironment;
 /** The dev/demo department-service override: off by default, refused outside dev/demo, bound by the profile ymls. */
 class DepartmentServiceOverridesTest {
 
-    static final Map<String, String> URLS = Map.of("sandbox-income-rest", "http://localhost:8090/");
+    static final Map<String, String> URLS = Map.of("revenue-rest", "http://localhost:8090/");
 
     static DepartmentServiceOverrides overrides(Map<String, String> urls, String... profiles) {
         MockEnvironment env = new MockEnvironment();
@@ -22,16 +22,16 @@ class DepartmentServiceOverridesTest {
 
     @Test
     void nothing_configured_overrides_nothing_in_any_profile() {
-        assertThat(overrides(Map.of()).baseUrl("sandbox-income-rest")).isEmpty();
-        assertThat(overrides(Map.of(), "prod").baseUrl("sandbox-income-rest")).isEmpty();
-        assertThat(DepartmentServiceOverrides.NONE.baseUrl("sandbox-income-rest")).isEmpty();
+        assertThat(overrides(Map.of()).baseUrl("revenue-rest")).isEmpty();
+        assertThat(overrides(Map.of(), "prod").baseUrl("revenue-rest")).isEmpty();
+        assertThat(DepartmentServiceOverrides.NONE.baseUrl("revenue-rest")).isEmpty();
     }
 
     @Test
     void dev_and_demo_may_override_and_a_trailing_slash_is_dropped() {
         for (String profile : new String[] {"dev", "demo"}) {
             DepartmentServiceOverrides o = overrides(URLS, profile);
-            assertThat(o.baseUrl("sandbox-income-rest")).contains("http://localhost:8090");
+            assertThat(o.baseUrl("revenue-rest")).contains("http://localhost:8090");
             assertThat(o.baseUrl("some-other-source")).isEmpty();
         }
     }
@@ -64,8 +64,8 @@ class DepartmentServiceOverridesTest {
     void default_profile_has_no_override() {
         runner().run(ctx -> {
             assertThat(ctx).hasNotFailed();
-            assertThat(ctx.getBean(DepartmentServiceOverrides.class).baseUrl("sandbox-income-rest")).isEmpty();
-            assertThat(ctx.getBean(DepartmentServiceOverrides.class).baseUrl("sandbox-marks-soap")).isEmpty();
+            assertThat(ctx.getBean(DepartmentServiceOverrides.class).baseUrl("revenue-rest")).isEmpty();
+            assertThat(ctx.getBean(DepartmentServiceOverrides.class).baseUrl("education-soap")).isEmpty();
         });
     }
 
@@ -75,23 +75,23 @@ class DepartmentServiceOverridesTest {
             runner("spring.profiles.active=" + profile).run(ctx -> {
                 assertThat(ctx).as(profile).hasNotFailed();
                 DepartmentServiceOverrides o = ctx.getBean(DepartmentServiceOverrides.class);
-                assertThat(o.baseUrl("sandbox-income-rest")).as(profile).contains("http://localhost:8090");
-                assertThat(o.baseUrl("sandbox-marks-soap")).as(profile).contains("http://localhost:8090");
-                assertThat(o.baseUrl("sandbox-property-sftp")).as(profile).isEmpty();
+                assertThat(o.baseUrl("revenue-rest")).as(profile).contains("http://localhost:8091");
+                assertThat(o.baseUrl("education-soap")).as(profile).contains("http://localhost:8093");
+                assertThat(o.baseUrl("revenue-sftp")).as(profile).isEmpty();
             });
         }
     }
 
     @Test
     void the_url_can_be_changed_for_a_compose_network() {
-        runner("spring.profiles.active=demo", "SAMANVAY_DEPT_SERVICE_URL=http://department-service:8090").run(ctx ->
-                assertThat(ctx.getBean(DepartmentServiceOverrides.class).baseUrl("sandbox-marks-soap"))
-                        .contains("http://department-service:8090"));
+        runner("spring.profiles.active=demo", "SAMANVAY_EDUCATION_URL=http://department-education:8093").run(ctx ->
+                assertThat(ctx.getBean(DepartmentServiceOverrides.class).baseUrl("education-soap"))
+                        .contains("http://department-education:8093"));
     }
 
     @Test
     void the_override_property_is_refused_outside_dev_and_demo() {
-        runner("spring.profiles.active=prod", "samanvay.sources.department-service.urls.sandbox-income-rest=http://localhost:8090")
+        runner("spring.profiles.active=prod", "samanvay.sources.department-service.urls.revenue-rest=http://localhost:8090")
                 .run(ctx -> assertThat(ctx).hasFailed());
     }
 }

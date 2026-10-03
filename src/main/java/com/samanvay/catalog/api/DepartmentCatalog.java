@@ -9,4 +9,9 @@ public interface DepartmentCatalog {
     List<Department> all();
 
     Department register(DepartmentDraft draft);
+
+    /** The department's login description (manifest identity block), empty when unknown or it publishes none. */
+    default Optional<DepartmentIdentity> identity(String code) {
+        return Optional.empty();
+    }
 }

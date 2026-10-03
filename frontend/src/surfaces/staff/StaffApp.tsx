@@ -13,6 +13,7 @@ import { MetricsPage } from './pages/MetricsPage'
 import { AuditPage } from './pages/AuditPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { OnboardingPage } from './pages/OnboardingPage'
+import { SchemasPage } from './pages/SchemasPage'
 import { ReviewerQueuePage } from './pages/ReviewerQueuePage'
 import { StaffNotFoundPage } from './pages/StaffNotFoundPage'
 
@@ -50,6 +51,7 @@ export function StaffApp() {
           <Route element={<RequireRole allow={ADMIN} />}>
             <Route path="admin/catalog" element={<CatalogPage />} />
             <Route path="admin/onboarding" element={<OnboardingPage />} />
+            <Route path="admin/schemas" element={<SchemasPage />} />
           </Route>
           <Route element={<RequireRole allow={REVIEWER} />}>
             <Route path="reviewer/queue" element={<ReviewerQueuePage />} />

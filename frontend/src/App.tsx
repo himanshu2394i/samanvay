@@ -17,14 +17,12 @@ import { StaffApp } from './surfaces/staff/StaffApp'
 export function App({
   manager,
   realm = 'citizen',
-  devSignIn = false,
 }: {
   manager: OidcManager
   realm?: RealmKey
-  devSignIn?: boolean
 }) {
   return (
-    <AuthProvider manager={manager} realm={realm} devSignIn={devSignIn}>
+    <AuthProvider manager={manager} realm={realm}>
       <ApiProvider>
         <HashRouter>{realm === 'staff' ? <StaffApp /> : <CitizenApp />}</HashRouter>
       </ApiProvider>

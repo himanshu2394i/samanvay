@@ -29,21 +29,6 @@ class IssuedRecordsIT extends PostgresIntegrationTest {
     JdbcTemplate jdbc;
 
     @Test
-    void lockerListsIssuedDocumentsForARealDepartmentSystem() {
-        RestClient http = TestHttp.as(TestTokens.citizen("cit-locker"));
-        List<?> revenue = http.get()
-                .uri(url("/api/connector/issued-documents?departmentCode=REVENUE"))
-                .retrieve()
-                .body(List.class);
-        assertThat(revenue).isNotEmpty();
-        String blob = revenue.toString();
-        assertThat(blob).contains("Income");
-        assertThat(blob).contains("Aaple Sarkar");
-        assertThat(blob).contains("Mahabhulekh");
-        assertThat(blob).contains("not live");
-    }
-
-    @Test
     void applicationIssuedRecordsAreFetchedLiveAndNotWrittenToTracking() {
         // Signed-in citizen: self-registration binds the record to this token subject.
         RestClient http = TestHttp.as(TestTokens.citizen("cit-" + UUID.randomUUID()));
@@ -82,9 +67,9 @@ class IssuedRecordsIT extends PostgresIntegrationTest {
                             "localId",
                             "PORTAL-" + department + "-" + suffix,
                             "provider",
-                            "DIGILOCKER",
+                            "LOCAL_ID_OTP",
                             "proof",
-                            "sandbox"))
+                            "000000"))
                     .retrieve()
                     .toBodilessEntity();
         }

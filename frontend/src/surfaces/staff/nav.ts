@@ -20,6 +20,7 @@ export const STAFF_LINKS: StaffLink[] = [
   { to: '/staff/ops/metrics', label: 'Metrics', blurb: 'Connector health, SLA, consent decisions and the exception queue.', roles: OPS },
   { to: '/staff/ops/audit', label: 'Audit ledger', blurb: 'Verify the tamper-evident chain and browse entries.', roles: OPS },
   { to: '/staff/admin/catalog', label: 'Catalog', blurb: 'Departments, journeys and connectors.', roles: ADMIN },
-  { to: '/staff/admin/onboarding', label: 'Onboarding', blurb: 'Add a department, data source and connector; import an OpenAPI spec.', roles: ADMIN },
+  { to: '/staff/admin/schemas', label: 'Central schema', blurb: 'The shared field names departments are matched onto; add a new schema or version.', roles: ADMIN },
+  { to: '/staff/admin/onboarding', label: 'Onboarding', blurb: 'Onboard a department in one go from its URL, or add a data source and connector by hand.', roles: ADMIN },
   { to: '/staff/reviewer/queue', label: 'Identity review', blurb: 'Confirm or reject candidate account links.', roles: REVIEWER },
 ]

@@ -72,7 +72,11 @@ public final class KeycloakTestSupport {
                     .waitingFor(Wait.forHttp("/livez").forPort(8025));
             mail.start();
             mailpit = mail;
-            String mailpitIp = mail.getContainerInfo().getNetworkSettings().getIpAddress();
+            // Newer Docker (e.g. Docker Desktop) leaves the top-level address empty and reports it per network.
+            var net = mail.getContainerInfo().getNetworkSettings();
+            String mailpitIp = net.getIpAddress() != null && !net.getIpAddress().isBlank()
+                    ? net.getIpAddress()
+                    : net.getNetworks().values().iterator().next().getIpAddress();
             KeycloakContainer k = new KeycloakContainer(IMAGE)
                     .withExtraHost("mailpit", mailpitIp)
                     .withProviderLibsFrom(List.of(EMAIL_OTP_PROVIDER))

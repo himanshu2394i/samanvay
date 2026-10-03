@@ -22,8 +22,8 @@ accessed.
 ## 2. The big idea in one flow
 
 1. A citizen starts a **journey** (e.g. scholarship) in a department portal.
-2. They **link** their department accounts (identity linking, via DigiLocker sandbox / a
-   local OTP / a brokered department login).
+2. They **link** their department accounts (identity linking: the citizen logs in at the department
+   itself; a labelled OTP demo covers a department with no login yet).
 3. The platform asks for **consent** for a specific purpose and data categories; the citizen
    sees the request and **grants** it. The grant is a signed, time-boxed artifact.
 4. **Orchestration** fans out to the needed **connectors**, which fetch each data item from
@@ -75,10 +75,11 @@ tracking), over a cross-cutting **audit** spine. Acyclic by construction.
 - **Data categories** include income, caste, marks, **domicile**, bank-account checks, etc.
 
 ### Identity & authentication
-- **Account linking** with verifiable proofs: DigiLocker (modelled as a partner sandbox), a
-  local ID + OTP path, and a **brokered department login** — a citizen can sign in through a
+- **Account linking** with verifiable proofs: the department's own **login assertion** (signed, one-time,
+  docs/contracts/login-assertion.md), a labelled local ID + OTP demo for a department without a login, and a
+  **brokered department login** — a citizen can sign in through a
   (mock) department IdP via Keycloak OIDC brokering, and that login becomes a verified link.
-- **Auth plane:** Keycloak realms (citizen: email one-time-code / passkey; staff: passkey or
+- **Auth plane:** Keycloak realms (citizen: email + password or passkey; staff: passkey or
   password + TOTP), JWTs required on the API with audience/azp checks and role-based access
   (citizen / officer / reviewer / admin / department client).
 

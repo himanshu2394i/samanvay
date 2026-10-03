@@ -95,11 +95,10 @@ class KeycloakTokensIT extends PostgresContainerSupport {
     }
 
     @Test
-    void citizenTokenFromAnEmailCodeLoginIsAccepted() throws Exception {
-        importUser(CITIZEN, "kc-citizen", null, null, "\"default-roles-samanvay-citizen\"", Map.of());
-        java.time.Instant sent = java.time.Instant.now();
-        BrowserLogin login = new BrowserLogin(CITIZEN, "samanvay-citizen-ui").submit(Map.of("username", "kc-citizen"));
-        login.submit(Map.of("emailCode", KeycloakTestSupport.mailedCode("kc-citizen@test.samanvay.invalid", sent)));
+    void citizenTokenFromAPasswordLoginIsAccepted() throws Exception {
+        importUser(CITIZEN, "kc-citizen", "Kc-citizen-pw-1", null, "\"default-roles-samanvay-citizen\"", Map.of());
+        BrowserLogin login = new BrowserLogin(CITIZEN, "samanvay-citizen-ui")
+                .submit(Map.of("username", "kc-citizen", "password", "Kc-citizen-pw-1"));
         String accessToken = login.accessToken();
 
         JsonNode claims = claims(accessToken);

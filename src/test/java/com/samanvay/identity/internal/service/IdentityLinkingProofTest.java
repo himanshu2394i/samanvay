@@ -29,14 +29,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 class IdentityLinkingProofTest {
 
     @Test
-    void digiLockerSandboxAssertsAndSkipsAlreadyLinkedDept() {
+    void otpDemoAssertsAndSkipsAlreadyLinkedDept() {
         LinkRepository links = mock(LinkRepository.class);
         when(links.findByCitizenIdAndDepartmentCodeAndStatus(any(), any(), any())).thenReturn(Optional.empty());
         when(links.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         IdentityServices svc = service(links);
         UUID citizen = UUID.randomUUID();
 
-        Link created = svc.assertLink(citizen, "REVENUE", "RATION", "RC-1", AuthProof.digiLockerSandbox());
+        Link created = svc.assertLink(citizen, "REVENUE", "RATION", "RC-1", AuthProof.localIdOtpDemo());
         assertThat(created.localIdToken()).isEqualTo("RC-1");
         assertThat(created.provenance()).isEqualTo("CITIZEN_ASSERTED");
 
@@ -51,7 +51,7 @@ class IdentityLinkingProofTest {
         when(links.findByCitizenIdAndDepartmentCodeAndStatus(citizen, "REVENUE", "ACTIVE"))
                 .thenReturn(Optional.of(existing));
 
-        Link skipped = svc.assertLink(citizen, "REVENUE", "RATION", "RC-NEW", AuthProof.digiLockerSandbox());
+        Link skipped = svc.assertLink(citizen, "REVENUE", "RATION", "RC-NEW", AuthProof.localIdOtpDemo());
         assertThat(skipped.id()).isEqualTo(created.id());
         verify(links).saveAndFlush(any());
     }
@@ -61,7 +61,7 @@ class IdentityLinkingProofTest {
         LinkRepository links = mock(LinkRepository.class);
         IdentityServices svc = service(links);
         assertThatThrownBy(() ->
-                        svc.assertLink(UUID.randomUUID(), "REVENUE", "RATION", "RC-1", new AuthProof(LinkProofKind.DIGILOCKER, "nope")))
+                        svc.assertLink(UUID.randomUUID(), "REVENUE", "RATION", "RC-1", new AuthProof(LinkProofKind.LOCAL_ID_OTP, "nope")))
                 .isInstanceOf(LinkProofInvalidException.class);
         verify(links, never()).saveAndFlush(any());
     }
@@ -83,7 +83,7 @@ class IdentityLinkingProofTest {
         when(links.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("dup"));
         IdentityServices svc = service(links);
         assertThatThrownBy(() ->
-                        svc.assertLink(UUID.randomUUID(), "REVENUE", "RATION", "RC-1", AuthProof.digiLockerSandbox()))
+                        svc.assertLink(UUID.randomUUID(), "REVENUE", "RATION", "RC-1", AuthProof.localIdOtpDemo()))
                 .isInstanceOf(com.samanvay.identity.api.DuplicateLocalIdException.class);
     }
 
@@ -92,8 +92,7 @@ class IdentityLinkingProofTest {
         IdentityServices svc = service(mock(LinkRepository.class));
         assertThat(svc.availableProofProviders())
                 .extracting(info -> info.kind() + ":" + info.label())
-                .containsExactlyInAnyOrder(
-                        "DIGILOCKER:DigiLocker sandbox (mock)", "LOCAL_ID_OTP:Local ID + OTP (demo)");
+                .containsExactlyInAnyOrder("LOCAL_ID_OTP:Local ID + OTP (demo)");
         assertThat(svc.availableProofProviders().stream().map(info -> info.label().toLowerCase()))
                 .noneMatch(label -> label.contains("keycloak") || label.contains("live sso"));
     }
@@ -108,31 +107,9 @@ class IdentityLinkingProofTest {
                 mock(ReviewerAuth.class),
                 e -> {},
                 mock(AuditService.class),
-                List.of(digiLocker(), otp()),
+                List.of(otp()),
                 mock(com.samanvay.catalog.api.JourneyCatalog.class),
                 mock(com.samanvay.catalog.api.DepartmentCatalog.class));
-    }
-
-    private static LinkProofProvider digiLocker() {
-        return new LinkProofProvider() {
-            @Override
-            public LinkProofKind kind() {
-                return LinkProofKind.DIGILOCKER;
-            }
-
-            @Override
-            public String label() {
-                return "DigiLocker sandbox (mock)";
-            }
-
-            @Override
-            public VerifiedLocalId verify(AuthProof proof, com.samanvay.identity.api.LinkProofContext context) {
-                if (proof == null || proof.provider() != LinkProofKind.DIGILOCKER || !"sandbox".equals(proof.payload())) {
-                    throw new LinkProofInvalidException();
-                }
-                return new VerifiedLocalId(context.localIdType(), context.localId());
-            }
-        };
     }
 
     private static LinkProofProvider otp() {

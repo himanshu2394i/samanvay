@@ -107,22 +107,22 @@ class IdentityLinkingDepartmentBrokerTest {
         assertThat(svc.availableProofProviders())
                 .extracting(info -> info.kind() + ":" + info.label())
                 .containsExactlyInAnyOrder(
-                        "DIGILOCKER:DigiLocker sandbox (mock)",
+                        "LOCAL_ID_OTP:Local ID + OTP (demo)",
                         "DEPT_IDP:Department sign-in (mock department IdP)");
 
         when(links.findByCitizenIdAndDepartmentCodeAndStatus(any(), any(), any())).thenReturn(Optional.empty());
         when(links.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
-        assertThat(svc.assertLink(UUID.randomUUID(), "EDUCATION", "STUDENT", "STU-1", AuthProof.digiLockerSandbox())
+        assertThat(svc.assertLink(UUID.randomUUID(), "EDUCATION", "STUDENT", "STU-1", AuthProof.localIdOtpDemo())
                         .localIdToken())
                 .isEqualTo("STU-1");
     }
 
     @Test
     void withoutTheProviderTheProofKindIsRefusedAndNotListed() {
-        IdentityServices svc = serviceWith(List.of(digiLocker()));
+        IdentityServices svc = serviceWith(List.of(otp()));
         assertThat(svc.availableProofProviders())
                 .extracting(info -> info.kind())
-                .containsExactly(LinkProofKind.DIGILOCKER);
+                .containsExactly(LinkProofKind.LOCAL_ID_OTP);
         assertThatThrownBy(() -> svc.assertLink(citizen, "REVENUE", "RATION", "RC-BROKERED-1", AuthProof.departmentIdp(TOKEN)))
                 .isInstanceOf(LinkProofInvalidException.class);
     }
@@ -134,7 +134,7 @@ class IdentityLinkingDepartmentBrokerTest {
                 raw -> TOKEN.equals(raw) ? Optional.of(new CitizenTokenVerifier.VerifiedToken(SUBJECT, claims)) : Optional.empty();
         var broker = new DepartmentBrokerLinkProofProvider(
                 verifier, citizens, Clock.fixed(NOW, ZoneOffset.UTC), "dept-idp", Duration.ofMinutes(10));
-        return serviceWith(List.of(digiLocker(), broker));
+        return serviceWith(List.of(otp(), broker));
     }
 
     private IdentityServices serviceWith(List<LinkProofProvider> providers) {
@@ -152,16 +152,16 @@ class IdentityLinkingDepartmentBrokerTest {
                 mock(com.samanvay.catalog.api.DepartmentCatalog.class));
     }
 
-    private static LinkProofProvider digiLocker() {
+    private static LinkProofProvider otp() {
         return new LinkProofProvider() {
             @Override
             public LinkProofKind kind() {
-                return LinkProofKind.DIGILOCKER;
+                return LinkProofKind.LOCAL_ID_OTP;
             }
 
             @Override
             public String label() {
-                return "DigiLocker sandbox (mock)";
+                return "Local ID + OTP (demo)";
             }
 
             @Override

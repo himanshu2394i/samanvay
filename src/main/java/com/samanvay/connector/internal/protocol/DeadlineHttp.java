@@ -7,6 +7,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import javax.net.ssl.SSLContext;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -39,7 +42,10 @@ import org.springframework.web.client.ResourceAccessException;
 public class DeadlineHttp {
 
     private final HttpClient client;
+    private final Duration connectTimeout;
     private final Duration totalTimeout;
+    /** One client per TLS identity (a source's client certificate), so a certificate is never used for another source. */
+    private final Map<SSLContext, HttpClient> tlsClients = new ConcurrentHashMap<>();
 
     public DeadlineHttp(
             @Value("${samanvay.connector.timeout:PT10S}") Duration connectTimeout,
@@ -48,23 +54,58 @@ public class DeadlineHttp {
                 .connectTimeout(connectTimeout)
                 .version(HttpClient.Version.HTTP_1_1)
                 .build();
+        this.connectTimeout = connectTimeout;
         this.totalTimeout = totalTimeout;
     }
 
     public String get(URI uri) {
-        return send(uri, HttpRequest.newBuilder(uri).GET().build());
+        return get(uri, Map.of());
+    }
+
+    /** GET with extra request headers (e.g. an API key or bearer token), under the same total deadline. */
+    public String get(URI uri, Map<String, String> headers) {
+        return get(uri, headers, null);
+    }
+
+    /** As above, over the given TLS identity (client certificate and trust); null means the default client. */
+    public String get(URI uri, Map<String, String> headers, SSLContext tls) {
+        HttpRequest.Builder b = HttpRequest.newBuilder(uri).GET();
+        headers.forEach(b::header);
+        return send(uri, b.build(), clientFor(tls));
     }
 
     /** POST {@code body} (UTF-8) with the given content type, under the same total deadline as {@link #get}. */
     public String post(URI uri, String body, String contentType) {
-        HttpRequest request = HttpRequest.newBuilder(uri)
+        return post(uri, body, contentType, Map.of());
+    }
+
+    /** POST with extra request headers, under the same total deadline. */
+    public String post(URI uri, String body, String contentType, Map<String, String> headers) {
+        return post(uri, body, contentType, headers, null);
+    }
+
+    /** As above, over the given TLS identity; null means the default client. */
+    public String post(URI uri, String body, String contentType, Map<String, String> headers, SSLContext tls) {
+        HttpRequest.Builder b = HttpRequest.newBuilder(uri)
                 .header("Content-Type", contentType)
-                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                .build();
-        return send(uri, request);
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+        headers.forEach(b::header);
+        return send(uri, b.build(), clientFor(tls));
+    }
+
+    private HttpClient clientFor(SSLContext tls) {
+        if (tls == null) {
+            return client;
+        }
+        return tlsClients.computeIfAbsent(tls, c -> HttpClient.newBuilder().connectTimeout(connectTimeout)
+                .version(HttpClient.Version.HTTP_1_1).sslContext(c).build());
     }
 
     private String send(URI uri, HttpRequest request) {
+        return send(uri, request, client);
+    }
+
+    private String send(URI uri, HttpRequest request, HttpClient client) {
         Duration left = ExchangeDeadline.remaining().orElse(totalTimeout);
         if (left.isZero() || left.isNegative()) {
             throw new ExchangeDeadlineExceededException("connector deadline already passed before calling " + uri.getHost());
