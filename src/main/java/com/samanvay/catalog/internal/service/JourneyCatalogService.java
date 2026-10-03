@@ -15,7 +15,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
-class JourneyCatalogService implements JourneyCatalog {
+class JourneyCatalogService implements JourneyCatalog, com.samanvay.shared.security.JourneyRequesters {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private final JourneyRepository journeys;
@@ -27,6 +27,11 @@ class JourneyCatalogService implements JourneyCatalog {
     @Override
     public JourneyDefinition byCode(String journeyCode) {
         return journeys.findById(journeyCode).map(this::toJourney).orElseThrow(() -> new JourneyNotFoundException(journeyCode));
+    }
+
+    @Override
+    public java.util.Optional<String> requesterOf(String journeyCode) {
+        return journeys.findById(journeyCode).map(this::toJourney).map(j -> j.policy().requester());
     }
 
     @Override

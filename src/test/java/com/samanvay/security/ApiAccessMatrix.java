@@ -80,6 +80,7 @@ final class ApiAccessMatrix {
         allow("POST /api/department/citizens/resolve", DEPARTMENT);
         allow("POST /api/department/links/start", DEPARTMENT);
         allow("POST /api/department/links", DEPARTMENT);
+        allow("GET /api/department/journeys/{code}/readiness", DEPARTMENT);
         allow("POST /api/department/consents/requests", DEPARTMENT);
         allow("POST /api/department/consents", DEPARTMENT);
         // consent
@@ -102,11 +103,11 @@ final class ApiAccessMatrix {
         allow("POST /api/officer/bank-reviews/{id}/approve", OFFICER);
         allow("POST /api/officer/bank-reviews/{id}/reject", OFFICER);
         // tracking
-        allow("GET /api/applications", CITIZEN, OFFICER);
-        allow("GET /api/applications/{referenceNo}", CITIZEN, OFFICER);
-        allow("GET /api/applications/{referenceNo}/steps", CITIZEN, OFFICER);
-        allow("GET /api/applications/{referenceNo}/issued-records", CITIZEN, OFFICER);
-        allow("GET /api/applications/{referenceNo}/disbursement", CITIZEN, OFFICER);
+        allow("GET /api/applications", CITIZEN, OFFICER, DEPARTMENT);
+        allow("GET /api/applications/{referenceNo}", CITIZEN, OFFICER, DEPARTMENT);
+        allow("GET /api/applications/{referenceNo}/steps", CITIZEN, OFFICER, DEPARTMENT);
+        allow("GET /api/applications/{referenceNo}/issued-records", CITIZEN, OFFICER, DEPARTMENT);
+        allow("GET /api/applications/{referenceNo}/disbursement", CITIZEN, OFFICER, DEPARTMENT);
         // connector
         allow("POST /api/connector/trial/{ref}", ADMIN);
         allow("GET /api/connector/chaos/{dataSourceCode}", OFFICER, ADMIN);

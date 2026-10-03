@@ -4,6 +4,7 @@ import com.samanvay.payments.api.Disbursement;
 import com.samanvay.payments.api.DisbursementService;
 import com.samanvay.payments.api.Instalment;
 import com.samanvay.shared.security.CitizenAccess;
+import com.samanvay.shared.security.DepartmentScope;
 import com.samanvay.tracking.api.ApplicationTracking;
 import com.samanvay.tracking.api.ApplicationView;
 import java.time.Instant;
@@ -29,16 +30,20 @@ class DisbursementWeb {
     private final ApplicationTracking tracking;
     private final DisbursementService disbursements;
     private final CitizenAccess citizenAccess;
+    private final DepartmentScope departmentScope;
 
-    DisbursementWeb(ApplicationTracking tracking, DisbursementService disbursements, CitizenAccess citizenAccess) {
+    DisbursementWeb(
+            ApplicationTracking tracking, DisbursementService disbursements, CitizenAccess citizenAccess, DepartmentScope departmentScope) {
         this.tracking = tracking;
         this.disbursements = disbursements;
         this.citizenAccess = citizenAccess;
+        this.departmentScope = departmentScope;
     }
 
     @GetMapping("/{referenceNo}/disbursement")
     ResponseEntity<DisbursementView> disbursement(@PathVariable String referenceNo) {
         ApplicationView app = tracking.byReference(referenceNo);
+        departmentScope.requireReadable(app.journeyCode());
         citizenAccess.requireMayActOn(app.citizenId());
         return disbursements
                 .forApplication(app.instanceId())

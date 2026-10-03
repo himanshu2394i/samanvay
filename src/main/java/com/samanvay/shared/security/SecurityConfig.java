@@ -114,7 +114,7 @@ class SecurityConfig {
                                 "/api/officer/bank-reviews/*/approve",
                                 "/api/officer/bank-reviews/*/reject").hasRole(OFFICER)
                         // tracking
-                        .requestMatchers(GET, "/api/applications", "/api/applications/**").hasAnyRole(CITIZEN, OFFICER)
+                        .requestMatchers(GET, "/api/applications", "/api/applications/**").hasAnyRole(CITIZEN, OFFICER, DEPARTMENT)
                         // connector
                         // onboarding trial fetch for the department's fake sample person: admin only
                         .requestMatchers(POST, "/api/connector/trial/*").hasRole(ADMIN)

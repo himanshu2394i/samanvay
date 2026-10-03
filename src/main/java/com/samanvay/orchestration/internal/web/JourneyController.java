@@ -7,11 +7,9 @@ import com.samanvay.orchestration.api.JourneyState;
 import com.samanvay.shared.security.Caller;
 import com.samanvay.shared.security.Callers;
 import com.samanvay.shared.security.CitizenAccess;
+import com.samanvay.shared.security.DepartmentScope;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.UUID;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,25 +24,20 @@ class JourneyController {
 
     private final JourneyService journeys;
     private final CitizenAccess citizenAccess;
+    private final DepartmentScope departmentScope;
 
-    JourneyController(JourneyService journeys, CitizenAccess citizenAccess) {
+    JourneyController(JourneyService journeys, CitizenAccess citizenAccess, DepartmentScope departmentScope) {
         this.journeys = journeys;
         this.citizenAccess = citizenAccess;
+        this.departmentScope = departmentScope;
     }
 
     @PostMapping("/{code}/start")
     JourneyInstance start(@PathVariable String code, @RequestBody StartBody body) {
         Caller caller = Callers.require();
         citizenAccess.requireMayActOn(body.citizenId());
-        if (caller.isDepartmentClient()) {
-            // One client scope per data source: a department client may only
-            // start a journey whose every fetch it is scoped for.
-            Set<String> missing = new TreeSet<>(journeys.dataSources(code));
-            missing.removeAll(caller.dataSourceScopes());
-            if (!missing.isEmpty()) {
-                throw new AccessDeniedException("client lacks data-source scope(s): " + String.join(", ", missing));
-            }
-        }
+        // A department client starts the journeys it runs; consent and the citizen's links decide what is fetched.
+        departmentScope.requireRuns(code);
         return journeys.start(code, body.citizenId(), body.submission(), caller.principal());
     }
 

@@ -2,6 +2,8 @@ package com.samanvay.tracking.internal.web;
 
 import com.samanvay.shared.security.Callers;
 import com.samanvay.shared.security.CitizenAccess;
+import com.samanvay.shared.security.DepartmentScope;
+import com.samanvay.shared.InvalidRequestException;
 import org.springframework.security.access.AccessDeniedException;
 import com.samanvay.tracking.api.ApplicationSummary;
 import com.samanvay.tracking.api.ApplicationTracking;
@@ -22,10 +24,12 @@ class TrackingController {
 
     private final ApplicationTracking tracking;
     private final CitizenAccess citizenAccess;
+    private final DepartmentScope departmentScope;
 
-    TrackingController(ApplicationTracking tracking, CitizenAccess citizenAccess) {
+    TrackingController(ApplicationTracking tracking, CitizenAccess citizenAccess, DepartmentScope departmentScope) {
         this.tracking = tracking;
         this.citizenAccess = citizenAccess;
+        this.departmentScope = departmentScope;
     }
 
     @GetMapping
@@ -36,21 +40,29 @@ class TrackingController {
         if (citizenId == null && Callers.require().isCitizen()) {
             throw new AccessDeniedException("citizens may only list their own applications (citizenId required)");
         }
+        if (citizenId == null && departmentScope.isDepartmentCaller()) {
+            throw new InvalidRequestException("citizenId is required");
+        }
         citizenAccess.requireMayActOn(citizenId);
         var p = PageRequest.of(page, size);
-        return citizenId == null ? tracking.recent(p).getContent() : tracking.forCitizen(citizenId, p).getContent();
+        List<ApplicationSummary> found =
+                citizenId == null ? tracking.recent(p).getContent() : tracking.forCitizen(citizenId, p).getContent();
+        return found.stream().filter(a -> departmentScope.mayRead(a.journeyCode())).toList();
     }
 
     @GetMapping("/{referenceNo}")
     ApplicationView byReference(@PathVariable String referenceNo) {
         ApplicationView view = tracking.byReference(referenceNo);
+        departmentScope.requireReadable(view.journeyCode());
         citizenAccess.requireMayActOn(view.citizenId());
         return view;
     }
 
     @GetMapping("/{referenceNo}/steps")
     List<StepView> steps(@PathVariable String referenceNo) {
-        citizenAccess.requireMayActOn(tracking.byReference(referenceNo).citizenId());
+        ApplicationView view = tracking.byReference(referenceNo);
+        departmentScope.requireReadable(view.journeyCode());
+        citizenAccess.requireMayActOn(view.citizenId());
         return tracking.steps(referenceNo);
     }
 }
