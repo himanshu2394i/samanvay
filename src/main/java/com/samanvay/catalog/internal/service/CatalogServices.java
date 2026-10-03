@@ -208,6 +208,11 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
     }
 
     @Override
+    public Optional<String> manifestKeyThumbprint(String code) {
+        return departments.findById(code).map(DepartmentEntity::getManifestKeyThumbprint).filter(t -> !t.isBlank());
+    }
+
+    @Override
     public Optional<DepartmentIdentity> identity(String code) {
         return departments.findById(code).map(DepartmentEntity::getIdentitySpec).flatMap(spec -> {
             DepartmentIdentity id = JSON.readValue(spec, DepartmentIdentity.class);

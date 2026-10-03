@@ -80,6 +80,8 @@ final class ApiAccessMatrix {
         allow("POST /api/department/citizens/resolve", DEPARTMENT);
         allow("POST /api/department/links/start", DEPARTMENT);
         allow("POST /api/department/links", DEPARTMENT);
+        allow("POST /api/department/consents/requests", DEPARTMENT);
+        allow("POST /api/department/consents", DEPARTMENT);
         // consent
         allow("POST /api/consent/requests", CITIZEN, OFFICER, DEPARTMENT);
         allow("POST /api/consent/requests/{id}/grant", CITIZEN);
