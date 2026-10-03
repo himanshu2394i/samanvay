@@ -18,10 +18,7 @@
     </header>
     <nav class="bar" aria-label="State operations">
       <ul class="nav-primary" role="list">
-        <li><a href="/">Citizen services</a></li>
-        <li><a href="/scholarship/">Scholarship Portal</a></li>
-        <li><a href="/licence/">Licence</a></li>
-        <li><a href="/farmer/">Farmer subsidy</a></li>
+        <li><a href="/">Home</a></li>
         <li><a href="/demo.html" class="active" aria-current="page">Operations</a></li>
         <li><a href="/journey.html">Journey</a></li>
         <li><a href="/ops.html">Exceptions</a></li>
@@ -39,20 +36,11 @@
       </div>
     </nav>
     <main id="content" tabindex="-1">
-      <h1 class="page-title">Judge path — eight minutes</h1>
-      <p class="lede">Samanvay is the interoperability middle layer. Judges start on Citizen services, then a government portal (Scholarship, Business licence, or Farmer subsidy). This page is the optional cutaway after the citizen and officer beats. Do not begin here. Do not begin on telemetry.</p>
-      <div class="callout tool"><strong>JUDGE PATH.</strong> Citizen services → department portal → Officer desk → this operations cutaway (audit / published schemes). Hide staff tools unless asked.</div>
+      <h1 class="page-title">Operations</h1>
+      <p class="lede">Samanvay is the interoperability middle layer, used by the Samanvay team and officers. Citizens use each department's own portal, never this site. This page is the operations cutaway: audit, published schemes, journeys and exceptions.</p>
       <div class="callout"><strong>DEV SIGN-IN.</strong> Demo identity comes from the signed-in token issued by the local dev Keycloak. This is not production SSO.</div>
-      <ol class="runbook" aria-label="Judge script">
-        <li><strong>1</strong> Open Citizen services. Three government portals. Do not mention APIs.</li>
-        <li><strong>2</strong> Scholarship Officer desk: demonstration login (not SSO) → review department records → mark Revenue unavailable if showing failure → restore → Retry.</li>
-        <li><strong>3</strong> Optional 60 seconds here: Audit chain, then Published schemes (farmer subsidy journey as configuration; citizen skin at /farmer/).</li>
-      </ol>
       <p class="row">
-        <a class="btn primary" href="/">Open Citizen services (judge path)</a>
-        <a class="btn" href="/scholarship/">Scholarship Portal</a>
-        <a class="btn" href="/licence/">Business licence</a>
-        <a class="btn" href="/farmer/">Farmer subsidy</a>
+        <a class="btn primary" href="/app/">Open the staff console</a>
       </p>
       <p class="note">Staff tools on the right are not the judge path. Start demo (external caller) only if you must show a generic catalog start.</p>
       <div class="stack">
@@ -73,7 +61,7 @@
             </article>
             <article class="card">
               <h3><a href="/schemes.html">Published schemes</a></h3>
-              <p class="note">Farmer subsidy as configuration, plus /licence/ and /farmer/ skins. Proof the layer is generic.</p>
+              <p class="note">Farmer subsidy as configuration. Proof the layer is generic.</p>
             </article>
           </div>
         </section>
