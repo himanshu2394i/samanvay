@@ -40,6 +40,9 @@ export function createCitizenApi(client: ApiClient) {
     connectAccounts: (citizenId: Uuid, journeyCode: string) =>
       client.get<ConnectAccounts>(`/api/identity/citizens/${enc(citizenId)}/connect-accounts`, { journeyCode }),
     assertLink: (body: LinkRequest) => client.post<Link>('/api/identity/links', body),
+    /** The department's own login address, with a one-time state Samanvay will check when the citizen comes back. */
+    startDepartmentLogin: (body: { citizenId: Uuid; departmentCode: string; returnTo: string }) =>
+      client.post<{ loginUrl: string }>('/api/identity/department-login', body),
 
     // --- consent (ConsentController) ---
     requestConsent: (citizenId: Uuid, purposeCode: string) =>

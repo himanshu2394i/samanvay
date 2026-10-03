@@ -16,9 +16,16 @@ education:
     # Samanvay addresses a login may redirect back to (prefix match). Anything else gets a 400, never a redirect.
     allowed-return-uris: ${EDUCATION_ALLOWED_RETURN_URIS:http://localhost:8080/,https://app.3.109.201.126.nip.io/}
     # Shown on the login page so a demo user knows which FAKE account to use. Empty hides it.
-    demo-hint: "${EDUCATION_LOGIN_HINT:Demo account (fake data): seat number S1001, date of birth 2007-03-14}"
-    # Demo citizens: id|secret|personId. FAKE dev accounts only.
-    users: ${EDUCATION_LOGIN_USERS:S1001|2007-03-14|EDU-1001,S1002|2007-08-02|EDU-1002}
+    demo-hint: "${EDUCATION_LOGIN_HINT:Demo account (fake data): mobile 9000000001, password asha-demo-pass, one-time code 123456}"
+    # The one-time code. FIXED for the demo (a real department sends a fresh code to the mobile).
+    code: ${EDUCATION_LOGIN_CODE:123456}
+    # Built-in demo citizens, used only when no database is configured: mobile|password|personId. FAKE dev accounts only.
+    users: ${EDUCATION_LOGIN_USERS:9000000001|asha-demo-pass|EDU-1001,9000000002|ravi-demo-pass|EDU-1002}
+  # The department's own Postgres. Empty = use the built-in fake seed above (tests, bare local run). A deployment sets all three.
+  db:
+    url: ${EDUCATION_DB_URL:}
+    user: ${EDUCATION_DB_USER:education_app}
+    password: ${EDUCATION_DB_PASSWORD:}
   wss:
     # SOAP WS-Security UsernameToken Samanvay must send in the SOAP header. Dev defaults only.
     username: ${EDUCATION_WSS_USERNAME:samanvay-dev}

@@ -88,6 +88,8 @@ export interface DepartmentLinkNeed {
   linked: boolean
   localIdType: string | null
   localIdToken: string | null
+  /** The department publishes its own login, so the citizen links by logging in there. */
+  departmentLoginAvailable?: boolean
 }
 
 export interface ConnectAccounts {

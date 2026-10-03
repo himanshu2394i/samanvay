@@ -466,9 +466,9 @@ def staff_realm():
             *[department_caller_client(code, sources) for code, sources in DEPARTMENT_CLIENTS.items()],
         ],
         "users": [
-            dev_user("dev-officer", ["officer"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"], department="SCHOLARSHIP"),
-            dev_user("dev-reviewer", ["reviewer"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"]),
-            dev_user("dev-admin", ["admin"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"]),
+            dev_user("dev-officer", ["officer"], ["UPDATE_PASSWORD"], department="SCHOLARSHIP"),
+            dev_user("dev-reviewer", ["reviewer"], ["UPDATE_PASSWORD"]),
+            dev_user("dev-admin", ["admin"], ["UPDATE_PASSWORD"]),
             {"username": "service-account-dept-scholarship-dev", "enabled": True,
              "serviceAccountClientId": "dept-scholarship-dev", "realmRoles": ["department"]},
             *[{"username": "service-account-dept-" + code.lower(), "enabled": True,
@@ -490,7 +490,9 @@ def staff_realm():
             ], top_level=False),
             flow("staff second factor", "TOTP for every non-passkey sign-in", [
                 execution("conditional-credential", "REQUIRED", 10, config=NOT_PASSKEY_CONFIG["alias"]),
-                execution("auth-otp-form", "REQUIRED", 20),
+                # samanvay-otp-form (keycloak/email-otp, fixedotp) is the stock OTP form; ONLY when the Keycloak server runs with
+                # SAMANVAY_DEMO_FIXED_OTP=<six digits> (demo servers) does it also accept that code and skip enrolment.
+                execution("samanvay-otp-form", "REQUIRED", 20),
             ], top_level=False),
             flow("staff direct grant", "Direct grant also demands TOTP", [
                 execution("direct-grant-validate-username", "REQUIRED", 10),

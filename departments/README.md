@@ -20,6 +20,11 @@ Run all with their data stores: `docker compose up -d dept-revenue dept-dbt dept
 
 Dev credentials are env-overridable defaults in each `application.yml`; they exist only so the stand-ins work out of the box.
 
+Every department login is the **registered mobile number + a password, then a one-time code** (fixed at `123456` for the demo). With no
+database configured a service uses its built-in two-citizen seed; with `<DEPT>_DB_URL` set it uses its own Postgres
+(`db/schema.sql`), where logins are bcrypt hashes. A multi-server deployment with 20 citizens per department is in
+[deploy/README.md](../deploy/README.md).
+
 ## Onboarding them, and the end-to-end test
 
 Samanvay onboards each from its manifest in one go (staff console: *Onboard a department in one go*, or

@@ -1,0 +1,73 @@
+# Agriculture department server
+# One small server: this department's service, its OWN Postgres, its SFTP server (crop reports), and HTTPS in front. FAKE data only.
+#
+# Run from the repo root, after `python scripts/gen-demo-data.py ...` (see deploy/README.md):
+#   docker compose -f deploy/departments/agriculture/docker-compose.yml --env-file deploy/generated/agriculture/agriculture.env up -d --build
+#
+# The database is created once from db/schema.sql + the generated seed.sql (20 citizens, their documents, their logins).
+# Delete deploy/generated/agriculture/seed.sql from the server after the first start: it holds the citizens' passwords.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agridb
+      POSTGRES_USER: agri_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - agriculture-db:/var/lib/postgresql/data
+      - ../../../departments/agriculture/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../../generated/agriculture/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    ports:
+      - "5434:5432"   # Samanvay reads the farmer VIEW here over JDBC; allow only the middle layer's address
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agri_admin -d agridb"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  agriculture:
+    build: ../../../departments/agriculture
+    restart: unless-stopped
+    env_file: ../../generated/agriculture/agriculture.env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # The manifest signing key lives here, so the fingerprint an admin approved survives a re-created container.
+      - agriculture-data:/data
+
+  sftp:
+    image: atmoz/sftp:alpine
+    restart: unless-stopped
+    # user:password:::directory. Samanvay logs in as this user and reads outbound/crop.csv.
+    # The wrapper installs the mounted host key with the owner-only permissions sshd insists on (a bind mount cannot carry them,
+    # least of all from Windows), then hands over to the image's normal entrypoint.
+    entrypoint: ["sh", "-c", "install -m 600 /hostkeys/ssh_host_rsa_key /etc/ssh/ssh_host_rsa_key && exec /entrypoint \"$$@\"", "sftp"]
+    command: ["agri-sftp:${AGRICULTURE_SFTP_PASSWORD}:::outbound"]
+    ports:
+      - "2224:22"   # allow only the middle layer's address to reach this port
+    volumes:
+      - ../../generated/agriculture/crop.csv:/home/agri-sftp/outbound/crop.csv:ro
+      # The host key is created once by gen-demo-data.py and mounted, so Samanvay's pinned fingerprint stays valid when the
+      # container is re-created.
+      - ../../generated/agriculture/ssh/ssh_host_rsa_key:/hostkeys/ssh_host_rsa_key:ro
+
+  https:
+    # Automatic HTTPS (Let's Encrypt). PUBLIC_HOST must be a DNS name that points at this server, for example
+    # agriculture.<server-ip-with-dashes>.nip.io. Ports 80 and 443 must be open.
+    image: caddy:2
+    restart: unless-stopped
+    command: caddy reverse-proxy --from ${PUBLIC_HOST} --to agriculture:8094
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+    depends_on:
+      - agriculture
+
+volumes:
+  agriculture-db:
+  agriculture-data:
+  caddy-data:

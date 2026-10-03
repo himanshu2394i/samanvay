@@ -33,6 +33,9 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_DEV_ADMIN_USER:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_DEV_ADMIN_PASSWORD:-admin}
+      # DEMO SERVERS ONLY. Six digits (for example 000000) make the staff second factor ALSO accept that code and skip
+      # authenticator-app enrolment. Unset (the default) means only real authenticator-app codes work. Never set it in production.
+      SAMANVAY_DEMO_FIXED_OTP: ${SAMANVAY_DEMO_FIXED_OTP:-}
     ports:
       - "8180:8180"
     volumes:

@@ -766,6 +766,45 @@ Honest limits: pinning is trust-on-first-approval (an admin who does not check t
 whoever answered first); the department's signing key is a file in the reference services (a real department keeps it in its own
 key store); the discovery credential is one shared value per department (per-caller values are the upgrade).
 
+### Phase 7 - multi-server demo: real department databases, one login style, 20 citizens, deployment bundles (2026-10-04) - BUILT
+Decided by the user: departments run on separate small servers, the middle layer on its own; every department has its own database and is as
+close to a real one as we can make it; 20 citizens with fake documents in every department; every department login is **mobile number +
+password, then the one-time code 123456**; the staff authenticator code may be **000000**. Runbook: `deploy/README.md`.
+
+- **Each department has its own Postgres** (`departments/<d>/db/schema.sql`): Revenue (person, certificate with its own key, land record),
+  DBT (beneficiary, bank account), Education (student, marks statement), Agriculture (farmer, crop sowing, plus the read-only view Samanvay
+  uses). Logins live in a `citizen_login` table with **bcrypt hashes** (pgcrypto), checked in SQL with bound parameters. A service uses its
+  database only when `<DEPT>_DB_URL` is set; with none it uses the built-in two-citizen seed, so tests and a bare local run are unchanged.
+  Agriculture has two database roles: its own service (reads logins only) and Samanvay's `agri_ro` (the view only).
+- **One login style everywhere** (`LoginPages`, `LoginController`, `LoginTicket` in each department): password page, then a code page. A stateless
+  signed ticket (HMAC, 5 minutes, tied to the exact state and nonce) carries step one to step two. The pages are server-rendered, no scripts,
+  no external requests, light and dark, WCAG AA contrast checked in a browser (all text at 6.4:1 or better), one accent colour per department.
+- **Generator** `scripts/gen-demo-data.py` (stdlib only): 20 citizens (documents deterministic, passwords and secrets random but kept in
+  `deploy/generated/state.json` so a re-run changes nothing), their documents in each department, logins, every shared secret, one env file per
+  server, the SFTP host keys with their fingerprints (mounted into the SFTP container so a re-created container keeps the pin), the middle
+  layer's `departments.env`, `CREDENTIALS.md`, `ONBOARDING.md`. `deploy/generated/` is git-ignored. Checked by `scripts/test_gen_demo_data.py`
+  (15 tests; it loads every schema and seed into a real Postgres and verifies a login the way the services do).
+- **Deployment bundles** `deploy/departments/<d>/docker-compose.yml`: service + its Postgres + SFTP where it has one + Caddy HTTPS. Verified for real
+  on this machine: all four stacks were built from their Dockerfiles and started, and driven with the generated credentials (manifest 401 without the
+  discovery key and signed with it, the fingerprint script equals the log line, two-step login, Revenue documents from Postgres, DBT OAuth2 + bank
+  record, Education SOAP + WS-Security, Agriculture view-only role, SFTP host key equals the pin after re-creating the container).
+- **Staff authenticator code 000000** (`keycloak/email-otp/.../fixedotp`): the staff second factor is now `samanvay-otp-form`, the stock OTP step
+  plus ONE addition: when the Keycloak server has `SAMANVAY_DEMO_FIXED_OTP` set to exactly six digits it also accepts that code and skips
+  authenticator-app enrolment. **Unset (the default) it is identical to the stock step**: 000000 is refused and enrolment is forced (the existing
+  `KeycloakSignInPathsIT` proves it). Anything that is not six digits is ignored; Keycloak logs a warning when it is on. This is a deliberate back
+  door for a fake-data demo; `StaffFixedOtpIT` (own Keycloak container) proves it, and that the password is still required, a wrong code is still
+  refused and a real authenticator code still works. The three ready-made staff users no longer carry a forced CONFIGURE_TOTP (the flow enrols anyone who
+  needs it). Not unit-tested in isolation (the extension is compiled after the tests in this build); its six-digit rule was run directly once.
+- **Front end:** the React citizen app (not only the static portals) now links a department by logging in at it: "Log in at <department>" on a
+  department that publishes a login, the return page `#/dept-callback` that hands the signed assertion to Samanvay, bilingual (en/mr). 14 new tests;
+  260 in all. The staff console's onboarding screen shows the manifest key fingerprint and asks the admin to confirm it (phase 6).
+- Department services also log `Manifest signing key thumbprint: ...` at start, and `scripts/manifest-fingerprint.py` / `scripts/sftp-hostkey.sh`
+  print the live fingerprints, so an admin can compare them out of band.
+
+Honest limits: the middle layer was run against the department stacks one hop at a time (jars in `DepartmentsEndToEndIT`; the Docker stacks by hand),
+not all together in one run; the fixed codes are back doors by design; department database connections have no pool; no login lockout; Keycloak in
+`start-dev` keeps its data in memory; the department stacks use Caddy/Let's Encrypt, which needs real DNS names (nip.io works) and was not run here.
+
 ## Decisions closed from the open questions
 
 - **Case A vs B:** no separate cases. One mechanism: optional `resolve` (§12). Revenue's simulated
@@ -802,6 +841,7 @@ key store); the discovery credential is one shared value per department (per-cal
 
 | Date | Change |
 |---|---|
+| 2026-10-04 | Phase 7: real department Postgres, one login style (mobile + password + code), 20 citizens per department, generator, deployment bundles, staff code 000000 (env-gated), React department login. |
 | 2026-10-04 | Phase 6: signed manifest with an admin-pinned key, optional discovery credential, credential map, compose key volumes, staff console key confirmation. |
 | 2026-10-04 | Phase 5: identity URLs must be on the manifest's host; recorded that document keys are resolved per fetch, never stored; manifest trust model written down. |
 | 2026-10-02 | Phase 4: deferred items built (passphrase keys, POST resolve, dept Keycloak clients, schema admin screen), DigiLocker and demo login removed, citizen sign-up with password, Keycloak ITs fixed, audit-chain test pollution fixed. |

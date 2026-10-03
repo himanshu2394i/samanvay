@@ -1,0 +1,55 @@
+# DBT (Direct Benefit Transfer) server
+# One small server: this department's service, its OWN Postgres, and HTTPS in front. FAKE data only.
+#
+# Run from the repo root, after `python scripts/gen-demo-data.py ...` (see deploy/README.md):
+#   docker compose -f deploy/departments/dbt/docker-compose.yml --env-file deploy/generated/dbt/dbt.env up -d --build
+#
+# The database is created once from db/schema.sql + the generated seed.sql (20 citizens, their documents, their logins).
+# Delete deploy/generated/dbt/seed.sql from the server after the first start: it holds the citizens' passwords.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dbt
+      POSTGRES_USER: dbt_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - dbt-db:/var/lib/postgresql/data
+      - ../../../departments/dbt/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../../generated/dbt/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbt_app -d dbt"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  dbt:
+    build: ../../../departments/dbt
+    restart: unless-stopped
+    env_file: ../../generated/dbt/dbt.env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # The manifest signing key lives here, so the fingerprint an admin approved survives a re-created container.
+      - dbt-data:/data
+
+  https:
+    # Automatic HTTPS (Let's Encrypt). PUBLIC_HOST must be a DNS name that points at this server, for example
+    # dbt.<server-ip-with-dashes>.nip.io. Ports 80 and 443 must be open.
+    image: caddy:2
+    restart: unless-stopped
+    command: caddy reverse-proxy --from ${PUBLIC_HOST} --to dbt:8092
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+    depends_on:
+      - dbt
+
+volumes:
+  dbt-db:
+  dbt-data:
+  caddy-data:

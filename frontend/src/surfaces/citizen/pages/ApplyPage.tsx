@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useCitizenApi } from '../../../api/apiContext'
 import type {
   ConsentArtifact,
@@ -25,6 +25,7 @@ import {
   supportedProviders,
   unsupportedProviders,
 } from '../lib/applyFlow'
+import { callbackUrl, isHttpUrl, navigation, savePending } from '../lib/deptLogin'
 import { formatDate, humanize } from '../lib/format'
 
 type Step = 'connect' | 'consent' | 'submit'
@@ -138,6 +139,8 @@ function DepartmentCard({
 }) {
   const api = useCitizenApi()
   const t = useT()
+  const location = useLocation()
+  const loginAvailable = need.departmentLoginAvailable === true
   const usable = supportedProviders(providers)
   const other = unsupportedProviders(providers)
   const [provider, setProvider] = useState<LinkProofKind>(usable[0]?.kind ?? 'LOCAL_ID_OTP')
@@ -146,6 +149,25 @@ function DepartmentCard({
   const [otp, setOtp] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+
+  /** The department has its own login: send the citizen there; they come back to /dept-callback with a signed assertion. */
+  async function logInAtDepartment() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await api.startDepartmentLogin({
+        citizenId,
+        departmentCode: need.departmentCode,
+        returnTo: callbackUrl(window.location),
+      })
+      if (!isHttpUrl(res.loginUrl)) throw new Error(t('dept.loginBadAddress'))
+      savePending({ citizenId, departmentCode: need.departmentCode, returnPath: location.pathname })
+      navigation.to(res.loginUrl)
+    } catch (err) {
+      setError(err)
+      setBusy(false)
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -171,7 +193,15 @@ function DepartmentCard({
         <Badge tone={need.linked ? 'ok' : 'warn'}>{need.linked ? t('dept.connected') : t('dept.notConnected')}</Badge>
       </h3>
       <p className="hint">{t('dept.provides', { categories: need.categories.map(humanize).join(', ') })}</p>
-      {need.linked ? null : usable.length === 0 ? (
+      {need.linked ? null : loginAvailable ? (
+        <div>
+          <p className="hint">{t('dept.loginHint')}</p>
+          {error ? <ErrorNotice error={error} /> : null}
+          <button type="button" className="btn primary" disabled={busy} aria-busy={busy || undefined} onClick={() => void logInAtDepartment()}>
+            {busy ? t('dept.loggingIn') : t('dept.loginAt', { name: need.departmentName })}
+          </button>
+        </div>
+      ) : usable.length === 0 ? (
         <p className="notice warn">
           {t('dept.noProvider')}
           {other.length ? ` ${t('dept.offeredByServer', { providers: other.map((p) => p.label).join(', ') })}` : ''}

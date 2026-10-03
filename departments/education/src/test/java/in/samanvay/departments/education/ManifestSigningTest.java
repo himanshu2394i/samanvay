@@ -80,6 +80,13 @@ class ManifestSigningTest {
     }
 
     @Test
+    void the_filter_reports_the_thumbprint_of_its_key_so_an_operator_can_confirm_it_out_of_band() throws Exception {
+        ManifestSigningFilter f = filter("t.jwk", "");
+        String fromHeader = verifiedThumbprint(BODY.getBytes(StandardCharsets.UTF_8), call(f, PATH, null).getHeader("X-Samanvay-Signature"));
+        assertThat(f.thumbprint()).isEqualTo(fromHeader);
+    }
+
+    @Test
     void other_paths_are_not_touched() throws Exception {
         MockHttpServletResponse res = call(filter("k.jwk", "needed"), "/v1/anything", null);
         assertThat(res.getHeader("X-Samanvay-Signature")).isNull();

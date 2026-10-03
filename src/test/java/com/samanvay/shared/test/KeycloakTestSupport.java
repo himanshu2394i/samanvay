@@ -305,6 +305,8 @@ public final class KeycloakTestSupport {
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
         private final String realm;
+        /** Where this login starts: the shared container's realm, or any other Keycloak's (see {@link #at}). */
+        private final String issuerUrl;
         private final String clientId;
         private final String verifier;
         private HttpResponse<String> last;
@@ -321,8 +323,18 @@ public final class KeycloakTestSupport {
             return new BrowserLogin(realm, clientId, idpHint);
         }
 
+        /** A browser login against a Keycloak other than the shared container, given its realm's issuer URL. */
+        public static BrowserLogin at(String issuerUrl, String clientId) throws Exception {
+            return new BrowserLogin(null, issuerUrl, clientId, null);
+        }
+
         private BrowserLogin(String realm, String clientId, String idpHint) throws Exception {
+            this(realm, issuer(realm), clientId, idpHint);
+        }
+
+        private BrowserLogin(String realm, String issuerUrl, String clientId, String idpHint) throws Exception {
             this.realm = realm;
+            this.issuerUrl = issuerUrl;
             this.clientId = clientId;
             byte[] v = new byte[32];
             new SecureRandom().nextBytes(v);
@@ -341,7 +353,7 @@ public final class KeycloakTestSupport {
                 q.put("kc_idp_hint", idpHint);
             }
             last = client.send(
-                    HttpRequest.newBuilder(URI.create(issuer(realm) + "/protocol/openid-connect/auth?" + form(q))).GET().build(),
+                    HttpRequest.newBuilder(URI.create(issuerUrl + "/protocol/openid-connect/auth?" + form(q))).GET().build(),
                     HttpResponse.BodyHandlers.ofString());
             if (idpHint != null) {
                 follow(); // citizen realm -> redirector -> the brokered IdP's login page

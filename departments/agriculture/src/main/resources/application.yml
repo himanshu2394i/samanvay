@@ -18,11 +18,18 @@ agriculture:
     # Samanvay addresses a login may redirect back to (prefix match). Anything else gets a 400, never a redirect.
     allowed-return-uris: ${AGRICULTURE_ALLOWED_RETURN_URIS:http://localhost:8080/,https://app.3.109.201.126.nip.io/}
     # Shown on the login page so a demo user knows which FAKE account to use. Empty hides it.
-    demo-hint: "${AGRICULTURE_LOGIN_HINT:Demo account (fake data): user ID asha.patil, password asha-farmer-pass}"
-    # Demo citizens: id|secret|personId. FAKE dev accounts only.
-    users: ${AGRICULTURE_LOGIN_USERS:asha.patil|asha-farmer-pass|AG-1001,ravi.deshmukh|ravi-farmer-pass|AG-1002}
+    demo-hint: "${AGRICULTURE_LOGIN_HINT:Demo account (fake data): mobile 9000000001, password asha-demo-pass, one-time code 123456}"
+    # The one-time code. FIXED for the demo (a real department sends a fresh code to the mobile).
+    code: ${AGRICULTURE_LOGIN_CODE:123456}
+    # Built-in demo citizens, used only when no database is configured: mobile|password|personId. FAKE dev accounts only.
+    users: ${AGRICULTURE_LOGIN_USERS:9000000001|asha-demo-pass|AG-1001,9000000002|ravi-demo-pass|AG-1002}
   db:
-    # Where Samanvay reaches the department database (docker-compose service agriculture-db, host port 5434).
+    # This service's OWN connection to its Postgres, for the citizen login. Empty url = use the built-in fake seed above
+    # (tests, bare local run). A deployment sets all three.
+    url: ${AGRICULTURE_DB_URL:}
+    user: ${AGRICULTURE_DB_USER:agriculture_app}
+    password: ${AGRICULTURE_DB_PASSWORD:}
+    # Where SAMANVAY reaches the same database (published in the manifest; docker-compose service agriculture-db, host port 5434).
     host: ${AGRICULTURE_DB_HOST:localhost}
     port: ${AGRICULTURE_DB_PORT:5434}
     name: agridb
