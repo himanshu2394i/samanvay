@@ -43,7 +43,7 @@ class KeycloakRealmExportIT {
                 "1 auth-username-password-form REQUIRED",
                 "1 [staff second factor] CONDITIONAL",
                 "2 conditional-credential REQUIRED {credentials=webauthn-passwordless, included=false}",
-                "2 auth-otp-form REQUIRED");
+                "2 samanvay-otp-form REQUIRED");
         assertThat(shape(STAFF, realm.get("directGrantFlow").asString())).containsExactly(
                 "0 direct-grant-validate-username REQUIRED",
                 "0 direct-grant-validate-password REQUIRED",

@@ -686,7 +686,6 @@
         }
       ],
       "requiredActions": [
-        "CONFIGURE_TOTP",
         "UPDATE_PASSWORD"
       ],
       "realmRoles": [
@@ -713,7 +712,6 @@
         }
       ],
       "requiredActions": [
-        "CONFIGURE_TOTP",
         "UPDATE_PASSWORD"
       ],
       "realmRoles": [
@@ -740,7 +738,6 @@
         }
       ],
       "requiredActions": [
-        "CONFIGURE_TOTP",
         "UPDATE_PASSWORD"
       ],
       "realmRoles": [
@@ -855,7 +852,7 @@
           "priority": 20,
           "userSetupAllowed": false,
           "autheticatorFlow": false,
-          "authenticator": "auth-otp-form"
+          "authenticator": "samanvay-otp-form"
         }
       ]
     },

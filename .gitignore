@@ -11,3 +11,6 @@ dist/
 
 # Department manifest signing keys (private; created on first start of a department service)
 manifest-signing-key.jwk
+
+# Generated demo data, passwords and secrets for a multi-server deployment (scripts/gen-demo-data.py)
+deploy/generated/

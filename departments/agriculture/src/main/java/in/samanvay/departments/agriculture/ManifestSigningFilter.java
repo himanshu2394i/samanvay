@@ -21,6 +21,8 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -43,6 +45,7 @@ class ManifestSigningFilter extends OncePerRequestFilter {
     static final String PATH = "/.well-known/samanvay/manifest";
     static final String SIGNATURE_HEADER = "X-Samanvay-Signature";
     static final String DISCOVERY_HEADER = "X-Discovery-Key";
+    private static final Logger log = LoggerFactory.getLogger(ManifestSigningFilter.class);
 
     private final ECKey key;
     private final byte[] discoveryKey;
@@ -52,6 +55,17 @@ class ManifestSigningFilter extends OncePerRequestFilter {
             @Value("${agriculture.manifest.discovery-key:}") String discoveryKey) throws Exception {
         this.key = loadOrCreate(Path.of(keyFile));
         this.discoveryKey = discoveryKey.getBytes(StandardCharsets.UTF_8);
+        // Public information: the fingerprint an admin confirms with this department before Samanvay pins the key.
+        log.info("Manifest signing key thumbprint: {}", thumbprint());
+    }
+
+    /** RFC 7638 thumbprint of the public signing key (what Samanvay shows the admin to confirm). */
+    String thumbprint() {
+        try {
+            return key.computeThumbprint().toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("could not compute the key thumbprint", e);
+        }
     }
 
     private static ECKey loadOrCreate(Path file) throws Exception {

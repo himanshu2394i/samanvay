@@ -13,17 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class DbtController {
 
-    /** The bank account DBT holds for a person (fake). One DBT ID unlocks it, so there is no resolve step. */
-    record Bank(String accountRef, String ifscMasked, String holderName) {}
-
-    private static final Map<String, Bank> BANK = Map.of(
-            "DBT-1001", new Bank("XXXXXX1234", "SBIN0XXX300", "Asha Patil"),
-            "DBT-1002", new Bank("XXXXXX5678", "HDFC0XXX210", "Ravi Deshmukh"));
-
     private final TokenService tokens;
+    private final BankRecords records;
 
-    DbtController(TokenService tokens) {
+    DbtController(TokenService tokens, BankRecords records) {
         this.tokens = tokens;
+        this.records = records;
     }
 
     @PostMapping(path = "/oauth/token", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE,
@@ -52,9 +47,8 @@ class DbtController {
         if (!(id instanceof String dbtId) || dbtId.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "dbtId (a string) is required in the JSON body"));
         }
-        Bank bank = BANK.get(dbtId.trim());
-        return bank == null
-                ? ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "no bank account for this DBT ID"))
-                : ResponseEntity.ok(bank);
+        return records.find(dbtId.trim())
+                .<ResponseEntity<Object>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "no bank account for this DBT ID")));
     }
 }

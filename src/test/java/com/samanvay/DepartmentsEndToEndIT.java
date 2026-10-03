@@ -325,14 +325,15 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
     static final Map<String, OnboardingResult> ONBOARDED = new LinkedHashMap<>();
     static final Map<String, String> CODE = Map.of("revenue", "REVENUE", "dbt", "DBT", "education", "EDUCATION", "agriculture", "AGRICULTURE");
 
-    /** How each department's own login is filled in (each looks like its real portal's), and who it returns. */
-    record Login(String f1, String v1, String f2, String v2, String personId) {}
+    /** Every department's login is: the registered mobile number and a password, then the one-time code; and who it returns. */
+    record Login(String mobile, String password, String personId) {}
 
+    static final String ONE_TIME_CODE = "123456";
     static final Map<String, Login> LOGIN = Map.of(
-            "revenue", new Login("username", "asha.patil", "password", "asha-demo-pass", "RV-1001"),
-            "dbt", new Login("mobile", "9000000001", "otp", "123456", "DBT-1001"),
-            "education", new Login("seatNo", "S1001", "dob", "2007-03-14", "EDU-1001"),
-            "agriculture", new Login("username", "asha.patil", "password", "asha-farmer-pass", "AG-1001"));
+            "revenue", new Login("9000000001", "asha-demo-pass", "RV-1001"),
+            "dbt", new Login("9000000001", "asha-demo-pass", "DBT-1001"),
+            "education", new Login("9000000001", "asha-demo-pass", "EDU-1001"),
+            "agriculture", new Login("9000000001", "asha-demo-pass", "AG-1001"));
 
     UUID citizen;
     final Map<String, Link> links = new LinkedHashMap<>();
@@ -388,10 +389,19 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
         String loginUrl = departmentLogin.startLogin(who, CODE.get(dept), RETURN_TO);
         assertThat(loginUrl).startsWith(base(dept) + "/login?");
         Login l = LOGIN.get(dept);
-        String form = l.f1() + "=" + enc(l.v1()) + "&" + l.f2() + "=" + enc(l.v2()) + "&return_to=" + enc(param(loginUrl, "return_to"))
-                + "&state=" + enc(param(loginUrl, "state")) + "&nonce=" + enc(param(loginUrl, "nonce"));
-        HttpResponse<String> r = HTTP.send(HttpRequest.newBuilder(URI.create(base(dept) + "/login"))
-                .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(form)).build(),
+        String carried = "return_to=" + enc(param(loginUrl, "return_to")) + "&state=" + enc(param(loginUrl, "state")) + "&nonce=" + enc(param(loginUrl, "nonce"));
+        // step one: mobile number and password; the department answers with the one-time-code page and a ticket
+        HttpResponse<String> step1 = HTTP.send(HttpRequest.newBuilder(URI.create(base(dept) + "/login"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("mobile=" + enc(l.mobile()) + "&password=" + enc(l.password()) + "&" + carried)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(step1.statusCode()).as(dept + " password step").isEqualTo(200);
+        java.util.regex.Matcher ticket = java.util.regex.Pattern.compile("name=\"ticket\" value=\"([^\"]+)\"").matcher(step1.body());
+        assertThat(ticket.find()).as(dept + " code page carries a ticket").isTrue();
+        // step two: the one-time code
+        HttpResponse<String> r = HTTP.send(HttpRequest.newBuilder(URI.create(base(dept) + "/login/verify"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("ticket=" + enc(ticket.group(1)) + "&code=" + ONE_TIME_CODE + "&" + carried)).build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(r.statusCode()).as(dept + " login").isEqualTo(303);
         String location = r.headers().firstValue("Location").orElseThrow();

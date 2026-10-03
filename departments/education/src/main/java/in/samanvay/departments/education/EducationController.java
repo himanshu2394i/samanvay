@@ -3,7 +3,6 @@ package in.samanvay.departments.education;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.Map;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -29,18 +28,14 @@ class EducationController {
 
     static final String SOAP_NS = "http://schemas.xmlsoap.org/soap/envelope/";
 
-    record Marks(String studentId, String percentage, String board, String exam) {}
-
-    private static final Map<String, Marks> MARKS = Map.of(
-            "EDU-1001", new Marks("EDU-1001", "91", "msbshse", "HSC 2025"),
-            "EDU-1002", new Marks("EDU-1002", "81", "msbshse", "HSC 2025"));
-
+    private final MarksRecords records;
     private final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
     private final byte[] username;
     private final byte[] password;
 
-    EducationController(@Value("${education.wss.username}") String username, @Value("${education.wss.password}") String password)
-            throws Exception {
+    EducationController(MarksRecords records, @Value("${education.wss.username}") String username,
+            @Value("${education.wss.password}") String password) throws Exception {
+        this.records = records;
         this.username = username.getBytes(StandardCharsets.UTF_8);
         this.password = password.getBytes(StandardCharsets.UTF_8);
         // The request is untrusted XML: no DOCTYPE, no external entities.
@@ -72,7 +67,7 @@ class EducationController {
         if (studentId == null || studentId.isBlank()) {
             return fault("soap:Client", "studentId is required");
         }
-        Marks marks = MARKS.get(studentId.trim());
+        MarksRecords.Marks marks = records.find(studentId.trim()).orElse(null);
         if (marks == null) {
             return fault("soap:Client", "no marks for this student");
         }

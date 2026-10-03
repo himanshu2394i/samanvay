@@ -7,6 +7,7 @@ import { ServicesPage } from './pages/ServicesPage'
 import { ServicePage } from './pages/ServicePage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ApplyPage } from './pages/ApplyPage'
+import { DeptCallbackPage } from './pages/DeptCallbackPage'
 import { ApplicationsPage } from './pages/ApplicationsPage'
 import { ApplicationPage } from './pages/ApplicationPage'
 import { ConsentsPage } from './pages/ConsentsPage'
@@ -28,6 +29,7 @@ export function CitizenApp() {
             <Route path="services/:code" element={<ServicePage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="applications/:ref" element={<ApplicationPage />} />
+            <Route path="dept-callback" element={<DeptCallbackPage />} />
             <Route element={<RequireProfile />}>
               <Route path="services/:code/apply" element={<ApplyPage />} />
               <Route path="applications" element={<ApplicationsPage />} />
