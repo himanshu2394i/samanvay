@@ -126,6 +126,8 @@ class SecurityConfig {
                         // The only route that exposes metrics; no actuator/Prometheus endpoint is served.
                         .requestMatchers(GET, "/api/ops/**").hasAnyRole(OFFICER, ADMIN)
                         // fail closed for anything new under /api
+                        // A department portal acting for a citizen who signed in with it (see DepartmentIdentityController).
+                        .requestMatchers("/api/department/**").hasRole(DEPARTMENT)
                         .requestMatchers("/api", "/api/**").denyAll()
                         // static pages, citizen portal skins, error page
                         .anyRequest().permitAll());

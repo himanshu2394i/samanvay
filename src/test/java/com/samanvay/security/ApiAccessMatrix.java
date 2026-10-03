@@ -76,6 +76,10 @@ final class ApiAccessMatrix {
         allow("GET /api/identity/review-queue", REVIEWER);
         allow("POST /api/identity/candidates/{id}/confirm", REVIEWER);
         allow("POST /api/identity/candidates/{id}/reject", REVIEWER);
+        // department portals acting for citizens who signed in with them
+        allow("POST /api/department/citizens/resolve", DEPARTMENT);
+        allow("POST /api/department/links/start", DEPARTMENT);
+        allow("POST /api/department/links", DEPARTMENT);
         // consent
         allow("POST /api/consent/requests", CITIZEN, OFFICER, DEPARTMENT);
         allow("POST /api/consent/requests/{id}/grant", CITIZEN);

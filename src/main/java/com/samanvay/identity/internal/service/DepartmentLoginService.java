@@ -40,18 +40,41 @@ class DepartmentLoginService implements DepartmentLogin {
     @Override
     @Transactional
     public String startLogin(UUID citizenId, String departmentCode, String returnTo) {
+        return start(citizenId, departmentCode, returnTo, allowedReturnPrefixes.stream().anyMatch(prefix -> returnTo != null && returnTo.startsWith(prefix)));
+    }
+
+    @Override
+    @Transactional
+    public String startLoginFor(String requesterDepartment, UUID citizenId, String departmentCode, String returnTo) {
+        String ownOrigin = departments.identity(requesterDepartment).map(i -> origin(i.loginUrl())).orElse(null);
+        String asked = returnTo == null ? null : origin(returnTo);
+        return start(citizenId, departmentCode, returnTo, ownOrigin != null && ownOrigin.equals(asked) && !requesterDepartment.equals(departmentCode));
+    }
+
+    private String start(UUID citizenId, String departmentCode, String returnTo, boolean returnToAllowed) {
         if (citizenId == null) {
             throw new InvalidRequestException("citizenId is required");
         }
         DepartmentIdentity identity = departments.identity(departmentCode)
                 .orElseThrow(() -> new InvalidRequestException("This department does not offer a login to link with"));
         requireHttp(identity.loginUrl());
-        if (returnTo == null || returnTo.isBlank() || allowedReturnPrefixes.stream().noneMatch(returnTo::startsWith)) {
+        if (returnTo == null || returnTo.isBlank() || !returnToAllowed) {
             throw new InvalidRequestException("returnTo is not an allowed return address");
         }
         var login = states.issue(citizenId, departmentCode);
         String sep = identity.loginUrl().contains("?") ? "&" : "?";
         return identity.loginUrl() + sep + "return_to=" + enc(returnTo) + "&state=" + enc(login.state()) + "&nonce=" + enc(login.nonce());
+    }
+
+    /** scheme://host[:port], lower case; null if the address has none. */
+    private static String origin(String url) {
+        try {
+            URI u = URI.create(url);
+            return u.getScheme() == null || u.getHost() == null ? null
+                    : u.getScheme().toLowerCase() + "://" + u.getHost().toLowerCase() + (u.getPort() < 0 ? "" : ":" + u.getPort());
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private static void requireHttp(String url) {
