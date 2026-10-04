@@ -42,7 +42,7 @@ public final class TestTokens {
     /** Staff-realm azp allow-list used by the ITs: the real UI + department client and test department clients. */
     public static final List<String> STAFF_CLIENTS = List.of(
             STAFF_UI_CLIENT, "dept-scholarship-dev", "dept-scholarship-it", "dept-narrow", "dept-x", "d", "matrix-dept",
-            "dept-education-it", "dept-agriculture-it");
+            "dept-education-it", "dept-agriculture-it", "dept-revenue-it", "dept-dbt-it");
 
     private static final KeyPair STAFF_KEY = rsa();
     private static final KeyPair CITIZEN_KEY = rsa();

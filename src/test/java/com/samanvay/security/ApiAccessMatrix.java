@@ -115,6 +115,7 @@ final class ApiAccessMatrix {
         allow("POST /api/connector/chaos/{dataSourceCode}/revive", OFFICER, ADMIN);
         // ops dashboards
         allow("GET /api/ops/metrics", OFFICER, ADMIN);
+        allow("GET /api/ops/journeys/{code}", OFFICER, ADMIN);
         // audit
         allow("GET /api/audit/head", OFFICER, ADMIN);
         allow("GET /api/audit/verify", OFFICER, ADMIN);
