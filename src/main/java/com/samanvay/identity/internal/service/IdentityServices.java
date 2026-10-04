@@ -10,6 +10,7 @@ import com.samanvay.catalog.api.JourneyCatalog;
 import com.samanvay.catalog.api.JourneyDefinition;
 import com.samanvay.identity.api.AuthProof;
 import com.samanvay.identity.api.Candidate;
+import com.samanvay.identity.api.CandidateNotConfirmableException;
 import com.samanvay.identity.api.CandidateNotFoundException;
 import com.samanvay.identity.api.CandidateRaised;
 import com.samanvay.identity.api.CandidateRef;
@@ -205,7 +206,10 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
         try {
             links.saveAndFlush(e);
         } catch (DataIntegrityViolationException ex) {
-            throw new DuplicateLocalIdException();
+            if (UniqueViolation.is(ex)) {
+                throw new DuplicateLocalIdException();
+            }
+            throw ex;
         }
         events.publishEvent(new LinkAsserted(citizenId, departmentCode));
         return toLink(e);
@@ -241,12 +245,24 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
 
     @Override
     public Optional<Link> activeLink(UUID citizenId, String departmentCode) {
+        if (isBlocked(citizenId)) {
+            return Optional.empty();
+        }
         return links.findByCitizenIdAndDepartmentCodeAndStatus(citizenId, departmentCode, "ACTIVE").map(this::toLink);
     }
 
     @Override
     public List<Link> activeLinks(UUID citizenId) {
+        if (isBlocked(citizenId)) {
+            return List.of();
+        }
         return links.findByCitizenIdAndStatus(citizenId, "ACTIVE").stream().map(this::toLink).toList();
+    }
+
+    /** A SUSPENDED (or MERGED) citizen has no usable links: nobody may act for them or fetch their data. */
+    private boolean isBlocked(UUID citizenId) {
+        return citizenId != null
+                && citizens.findById(citizenId).filter(c -> !"ACTIVE".equals(c.getStatus())).isPresent();
     }
 
     @Override
@@ -310,7 +326,15 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
     @Transactional
     public Link confirm(UUID candidateId, String note) {
         String reviewerId = reviewerAuth.currentReviewer().orElseThrow(ReviewerRequiredException::new);
-        CandidateMatchEntity c = candidates.findById(candidateId).orElseThrow(() -> new CandidateNotFoundException(candidateId));
+        // Locked: two reviewers deciding the same candidate take turns, and the second finds it no longer PENDING.
+        CandidateMatchEntity c = candidates.lockById(candidateId).orElseThrow(() -> new CandidateNotFoundException(candidateId));
+        if (!"PENDING".equals(c.getStatus())
+                || citizens.findById(c.getCitizenId()).filter(citizen -> "ACTIVE".equals(citizen.getStatus())).isEmpty()) {
+            throw new CandidateNotConfirmableException(candidateId);
+        }
+        if (links.findByCitizenIdAndDepartmentCodeAndStatus(c.getCitizenId(), c.getDepartmentCode(), "ACTIVE").isPresent()) {
+            throw new DuplicateLocalIdException();
+        }
         c.setStatus("CONFIRMED");
         c.setReviewedBy(reviewerId);
         c.setReviewedAt(Instant.now());
@@ -325,7 +349,14 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
         e.setConfidence(c.getScore());
         e.setStatus("ACTIVE");
         e.setCreatedAt(Instant.now());
-        links.save(e);
+        try {
+            links.saveAndFlush(e);
+        } catch (DataIntegrityViolationException ex) {
+            if (UniqueViolation.is(ex)) {
+                throw new DuplicateLocalIdException();
+            }
+            throw ex;
+        }
         audit.record(new AuditEntry(
                 ActorType.REVIEWER,
                 reviewerId,
@@ -345,7 +376,10 @@ class IdentityServices implements IdentityLinking, IdentityResolution, CitizenPr
     @Transactional
     public void reject(UUID candidateId, String note) {
         String reviewerId = reviewerAuth.currentReviewer().orElseThrow(ReviewerRequiredException::new);
-        CandidateMatchEntity c = candidates.findById(candidateId).orElseThrow(() -> new CandidateNotFoundException(candidateId));
+        CandidateMatchEntity c = candidates.lockById(candidateId).orElseThrow(() -> new CandidateNotFoundException(candidateId));
+        if (!"PENDING".equals(c.getStatus())) {
+            throw new CandidateNotConfirmableException(candidateId);
+        }
         c.setStatus("REJECTED");
         c.setReviewedBy(reviewerId);
         c.setReviewedAt(Instant.now());

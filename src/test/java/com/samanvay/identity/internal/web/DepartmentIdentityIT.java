@@ -44,6 +44,8 @@ import org.springframework.web.client.RestClient;
 class DepartmentIdentityIT extends PostgresIntegrationTest {
 
     static final Set<UUID> BUSY = new HashSet<>();
+    /** One entry per verifier call: was a database transaction open on the calling thread while it ran (it may fetch keys over the network)? */
+    static final java.util.List<Boolean> TX_OPEN_DURING_VERIFY = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @TestConfiguration
     static class Config {
@@ -68,12 +70,14 @@ class DepartmentIdentityIT extends PostgresIntegrationTest {
     @BeforeEach
     void setUp() {
         BUSY.clear();
+        TX_OPEN_DURING_VERIFY.clear();
         for (String[] d : new String[][] {{"EDUCATION", "EDU_STUDENT_ID", "http://edu.test"}, {"AGRICULTURE", "AGRI_FARMER_ID", "http://agri.test"},
                 {"REVENUE", "REVENUE_PERSON_ID", "http://rev.test"}}) {
             jdbc.update("UPDATE catalog_department SET identity_spec = ?::jsonb WHERE code = ?",
                     "{\"personIdType\":\"" + d[1] + "\",\"loginUrl\":\"" + d[2] + "/login\",\"jwksUrl\":\"" + d[2] + "/jwks\",\"assertionIssuer\":\"dept:" + d[0] + "\"}", d[0]);
         }
         when(verifier.verify(anyString(), anyString())).thenAnswer(inv -> {
+            TX_OPEN_DURING_VERIFY.add(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
             String[] p = inv.getArgument(0, String.class).split("\\|", -1);
             if (p.length != 7 || !p[0].equals(inv.getArgument(1))) {
                 throw new LinkProofInvalidException();
@@ -240,6 +244,151 @@ class DepartmentIdentityIT extends PostgresIntegrationTest {
         assertThat(status).isEqualTo(409);
         assertThat(jdbc.queryForObject("SELECT status FROM identity_citizen WHERE id = ?", String.class, agriCitizen)).isEqualTo("ACTIVE");
         assertThat(eduCitizen).isNotNull();
+    }
+
+    // --- integrity ---------------------------------------------------------------------------------------------------
+
+    UUID linked(String token, UUID citizen, String dept, String person) {
+        String[] sn = startLogin(token, citizen, dept);
+        return UUID.fromString((String) post(token, "/api/department/links",
+                Map.of("citizenId", citizen, "departmentCode", dept, "assertion", assertion(dept, person, "", "", sn[0], sn[1]))).get("citizenId"));
+    }
+
+    int linkStatus(String token, UUID citizen, String dept, String person) {
+        String[] sn = startLogin(token, citizen, dept);
+        return status(token, "/api/department/links",
+                Map.of("citizenId", citizen, "departmentCode", dept, "assertion", assertion(dept, person, "", "", sn[0], sn[1])));
+    }
+
+    String activeToken(UUID citizen, String dept) {
+        return jdbc.queryForObject("SELECT local_id_token FROM identity_link WHERE citizen_id = ? AND department_code = ? AND status = 'ACTIVE'",
+                String.class, citizen, dept);
+    }
+
+    @Test
+    void linking_a_different_person_where_the_citizen_is_already_linked_is_a_conflict_not_a_success() {
+        UUID citizen = resolve(edu, assertion("EDUCATION", person(), "Kiran Desai", "2001-07-07", "", ""));
+        String first = person();
+        linked(edu, citizen, "REVENUE", first);
+
+        assertThat(linkStatus(edu, citizen, "REVENUE", person())).isEqualTo(409);
+        assertThat(activeToken(citizen, "REVENUE")).isEqualTo(first);
+        assertThat(linked(edu, citizen, "REVENUE", first)).as("the same person again is fine").isEqualTo(citizen);
+    }
+
+    @Test
+    void a_revoked_link_does_not_stop_the_person_signing_in_again() {
+        String p = person();
+        UUID first = resolve(edu, assertion("EDUCATION", p, "Asha Patil", "2003-01-01", "", ""));
+        jdbc.update("UPDATE identity_link SET status = 'REVOKED' WHERE citizen_id = ?", first);
+
+        Map<?, ?> again = post(edu, "/api/department/citizens/resolve", Map.of("assertion", assertion("EDUCATION", p, "Asha Patil", "2003-01-01", "", "")));
+
+        assertThat(again.get("created")).isEqualTo(true);
+        assertThat(again.get("citizenId")).isNotEqualTo(first.toString());
+        assertThat(activeToken(UUID.fromString((String) again.get("citizenId")), "EDUCATION")).isEqualTo(p);
+    }
+
+    @Test
+    void a_suspended_citizen_is_refused_when_signing_in_and_when_acted_for() {
+        String p = person();
+        UUID citizen = resolve(edu, assertion("EDUCATION", p, "Neha Rao", "2000-02-02", "", ""));
+        jdbc.update("UPDATE identity_citizen SET status = 'SUSPENDED' WHERE id = ?", citizen);
+
+        assertThat(status(edu, "/api/department/citizens/resolve", Map.of("assertion", assertion("EDUCATION", p, "Neha Rao", "2000-02-02", "", "")))).isEqualTo(403);
+        assertThat(status(edu, "/api/department/links/start",
+                Map.of("citizenId", citizen, "departmentCode", "REVENUE", "returnTo", "http://edu.test/portal/callback"))).isEqualTo(404);
+    }
+
+    @Test
+    void a_citizen_is_never_merged_into_a_survivor_that_is_not_active() {
+        String eduPerson = person();
+        UUID eduCitizen = resolve(edu, assertion("EDUCATION", eduPerson, "Meera Kulkarni", "2004-03-09", "", ""));
+        UUID agriCitizen = resolve(agri, assertion("AGRICULTURE", person(), "Meera Kulkarni", "2004-03-09", "", ""));
+        jdbc.update("UPDATE identity_citizen SET status = 'SUSPENDED' WHERE id = ?", eduCitizen);
+
+        assertThat(linkStatus(agri, agriCitizen, "EDUCATION", eduPerson)).isEqualTo(409);
+        assertThat(jdbc.queryForObject("SELECT status FROM identity_citizen WHERE id = ?", String.class, agriCitizen)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM identity_link WHERE citizen_id = ? AND status = 'ACTIVE'", Integer.class, agriCitizen)).isEqualTo(1);
+    }
+
+    @Test
+    void after_a_merge_the_surviving_citizen_can_locate_the_department_that_moved() {
+        String eduPerson = person();
+        String revPerson = person();
+        UUID eduCitizen = resolve(edu, assertion("EDUCATION", eduPerson, "Ravi Joshi", "2002-05-05", "", ""));
+        String rev = TestTokens.departmentOf("dept-revenue-it", "REVENUE");
+        UUID revCitizen = resolve(rev, assertion("REVENUE", revPerson, "Ravi Joshi", "2002-05-05", "", ""));
+        assertThat(pointers(revCitizen, "EDUCATION")).as("the survivor has no Education pointer before the merge").isZero();
+
+        String[] sn = startLogin(edu, eduCitizen, "REVENUE");
+        Map<?, ?> merged = post(edu, "/api/department/links",
+                Map.of("citizenId", eduCitizen, "departmentCode", "REVENUE", "assertion", assertion("REVENUE", revPerson, "", "", sn[0], sn[1])));
+
+        assertThat(merged.get("citizenId")).isEqualTo(revCitizen.toString());
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(15))
+                .untilAsserted(() -> assertThat(pointers(revCitizen, "EDUCATION")).isPositive());
+    }
+
+    int pointers(UUID citizen, String dept) {
+        return jdbc.queryForObject("SELECT count(*) FROM registry_pointer WHERE subject_id = ? AND department_code = ? AND status = 'AVAILABLE'",
+                Integer.class, citizen, dept);
+    }
+
+    @Test
+    void the_assertion_is_verified_before_any_database_transaction_opens() {
+        UUID citizen = resolve(edu, assertion("EDUCATION", person(), "Kiran Desai", "2001-07-07", "", ""));
+        linked(edu, citizen, "REVENUE", person());
+        assertThat(TX_OPEN_DURING_VERIFY).hasSize(2).containsOnly(false);
+    }
+
+    @Test
+    void simultaneous_first_sign_ins_of_one_person_make_one_citizen_and_never_a_server_error() throws Exception {
+        String p = person();
+        int callers = 4;
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(callers);
+        try {
+            java.util.List<java.util.concurrent.Future<Integer>> results = new java.util.ArrayList<>();
+            for (int i = 0; i < callers; i++) {
+                results.add(pool.submit(() -> {
+                    go.await();
+                    return status(edu, "/api/department/citizens/resolve", Map.of("assertion", assertion("EDUCATION", p, "Asha Patil", "2003-01-01", "", "")));
+                }));
+            }
+            go.countDown();
+            java.util.List<Integer> statuses = new java.util.ArrayList<>();
+            for (java.util.concurrent.Future<Integer> f : results) {
+                statuses.add(f.get());
+            }
+            assertThat(statuses).contains(200).isSubsetOf(200, 409);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM identity_link WHERE department_code = 'EDUCATION' AND local_id_token = ? AND status = 'ACTIVE'",
+                Integer.class, p)).isEqualTo(1);
+    }
+
+    // --- audit ---------------------------------------------------------------------------------------------------
+
+    int audited(String action, String where, Object... args) {
+        return jdbc.queryForObject("SELECT count(*) FROM audit.audit_entry WHERE action = '" + action + "' AND " + where, Integer.class, args);
+    }
+
+    @Test
+    void a_new_link_is_audited() {
+        UUID citizen = resolve(edu, assertion("EDUCATION", person(), "Kiran Desai", "2001-07-07", "", ""));
+        linked(edu, citizen, "REVENUE", person());
+        assertThat(audited("CITIZEN_LINKED", "subject_id = ? AND department_id = 'REVENUE' AND outcome = 'ALLOWED'", citizen.toString())).isEqualTo(1);
+    }
+
+    @Test
+    void an_assertion_that_does_not_verify_is_audited_as_a_denial_without_personal_data() {
+        int before = audited("DEPARTMENT_ASSERTION_REFUSED", "department_id = 'EDUCATION' AND outcome = 'DENIED'");
+        assertThat(status(edu, "/api/department/citizens/resolve", Map.of("assertion", "not-an-assertion"))).isEqualTo(401);
+        assertThat(status(edu, "/api/department/citizens/resolve", Map.of("assertion", assertion("REVENUE", "RV-SECRET-ID", "X Y", "2000-01-01", "", "")))).isEqualTo(401);
+        assertThat(audited("DEPARTMENT_ASSERTION_REFUSED", "department_id = 'EDUCATION' AND outcome = 'DENIED'")).isEqualTo(before + 2);
+        assertThat(audited("DEPARTMENT_ASSERTION_REFUSED", "meta::text LIKE '%RV-SECRET-ID%' OR reason LIKE '%RV-SECRET-ID%'")).isZero();
     }
 
     String[] startLogin(String token, UUID citizen, String dept) {

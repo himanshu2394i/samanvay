@@ -20,7 +20,7 @@ public interface ConsentArtifactRepository extends JpaRepository<ConsentArtifact
               AND subject_citizen_id = :citizenId
               AND purpose_code = :purpose
               AND :category = ANY(data_categories)
-            ORDER BY created_at DESC
+            ORDER BY (status = 'ACTIVE') DESC, created_at DESC
             LIMIT 1
             """,
             nativeQuery = true)
@@ -55,8 +55,8 @@ public interface ConsentArtifactRepository extends JpaRepository<ConsentArtifact
 
     /*
      * consent_event, consent_access_grant and consent_usage reference consent_artifact(id)
-     * with no ON DELETE CASCADE (V80, V189), so they go first, then the artifact. Audit rows
-     * carry consent_id with no foreign key and are never deleted here. The four statements
+     * with no ON DELETE CASCADE (V80, V189, V206), so they go first, then the artifact. Audit rows
+     * carry consent_id with no foreign key and are never deleted here. The five statements
      * select the same rows: an ended consent gains no new events, grants or usages.
      */
     @Modifying
@@ -68,6 +68,19 @@ public interface ConsentArtifactRepository extends JpaRepository<ConsentArtifact
             value = "DELETE FROM consent_access_grant WHERE consent_id IN (" + ENDED_BEFORE_CUTOFF + ")",
             nativeQuery = true)
     int deleteGrantsOfEndedBefore(Instant cutoff);
+
+    /** consent_evidence (V206) references the artifact too: the signed statement of a department-granted consent. */
+    @Modifying
+    @Query(value = "DELETE FROM consent_evidence WHERE consent_id IN (" + ENDED_BEFORE_CUTOFF + ")", nativeQuery = true)
+    int deleteEvidenceOfEndedBefore(Instant cutoff);
+
+    /**
+     * One-time statement nonces (V206) hang off the consent REQUEST, which the purge keeps, and a nonce expires within
+     * minutes: one past the cutoff is long dead, so it is dropped with the rest of the consent's trail.
+     */
+    @Modifying
+    @Query(value = "DELETE FROM consent_statement_nonce WHERE expires_at < :cutoff", nativeQuery = true)
+    int deleteStatementNoncesExpiredBefore(Instant cutoff);
 
     @Modifying
     @Query(value = "DELETE FROM consent_event WHERE consent_id IN (" + ENDED_BEFORE_CUTOFF + ")", nativeQuery = true)

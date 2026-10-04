@@ -112,6 +112,14 @@ class DepartmentConsentIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void asking_for_consent_is_audited_with_who_asked_and_for_which_purpose() {
+        Map<?, ?> w = wording();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit.audit_entry WHERE action = 'CONSENT_REQUESTED' AND subject_id = ?"
+                + " AND department_id = ? AND outcome = 'ALLOWED' AND actor_type = 'DEPARTMENT' AND meta->>'requestId' = ?"
+                + " AND meta->>'purpose' = ?", Integer.class, citizen.toString(), DEPT, w.get("requestId"), w.get("purposeCode"))).isEqualTo(1);
+    }
+
+    @Test
     void the_request_returns_the_exact_wording_and_a_one_time_nonce() {
         Map<?, ?> w = wording();
         assertThat((String) w.get("purposeText")).isNotBlank();
@@ -184,6 +192,62 @@ class DepartmentConsentIT extends PostgresIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).body(Map.of("citizenId", stranger, "journeyCode", JOURNEY))
                 .exchange((rq, rs) -> rs.getStatusCode().value());
         assertThat(status).isEqualTo(404);
+    }
+
+    // --- revoke from the department's portal -----------------------------------------------------------------------
+
+    UUID grantedConsent() throws Exception {
+        assertThat(submit(sign(claims(wording()), key)).status()).isEqualTo(200);
+        return jdbc.queryForObject("SELECT id FROM consent_artifact WHERE subject_citizen_id = ?", UUID.class, citizen);
+    }
+
+    int revoke(String bearer, UUID consent) {
+        return TestHttp.as(bearer).post().uri("http://localhost:" + port + "/api/department/consents/" + consent + "/revoke")
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("reason", "citizen withdrew on the portal"))
+                .exchange((rq, rs) -> rs.getStatusCode().value());
+    }
+
+    String consentStatus(UUID consent) {
+        return jdbc.queryForObject("SELECT status FROM consent_artifact WHERE id = ?", String.class, consent);
+    }
+
+    @Test
+    void the_department_that_collected_a_consent_can_revoke_it_and_it_is_audited() throws Exception {
+        UUID consent = grantedConsent();
+        assertThat(revoke(token, consent)).isEqualTo(200);
+        assertThat(consentStatus(consent)).isEqualTo("REVOKED");
+        assertThat(jdbc.queryForObject("SELECT revoked_by FROM consent_artifact WHERE id = ?", String.class, consent)).isNotBlank();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit.audit_entry WHERE action = 'CONSENT_REVOKED' AND actor_type = 'DEPARTMENT'"
+                + " AND consent_id = ?", Integer.class, consent)).isEqualTo(1);
+        assertThat(revoke(token, consent)).as("revoking again is harmless").isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit.audit_entry WHERE action = 'CONSENT_REVOKED' AND consent_id = ?",
+                Integer.class, consent)).isEqualTo(1);
+    }
+
+    @Test
+    void another_department_cannot_revoke_it_and_learns_nothing() throws Exception {
+        UUID consent = grantedConsent();
+        String education = TestTokens.departmentOf("dept-education-it", "EDUCATION");
+        assertThat(revoke(education, consent)).isEqualTo(404);
+        assertThat(revoke(token, UUID.randomUUID())).as("no such consent looks the same").isEqualTo(404);
+        assertThat(consentStatus(consent)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void the_requesting_department_cannot_revoke_once_the_citizen_is_no_longer_linked_to_it() throws Exception {
+        UUID consent = grantedConsent();
+        jdbc.update("UPDATE identity_link SET status = 'REVOKED' WHERE citizen_id = ? AND department_code = ?", citizen, DEPT);
+        assertThat(revoke(token, consent)).isEqualTo(404);
+        assertThat(consentStatus(consent)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void only_department_clients_may_use_the_department_revoke_route() throws Exception {
+        UUID consent = grantedConsent();
+        for (String other : new String[] {TestTokens.citizen("c"), TestTokens.officer("o"), TestTokens.admin("a")}) {
+            assertThat(revoke(other, consent)).isEqualTo(403);
+        }
+        assertThat(consentStatus(consent)).isEqualTo("ACTIVE");
     }
 
     @Test

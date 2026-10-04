@@ -25,21 +25,30 @@ import com.samanvay.identity.internal.repository.ProfileRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Citizens known only by the department login they proved. ponytail: two simultaneous first sign ins of the same new person can
- * both try to create the link; one hits the unique key and gets a 409, the retry succeeds.
+ * Citizens known only by the department login they proved. The assertion is verified BEFORE any transaction opens (verifying may
+ * fetch the department's keys over the network, and a database connection must not be held while that waits); only the database
+ * writes run in a {@link TransactionTemplate}. ponytail: two simultaneous first sign ins of the same new person can both try to
+ * create the link; one hits the unique key and gets a 409, the retry succeeds.
  */
 @Service
 class CitizenResolver implements DepartmentCitizens {
+
+    private static final Logger log = LoggerFactory.getLogger(CitizenResolver.class);
 
     static final String ORIGIN = "DEPT_HOME";
     /** Used when the department does not say the birth date; the profile then carries year precision so nothing treats it as real. */
@@ -54,6 +63,7 @@ class CitizenResolver implements DepartmentCitizens {
     private final ApplicationEventPublisher events;
     private final AuditService audit;
     private final Clock clock;
+    private final TransactionTemplate tx;
 
     CitizenResolver(
             DepartmentHomeLogin homeLogin,
@@ -64,7 +74,8 @@ class CitizenResolver implements DepartmentCitizens {
             List<CitizenActivity> activities,
             ApplicationEventPublisher events,
             AuditService audit,
-            Clock clock) {
+            Clock clock,
+            PlatformTransactionManager transactions) {
         this.homeLogin = homeLogin;
         this.proofProviders = proofProviders;
         this.citizens = citizens;
@@ -74,15 +85,29 @@ class CitizenResolver implements DepartmentCitizens {
         this.events = events;
         this.audit = audit;
         this.clock = clock;
+        this.tx = new TransactionTemplate(transactions);
     }
 
     @Override
-    @Transactional
     public Resolution resolve(String departmentCode, String assertion, String actorId) {
-        VerifiedAssertion a = homeLogin.verify(assertion, departmentCode);
+        try {
+            VerifiedAssertion a = homeLogin.check(assertion, departmentCode);
+            return tx.execute(status -> resolveVerified(a, departmentCode, actorId));
+        } catch (LinkProofInvalidException refused) {
+            auditRefused(actorId, departmentCode, "resolve");
+            throw refused;
+        }
+    }
+
+    private Resolution resolveVerified(VerifiedAssertion a, String departmentCode, String actorId) {
+        homeLogin.markUsed(a); // inside the transaction: if anything below fails, the assertion is not burned
         Optional<LinkEntity> existing = links.findByDepartmentCodeAndLocalIdTokenAndStatus(departmentCode, a.personId(), "ACTIVE");
         if (existing.isPresent()) {
-            return new Resolution(existing.get().getCitizenId(), false);
+            CitizenEntity c = citizens.findById(existing.get().getCitizenId()).orElseThrow(LinkProofInvalidException::new);
+            if (!"ACTIVE".equals(c.getStatus())) {
+                throw new AccessDeniedException("citizen is not active");
+            }
+            return new Resolution(c.getId(), false);
         }
         Instant now = clock.instant();
         UUID id = UUID.randomUUID();
@@ -94,7 +119,7 @@ class CitizenResolver implements DepartmentCitizens {
         citizens.save(c);
         ProfileEntity p = new ProfileEntity();
         p.setCitizenId(id);
-        p.setNameLatin(a.name() != null ? a.name() : "Citizen " + a.personId());
+        p.setNameLatin(a.name()); // never the department's person ID (an identifier, not a name): null when the department sent none
         p.setDob(a.dob() != null ? a.dob() : UNKNOWN_DOB);
         p.setDobPrecision(a.dob() != null ? "DAY" : "YEAR");
         p.setUpdatedAt(now);
@@ -105,26 +130,61 @@ class CitizenResolver implements DepartmentCitizens {
     }
 
     @Override
-    @Transactional
     public UUID link(UUID citizenId, String departmentCode, String assertion, String actorId) {
-        CitizenEntity current = citizens.findById(citizenId).filter(c -> "ACTIVE".equals(c.getStatus())).orElseThrow(LinkProofInvalidException::new);
-        VerifiedLocalId proven = proofProviders.stream().filter(p -> p.kind() == LinkProofKind.DEPT_ASSERTION).findFirst()
-                .orElseThrow(LinkProofInvalidException::new)
-                .verify(new AuthProof(LinkProofKind.DEPT_ASSERTION, assertion), new LinkProofContext(citizenId, departmentCode, null, null));
-        if (links.findByCitizenIdAndDepartmentCodeAndStatus(citizenId, departmentCode, "ACTIVE").isPresent()) {
-            return citizenId;
+        try {
+            citizens.findById(citizenId).filter(c -> "ACTIVE".equals(c.getStatus())).orElseThrow(LinkProofInvalidException::new);
+            VerifiedLocalId proven = proofProviders.stream().filter(p -> p.kind() == LinkProofKind.DEPT_ASSERTION).findFirst()
+                    .orElseThrow(LinkProofInvalidException::new)
+                    .verify(new AuthProof(LinkProofKind.DEPT_ASSERTION, assertion), new LinkProofContext(citizenId, departmentCode, null, null));
+            return tx.execute(status -> linkProven(citizenId, departmentCode, proven, actorId));
+        } catch (LinkProofInvalidException refused) {
+            auditRefused(actorId, departmentCode, "link");
+            throw refused;
+        }
+    }
+
+    private UUID linkProven(UUID citizenId, String departmentCode, VerifiedLocalId proven, String actorId) {
+        // Lock this citizen and the one that already holds the proven person, in id order so two merges never wait on each other.
+        Optional<LinkEntity> holder = links.findByDepartmentCodeAndLocalIdTokenAndStatus(departmentCode, proven.localId(), "ACTIVE");
+        List<UUID> ids = new ArrayList<>(List.of(citizenId));
+        holder.map(LinkEntity::getCitizenId).filter(h -> !h.equals(citizenId)).ifPresent(ids::add);
+        ids.sort(null);
+        CitizenEntity current = null;
+        CitizenEntity survivor = null;
+        for (UUID id : ids) {
+            CitizenEntity locked = citizens.lockById(id).orElse(null);
+            if (id.equals(citizenId)) {
+                current = locked;
+            } else {
+                survivor = locked;
+            }
+        }
+        // Everything is re-read after the locks: whatever was decided before them may have changed while this call waited.
+        if (current == null || !"ACTIVE".equals(current.getStatus())) {
+            throw new LinkProofInvalidException();
+        }
+        Optional<LinkEntity> mine = links.findByCitizenIdAndDepartmentCodeAndStatus(citizenId, departmentCode, "ACTIVE");
+        if (mine.isPresent()) {
+            if (proven.localId().equals(mine.get().getLocalIdToken())) {
+                return citizenId; // the same person again: nothing to do
+            }
+            throw new DuplicateLocalIdException(); // this citizen is already linked there to a DIFFERENT person
         }
         Optional<LinkEntity> owner = links.findByDepartmentCodeAndLocalIdTokenAndStatus(departmentCode, proven.localId(), "ACTIVE");
         if (owner.isEmpty()) {
             saveLink(citizenId, departmentCode, proven.localIdType(), proven.localId(), clock.instant());
+            audit(actorId, "CITIZEN_LINKED", citizenId, departmentCode, Map.of());
             return citizenId;
         }
-        UUID survivor = owner.get().getCitizenId();
+        UUID survivorId = owner.get().getCitizenId();
+        if (survivor == null || !survivor.getId().equals(survivorId) || !"ACTIVE".equals(survivor.getStatus())) {
+            throw new DuplicateLocalIdException(); // the holder changed meanwhile, or is not an active citizen: never merge into it
+        }
         if (!ORIGIN.equals(current.getOrigin()) || activities.stream().anyMatch(a -> a.hasActivity(citizenId))) {
             throw new DuplicateLocalIdException();
         }
-        merge(current, survivor, actorId, departmentCode);
-        return survivor;
+        merge(current, survivorId, actorId, departmentCode);
+        return survivorId;
     }
 
     private void merge(CitizenEntity from, UUID into, String actorId, String departmentCode) {
@@ -135,10 +195,12 @@ class CitizenResolver implements DepartmentCitizens {
             }
         }
         moving.forEach(l -> l.setCitizenId(into));
-        links.saveAll(moving);
+        links.saveAllAndFlush(moving);
         from.setStatus("MERGED");
         citizens.save(from);
         audit(actorId, "CITIZEN_MERGED", from.getId(), departmentCode, Map.of("mergedInto", into.toString()));
+        // The survivor now holds these departments' links but not their discovery pointers: ask for them again, as a new link does.
+        moving.forEach(l -> events.publishEvent(new LinkAsserted(into, l.getDepartmentCode())));
     }
 
     private void saveLink(UUID citizenId, String departmentCode, String type, String personId, Instant now) {
@@ -155,7 +217,10 @@ class CitizenResolver implements DepartmentCitizens {
         try {
             links.saveAndFlush(e);
         } catch (DataIntegrityViolationException ex) {
-            throw new DuplicateLocalIdException();
+            if (UniqueViolation.is(ex)) {
+                throw new DuplicateLocalIdException();
+            }
+            throw ex; // any other integrity error is a bug or bad data, not "this person is already linked"
         }
         events.publishEvent(new LinkAsserted(citizenId, departmentCode));
     }
@@ -163,5 +228,16 @@ class CitizenResolver implements DepartmentCitizens {
     private void audit(String actorId, String action, UUID citizenId, String departmentCode, Map<String, Object> meta) {
         audit.record(new AuditEntry(ActorType.DEPARTMENT, actorId, action, citizenId.toString(), citizenId.toString(), departmentCode,
                 null, null, Outcome.ALLOWED, null, meta));
+    }
+
+    /** A department's assertion did not verify. Written in its own transaction (none is open here); carries no person ID, name or token. */
+    private void auditRefused(String actorId, String departmentCode, String operation) {
+        try {
+            audit.record(new AuditEntry(ActorType.DEPARTMENT, actorId == null || actorId.isBlank() ? String.valueOf(departmentCode) : actorId,
+                    "DEPARTMENT_ASSERTION_REFUSED", null, "identity", departmentCode, null, null, Outcome.DENIED, "LINK_PROOF_INVALID",
+                    Map.of("operation", operation)));
+        } catch (RuntimeException e) {
+            log.warn("could not audit a refused department assertion: {}", e.toString());
+        }
     }
 }

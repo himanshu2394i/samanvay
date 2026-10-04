@@ -38,6 +38,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 class ConfirmRequiresReviewerRoleTest {
 
     private final CandidateMatchRepository candidates = mock(CandidateMatchRepository.class);
+    private final CitizenRepository citizens = mock(CitizenRepository.class);
     private final LinkRepository links = mock(LinkRepository.class);
     private final AuditService audit = mock(AuditService.class);
 
@@ -72,7 +73,12 @@ class ConfirmRequiresReviewerRoleTest {
         c.setCitizenId(UUID.randomUUID());
         c.setDepartmentCode("REVENUE");
         c.setScore(BigDecimal.valueOf(0.91));
-        when(candidates.findById(id)).thenReturn(Optional.of(c));
+        c.setStatus("PENDING");
+        com.samanvay.identity.internal.domain.CitizenEntity citizen = new com.samanvay.identity.internal.domain.CitizenEntity();
+        citizen.setId(c.getCitizenId());
+        citizen.setStatus("ACTIVE");
+        when(citizens.findById(c.getCitizenId())).thenReturn(Optional.of(citizen));
+        when(candidates.lockById(id)).thenReturn(Optional.of(c));
 
         service().confirm(id, "looks right");
 
@@ -91,7 +97,7 @@ class ConfirmRequiresReviewerRoleTest {
 
     private IdentityServices service() {
         return new IdentityServices(
-                mock(CitizenRepository.class),
+                citizens,
                 mock(ProfileRepository.class),
                 links,
                 candidates,

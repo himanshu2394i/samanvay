@@ -45,6 +45,7 @@ class DepartmentHomeLoginTest {
             "EDU_STUDENT_ID", "https://edu.example.gov/login", "https://edu.example.gov/.well-known/jwks.json", "dept:EDUCATION");
 
     ECKey key;
+    DepartmentIdentity configured = ID;
     DepartmentHomeLogin home;
     final Set<String> seenJtis = new HashSet<>();
 
@@ -70,7 +71,7 @@ class DepartmentHomeLoginTest {
 
             @Override
             public Optional<DepartmentIdentity> identity(String code) {
-                return "EDUCATION".equals(code) ? Optional.of(ID) : Optional.empty();
+                return "EDUCATION".equals(code) ? Optional.of(configured) : Optional.empty();
             }
         };
         AssertionUseStore uses = (dept, jti, expiresAt) -> seenJtis.add(dept + "|" + jti);
@@ -141,5 +142,39 @@ class DepartmentHomeLoginTest {
     @Test
     void an_assertion_for_another_department_than_the_caller_claims_is_refused() throws Exception {
         assertThatThrownBy(() -> home.verify(sign(claims()), "REVENUE")).isInstanceOf(LinkProofInvalidException.class);
+    }
+
+    @Test
+    void an_assertion_issued_in_the_future_beyond_the_clock_skew_is_refused() throws Exception {
+        home.verify(sign(claims().issueTime(Date.from(NOW.plusSeconds(30))).expirationTime(Date.from(NOW.plusSeconds(300)))), "EDUCATION");
+        refused(sign(claims().issueTime(Date.from(NOW.plusSeconds(120))).expirationTime(Date.from(NOW.plusSeconds(300)))));
+    }
+
+    @Test
+    void not_before_is_honoured_within_the_clock_skew() throws Exception {
+        home.verify(sign(claims().notBeforeTime(Date.from(NOW.plusSeconds(30)))), "EDUCATION");
+        refused(sign(claims().notBeforeTime(Date.from(NOW.plusSeconds(120)))));
+    }
+
+    @Test
+    void a_very_long_name_is_cut_to_200_characters_and_an_over_long_jti_or_subject_is_refused_not_a_server_error() throws Exception {
+        assertThat(home.verify(sign(claims().claim("name", "N".repeat(5000))), "EDUCATION").name()).hasSize(200);
+        assertThat(home.verify(sign(claims().jwtID("j".repeat(180))), "EDUCATION").jti()).hasSize(180);
+        assertThat(home.verify(sign(claims().subject("s".repeat(180))), "EDUCATION").personId()).hasSize(180);
+        refused(sign(claims().jwtID("j".repeat(181))));
+        refused(sign(claims().subject("s".repeat(181))));
+    }
+
+    @Test
+    void the_departments_keys_must_be_published_on_the_same_scheme_host_and_port_as_its_login() throws Exception {
+        String token = sign(claims());
+        configured = new DepartmentIdentity("EDU_STUDENT_ID", "https://edu.example.gov/login", "https://keys.example.net/jwks.json", "dept:EDUCATION");
+        refused(token);
+        configured = new DepartmentIdentity("EDU_STUDENT_ID", "https://edu.example.gov/login", "http://edu.example.gov/jwks.json", "dept:EDUCATION");
+        refused(token);
+        configured = new DepartmentIdentity("EDU_STUDENT_ID", "https://edu.example.gov/login", "https://edu.example.gov:8443/jwks.json", "dept:EDUCATION");
+        refused(token);
+        configured = new DepartmentIdentity("EDU_STUDENT_ID", "https://EDU.example.gov:443/login", "https://edu.example.gov/other/jwks.json", "dept:EDUCATION");
+        assertThat(home.verify(token, "EDUCATION").personId()).isEqualTo("ST-1001");
     }
 }

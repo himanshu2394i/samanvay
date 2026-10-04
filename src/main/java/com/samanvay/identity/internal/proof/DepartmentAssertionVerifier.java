@@ -42,6 +42,10 @@ public class DepartmentAssertionVerifier {
     static final String AUDIENCE = "samanvay";
     static final Duration MAX_ASSERTION_LIFETIME = Duration.ofMinutes(5);
     static final Duration CLOCK_SKEW = Duration.ofSeconds(60);
+    /** Longest subject or jti accepted (the columns hold 200). */
+    static final int MAX_ID_LENGTH = 180;
+    /** Longer names are cut to this many characters (identity_profile.name_latin holds 200). */
+    static final int MAX_NAME_LENGTH = 200;
 
     private static final Logger log = LoggerFactory.getLogger(DepartmentAssertionVerifier.class);
 
@@ -97,9 +101,12 @@ public class DepartmentAssertionVerifier {
         if (isBlank(personId) || isBlank(c.getJWTID())) {
             throw refuse("no subject or jti");
         }
+        if (personId.length() > MAX_ID_LENGTH || c.getJWTID().length() > MAX_ID_LENGTH) {
+            throw refuse("subject or jti is longer than " + MAX_ID_LENGTH); // they are stored in 200-character columns
+        }
         requireTimes(c);
         return new VerifiedAssertion(departmentCode, identity.personIdType(), personId, c.getJWTID(),
-                text(c, "state"), text(c, "nonce"), text(c, "name"), date(c, "dob"), c.getExpirationTime().toInstant());
+                text(c, "state"), text(c, "nonce"), truncated(text(c, "name"), MAX_NAME_LENGTH), date(c, "dob"), c.getExpirationTime().toInstant());
     }
 
     private SignedJWT parse(String token) {
@@ -117,6 +124,11 @@ public class DepartmentAssertionVerifier {
         String kid = jwt.getHeader().getKeyID();
         if (isBlank(kid) || isBlank(identity.jwksUrl())) {
             throw refuse("no key id or no published keys");
+        }
+        // Onboarding only checked the HOST; the keys must also come over the same scheme and port as the login the department declared.
+        String keysOrigin = origin(identity.jwksUrl());
+        if (keysOrigin == null || !keysOrigin.equals(origin(identity.loginUrl()))) {
+            throw refuse("the published keys are not on the department's own login origin");
         }
         JWK jwk;
         try {
@@ -157,6 +169,13 @@ public class DepartmentAssertionVerifier {
         if (exp.toInstant().plus(CLOCK_SKEW).isBefore(now)) {
             throw refuse("assertion has expired");
         }
+        if (iat.toInstant().isAfter(now.plus(CLOCK_SKEW))) {
+            throw refuse("assertion is issued in the future");
+        }
+        Date nbf = c.getNotBeforeTime();
+        if (nbf != null && nbf.toInstant().isAfter(now.plus(CLOCK_SKEW))) {
+            throw refuse("assertion is not valid yet");
+        }
         if (Duration.between(iat.toInstant(), exp.toInstant()).compareTo(MAX_ASSERTION_LIFETIME) > 0) {
             throw refuse("assertion lives longer than " + MAX_ASSERTION_LIFETIME);
         }
@@ -171,6 +190,25 @@ public class DepartmentAssertionVerifier {
         if (authenticated.isBefore(now.minus(maxAuthAge))) {
             throw refuse("department login is older than " + maxAuthAge);
         }
+    }
+
+    /** scheme://host:port in lower case with the default port made explicit; null if the address has no scheme or host. */
+    static String origin(String url) {
+        try {
+            java.net.URI u = java.net.URI.create(url == null ? "" : url.trim());
+            if (u.getScheme() == null || u.getHost() == null) {
+                return null;
+            }
+            String scheme = u.getScheme().toLowerCase(java.util.Locale.ROOT);
+            int port = u.getPort() >= 0 ? u.getPort() : "https".equals(scheme) ? 443 : "http".equals(scheme) ? 80 : -1;
+            return scheme + "://" + u.getHost().toLowerCase(java.util.Locale.ROOT) + ":" + port;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static String truncated(String s, int max) {
+        return s == null || s.length() <= max ? s : s.substring(0, max);
     }
 
     private static String text(JWTClaimsSet c, String name) {

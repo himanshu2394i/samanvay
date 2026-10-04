@@ -13,7 +13,10 @@ import com.samanvay.consent.api.ConsentService;
 import com.samanvay.consent.api.ConsentStatementInvalidException;
 import com.samanvay.consent.api.ConsentWording;
 import com.samanvay.consent.api.UnknownPurposeException;
+import com.samanvay.consent.api.ConsentNotFoundException;
+import com.samanvay.consent.internal.domain.ConsentArtifactEntity;
 import com.samanvay.consent.internal.domain.ConsentRequestEntity;
+import com.samanvay.consent.internal.repository.ConsentArtifactRepository;
 import com.samanvay.consent.internal.repository.ConsentRequestRepository;
 import com.samanvay.consent.internal.service.ConsentStatementVerifier.VerifiedStatement;
 import com.samanvay.identity.api.IdentityLinking;
@@ -45,7 +48,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class DepartmentConsentService {
 
     static final Duration NONCE_TTL = Duration.ofMinutes(10);
-    private static final Duration DEFAULT_VALIDITY = Duration.ofDays(365);
 
     private final ConsentService consents;
     private final PurposeCatalog purposes;
@@ -53,6 +55,7 @@ public class DepartmentConsentService {
     private final DepartmentCatalog departments;
     private final IdentityLinking linking;
     private final ConsentRequestRepository requests;
+    private final ConsentArtifactRepository artifacts;
     private final ConsentStatementVerifier verifier;
     private final JdbcClient jdbc;
     private final Clock clock;
@@ -65,6 +68,7 @@ public class DepartmentConsentService {
             DepartmentCatalog departments,
             IdentityLinking linking,
             ConsentRequestRepository requests,
+            ConsentArtifactRepository artifacts,
             ConsentStatementVerifier verifier,
             JdbcClient jdbc,
             Clock clock) {
@@ -74,6 +78,7 @@ public class DepartmentConsentService {
         this.departments = departments;
         this.linking = linking;
         this.requests = requests;
+        this.artifacts = artifacts;
         this.verifier = verifier;
         this.jdbc = jdbc;
         this.clock = clock;
@@ -101,9 +106,7 @@ public class DepartmentConsentService {
         journey.requiredCategories().forEach(c -> providerCodes.add(journey.policy().sourceDepartment(c)));
         List<ConsentWording.Provider> providers = providerCodes.stream()
                 .map(code -> new ConsentWording.Provider(code, departments.byCode(code).map(d -> d.name()).orElse(code))).toList();
-        Duration validity = purpose.maxDurationDays() == null ? DEFAULT_VALIDITY
-                : DEFAULT_VALIDITY.compareTo(Duration.ofDays(purpose.maxDurationDays())) < 0 ? DEFAULT_VALIDITY : Duration.ofDays(purpose.maxDurationDays());
-        return new ConsentWording(request.id(), purpose.code(), request.purposeText(), request.categories(), providers, (int) validity.toDays(), nonce, expires);
+        return new ConsentWording(request.id(), purpose.code(), request.purposeText(), request.categories(), providers, ConsentServices.validityDays(purpose), nonce, expires);
     }
 
     @Transactional
@@ -133,6 +136,20 @@ public class DepartmentConsentService {
             throw ConsentStatementVerifier.refuse("statement already used");
         }
         return artifact;
+    }
+
+    /**
+     * The department withdraws a consent the citizen gave on its portal. 404 (not 403) unless the consent is this department's own
+     * and the citizen is still one of its citizens, so the answer reveals nothing about other departments' consents. Same revoke
+     * and audit as the citizen's own route; revoking an ended consent changes nothing.
+     */
+    @Transactional
+    public void revoke(String department, UUID consentId, String reason, PrincipalRef by) {
+        ConsentArtifactEntity consent = artifacts.findById(consentId).orElseThrow(ConsentNotFoundException::new);
+        if (!department.equals(consent.getRequesterId()) || linking.activeLink(consent.getSubjectCitizenId(), department).isEmpty()) {
+            throw new ConsentNotFoundException();
+        }
+        consents.revoke(consentId, consent.getSubjectCitizenId(), reason, by);
     }
 
     private String nonce() {
