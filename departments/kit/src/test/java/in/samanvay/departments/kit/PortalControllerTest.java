@@ -146,6 +146,15 @@ class PortalControllerTest {
         return sessions.issue(new PortalSession.Session("EDU-1001", CITIZEN, "Asha Patil"), java.time.Instant.now());
     }
 
+    @Test
+    void the_portal_pages_are_served_at_portal_with_or_without_the_trailing_slash() throws Exception {
+        for (String path : new String[] {"/portal/", "/portal"}) {
+            Res r = send("GET", path, null, null);
+            assertThat(r.status()).as(path).isEqualTo(200);
+            assertThat(r.body()).as(path).contains("portal-index");
+        }
+    }
+
     // --- sign in ---------------------------------------------------------------------------------------------
 
     @Test

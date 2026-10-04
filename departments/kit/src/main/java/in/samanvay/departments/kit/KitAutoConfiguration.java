@@ -48,6 +48,11 @@ public class KitAutoConfiguration {
     }
 
     @Bean
+    PortalPages portalPages() {
+        return new PortalPages();
+    }
+
+    @Bean
     PortalController portalController(PortalProperties p, PortalSession sessions, SamanvayClient samanvay, JourneyCatalog catalog,
             CitizenDirectory directory, HomeAssertions home, ConsentSigner signer, Clock clock) {
         return new PortalController(p, sessions, samanvay, catalog, directory, home, signer, clock);
