@@ -83,6 +83,7 @@ class DbtDepartmentTest {
             assertThat(j).hasSize(1);
             assertThat(j.get(0).get("code").asString()).isEqualTo("DBT_ACCOUNT_SEEDING");
             assertThat(j.get(0).get("referencePrefix").asString()).isEqualTo("DAS");
+            assertThat(j.get(0).get("portalUrl").asString()).startsWith("http://localhost:8092/portal/");
             assertThat(j.get(0).get("requester").asString()).isEqualTo("DBT");
             assertThat(j.get(0).get("requiredCategories").get(0).get("category").asString()).isEqualTo("BANK_ACCOUNT");
             assertThat(j.get(0).get("requiredCategories").get(0).get("department").asString()).isEqualTo("DBT");

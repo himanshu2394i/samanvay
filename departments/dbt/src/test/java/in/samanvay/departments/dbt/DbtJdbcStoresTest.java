@@ -67,6 +67,14 @@ class DbtJdbcStoresTest {
     }
 
     @Test
+    void the_beneficiary_name_and_date_of_birth_come_from_the_register() {
+        in.samanvay.departments.kit.Person p = new JdbcCitizens(jdbc).person("DBT-9001").orElseThrow();
+        assertThat(p.name()).isEqualTo("Meera Kulkarni");
+        assertThat(p.dob()).isEqualTo(java.time.LocalDate.of(1999, 5, 4));
+        assertThat(new JdbcCitizens(jdbc).person("DBT-0000")).isEmpty();
+    }
+
+    @Test
     void login_refuses_a_wrong_password_an_unknown_mobile_and_an_empty_password() {
         JdbcCitizens citizens = new JdbcCitizens(jdbc);
         assertThat(citizens.authenticate("9100000001", "wrong")).isEmpty();

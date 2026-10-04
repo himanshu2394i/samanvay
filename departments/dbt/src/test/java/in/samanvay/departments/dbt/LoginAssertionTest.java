@@ -32,7 +32,7 @@ class LoginAssertionTest {
 
     static final HttpClient HTTP = HttpClient.newHttpClient(); // does not follow redirects
     static final JsonMapper JSON = JsonMapper.builder().build();
-    static final String RETURN_TO = "http://localhost:8080/identity/callback";
+    static final String RETURN_TO = "http://localhost:8091/portal/callback";
     static final String ASHA = "9000000001";
     static final String ASHA_PASSWORD = "asha-demo-pass";
     static final String CODE = "123456";
@@ -213,7 +213,7 @@ class LoginAssertionTest {
         HttpResponse<String> r = password(ASHA, ASHA_PASSWORD, "https://evil.example/steal", "s", "n");
         assertThat(r.statusCode()).isEqualTo(400);
         assertThat(r.headers().firstValue("Location")).isEmpty();
-        assertThat(password(ASHA, ASHA_PASSWORD, "http://localhost:8080.evil.example/x", "s", "n").statusCode()).isEqualTo(400);
+        assertThat(password(ASHA, ASHA_PASSWORD, "http://localhost:8091.evil.example/x", "s", "n").statusCode()).isEqualTo(400);
         String ticket = ticketIn(password(ASHA, ASHA_PASSWORD, RETURN_TO, "s", "n"));
         HttpResponse<String> stolen = code(ticket, CODE, "https://evil.example/steal", "s", "n");
         assertThat(stolen.statusCode()).isEqualTo(400);

@@ -1,0 +1,10 @@
+{"journeys":[
+  {"code":"DBT_ACCOUNT_SEEDING","name":"DBT bank account seeding",
+   "description":"Confirm the bank account on file is ready to receive benefit payments.",
+   "referencePrefix":"DAS","slaHours":72,"consentPurpose":"DBT_ACCOUNT_SEEDING",
+   "requiredCategories":[
+     {"category":"BANK_ACCOUNT","department":"DBT"}],
+   "form":[
+     {"name":"accountHolderName","label":"Name as it appears on the bank account","type":"text","required":true,"options":[]},
+     {"name":"preferredLanguage","label":"Language for updates","type":"select","required":true,"options":["ENGLISH","HINDI","MARATHI"]}]}
+]}
