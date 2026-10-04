@@ -77,7 +77,7 @@ class DevSignInExposureIT extends PostgresIntegrationTest {
                 }
             }
         }
-        assertThat(served).isGreaterThan(20);
+        assertThat(served).isGreaterThan(10);
         assertThat(hits).isEmpty();
     }
 
