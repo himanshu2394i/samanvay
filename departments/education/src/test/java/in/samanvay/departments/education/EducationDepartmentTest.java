@@ -69,9 +69,10 @@ class EducationDepartmentTest {
                 URI.create("http://localhost:" + port + "/.well-known/samanvay/manifest")).GET().build(), HttpResponse.BodyHandlers.ofString());
         JsonNode j = JSON.readTree(r.body()).get("journeys");
         assertThat(j).hasSize(1);
-        assertThat(j.get(0).get("code").asString()).isEqualTo("POST_MATRIC_SCHOLARSHIP");
+        assertThat(j.get(0).get("code").asString()).isEqualTo("EDUCATION_SCHOLARSHIP");
         assertThat(j.get(0).get("referencePrefix").asString()).isEqualTo("PMS");
-        assertThat(j.get(0).get("consentPurpose").asString()).isEqualTo("SCHOLARSHIP_ELIGIBILITY");
+        assertThat(j.get(0).get("consentPurpose").asString()).isEqualTo("EDU_SCHOLARSHIP_ELIGIBILITY");
+        assertThat(j.get(0).get("portalUrl").asString()).startsWith("http://localhost:8093/portal/");
         assertThat(j.get(0).get("requester").asString()).isEqualTo("EDUCATION");
         java.util.Set<String> needs = new java.util.TreeSet<>();
         j.get(0).get("requiredCategories").forEach(c -> needs.add(c.get("department").asString() + ":" + c.get("category").asString()));

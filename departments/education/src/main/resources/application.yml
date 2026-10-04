@@ -8,19 +8,37 @@ server:
   # 8080 = samanvay-core, 8090 = shared simulators, 8091 = revenue, 8092 = dbt, 8093 = education.
   port: ${EDUCATION_PORT:8093}
 
+portal:
+  # The citizen portal served at /portal/ (shared kit). Never sent to a browser: the samanvay block.
+  dept-code: EDUCATION
+  name: State Board of Education
+  initial: E
+  accent: "#9a3b12"
+  accent-dark: "#f0a878"
+  on-accent-dark: "#1c0c04"
+  public-base-url: ${EDUCATION_PUBLIC_URL:http://localhost:8093}
+  otp-code: ${EDUCATION_LOGIN_CODE:123456}
+  session-secret: ${EDUCATION_SESSION_SECRET:}
+  manifest-key-file: ${education.manifest.key-file:manifest-signing-key.jwk}
+  samanvay:
+    base-url: ${SAMANVAY_URL:http://localhost:8080}
+    token-url: ${SAMANVAY_TOKEN_URL:http://localhost:8180/realms/samanvay-staff/protocol/openid-connect/token}
+    client-id: ${SAMANVAY_CLIENT_ID:dept-education}
+    client-secret: ${SAMANVAY_CLIENT_SECRET:}
+
 education:
   # The address Samanvay uses to reach this service; published in the manifest identity block.
   public-base-url: ${EDUCATION_PUBLIC_URL:http://localhost:8093}
   login:
     assertion-ttl: PT5M
     # Samanvay addresses a login may redirect back to (prefix match). Anything else gets a 400, never a redirect.
-    allowed-return-uris: ${EDUCATION_ALLOWED_RETURN_URIS:http://localhost:8080/,https://app.3.109.201.126.nip.io/}
+    allowed-return-uris: ${EDUCATION_ALLOWED_RETURN_URIS:http://localhost:8091/portal/callback,http://localhost:8092/portal/callback,http://localhost:8094/portal/callback}
     # Shown on the login page so a demo user knows which FAKE account to use. Empty hides it.
     demo-hint: "${EDUCATION_LOGIN_HINT:Demo account (fake data): mobile 9000000001, password asha-demo-pass, one-time code 123456}"
     # The one-time code. FIXED for the demo (a real department sends a fresh code to the mobile).
     code: ${EDUCATION_LOGIN_CODE:123456}
     # Built-in demo citizens, used only when no database is configured: mobile|password|personId. FAKE dev accounts only.
-    users: ${EDUCATION_LOGIN_USERS:9000000001|asha-demo-pass|EDU-1001,9000000002|ravi-demo-pass|EDU-1002}
+    users: ${EDUCATION_LOGIN_USERS:9000000001|asha-demo-pass|EDU-1001|Asha Patil|2004-03-09,9000000002|ravi-demo-pass|EDU-1002|Ravi Joshi|2003-11-21}
   # The department's own Postgres. Empty = use the built-in fake seed above (tests, bare local run). A deployment sets all three.
   db:
     url: ${EDUCATION_DB_URL:}

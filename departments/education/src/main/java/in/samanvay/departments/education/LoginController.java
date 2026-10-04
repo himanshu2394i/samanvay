@@ -2,6 +2,7 @@ package in.samanvay.departments.education;
 
 import in.samanvay.departments.education.LoginPages.Brand;
 import in.samanvay.departments.education.LoginPages.Request;
+import in.samanvay.departments.kit.Person;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -60,6 +61,10 @@ class LoginController {
     ResponseEntity<String> page(@RequestParam(name = "return_to", required = false) String returnTo,
             @RequestParam(name = "state", required = false) String state,
             @RequestParam(name = "nonce", required = false) String nonce) {
+        if (returnTo == null && state == null && nonce == null) {
+            // Opened directly (not from another department): this is the department's own portal sign in.
+            return ResponseEntity.status(HttpStatus.FOUND).header(HttpHeaders.LOCATION, "/portal/#/sign-in").build();
+        }
         return invalidRequest(returnTo, state, nonce) ? badRequest() : ResponseEntity.ok(pages.passwordPage(new Request(returnTo, state, nonce), null));
     }
 
@@ -102,7 +107,7 @@ class LoginController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(pages.codePage(req, ticket, shownMask, "That code is not correct. Check it and try again."));
         }
-        String assertion = signer.sign(personId.get(), state, nonce);
+        String assertion = signer.sign(citizens.person(personId.get()).orElse(new Person(personId.get(), null, null)), state, nonce);
         String sep = returnTo.contains("?") ? "&" : "?";
         String location = returnTo + sep + "assertion=" + enc(assertion) + "&state=" + enc(state);
         return ResponseEntity.status(HttpStatus.SEE_OTHER).header(HttpHeaders.LOCATION, location).build();
