@@ -195,6 +195,18 @@ class PortalControllerTest {
         assertThat(send("GET", "/portal-api/me", cookie, null).json()).containsEntry("name", "Asha Patil").containsEntry("department", "EDUCATION");
     }
 
+    @Test
+    void a_sign_in_samanvay_cannot_verify_is_told_apart_from_a_credential_problem() throws Exception {
+        samanvay.on("POST", "/api/department/citizens/resolve", 401, "{\"reason\":\"LINK_PROOF_INVALID\",\"detail\":\"Department identity proof is invalid\"}");
+        Res step1 = send("POST", "/portal-api/sign-in", null, "{\"mobile\":\"9000000001\",\"password\":\"asha-pass\"}");
+        Res r = send("POST", "/portal-api/verify", null, "{\"ticket\":\"" + step1.json().get("ticket") + "\",\"code\":\"123456\"}");
+        assertThat(r.status()).isEqualTo(401);
+        assertThat((String) r.json().get("detail")).contains("could not verify");
+
+        samanvay.on("POST", "/api/department/citizens/resolve", 401, "{\"reason\":\"UNAUTHENTICATED\",\"detail\":\"A valid bearer token is required\"}");
+        assertThat(send("POST", "/portal-api/verify", null, "{\"ticket\":\"" + step1.json().get("ticket") + "\",\"code\":\"123456\"}").status()).isEqualTo(502);
+    }
+
     // --- journeys --------------------------------------------------------------------------------------------
 
     @Test

@@ -346,6 +346,11 @@ public class PortalController {
     @ExceptionHandler(SamanvayException.class)
     ResponseEntity<Map<String, Object>> samanvayRefused(SamanvayException e) {
         int s = e.status();
+        if ("LINK_PROOF_INVALID".equals(e.reason())) {
+            // Samanvay reached and understood us, but could not verify the department's sign in (for example the department is not connected yet).
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("detail", "Samanvay could not verify this sign in. The department may not be connected to Samanvay yet."));
+        }
         HttpStatus status = s == 401 || s == 403 ? HttpStatus.BAD_GATEWAY : s >= 500 ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.valueOf(s);
         String detail = status == HttpStatus.BAD_GATEWAY ? "Samanvay did not accept this department's request." : e.getMessage();
         return ResponseEntity.status(status).body(Map.of("detail", detail));

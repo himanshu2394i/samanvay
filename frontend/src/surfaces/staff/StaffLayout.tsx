@@ -58,8 +58,7 @@ export function StaffLayout() {
       </main>
       <footer className="site-footer wrap wide">
         <p>
-          Staff consoles. Everything here is authorised again by the API from your token on every request.{' '}
-          <a href="#/">Citizen services</a>
+          Staff consoles. Everything here is authorised again by the API from your token on every request.
         </p>
       </footer>
     </>

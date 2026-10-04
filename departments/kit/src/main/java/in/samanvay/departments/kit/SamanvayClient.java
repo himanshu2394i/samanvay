@@ -9,7 +9,7 @@ import java.util.UUID;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
@@ -36,8 +36,9 @@ public class SamanvayClient {
     public SamanvayClient(PortalProperties.Samanvay config, Clock clock) {
         this.config = config;
         this.clock = clock;
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(5));
+        // The JDK client (not HttpURLConnection): it hands back the body of a 401 instead of failing the call.
+        JdkClientHttpRequestFactory factory =
+                new JdkClientHttpRequestFactory(java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
         factory.setReadTimeout(Duration.ofSeconds(60));
         this.http = RestClient.builder().requestFactory(factory).build();
     }
@@ -112,7 +113,7 @@ public class SamanvayClient {
         try {
             return request.get();
         } catch (RestClientResponseException e) {
-            throw new SamanvayException(e.getStatusCode().value(), detail(e));
+            throw new SamanvayException(e.getStatusCode().value(), detail(e), field(e, "reason"));
         } catch (SamanvayException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -122,11 +123,16 @@ public class SamanvayClient {
     }
 
     private static String detail(RestClientResponseException e) {
+        String d = field(e, "detail");
+        return d == null ? "Samanvay refused the request." : d;
+    }
+
+    private static String field(RestClientResponseException e, String name) {
         try {
-            Object d = e.getResponseBodyAs(MAP).get("detail");
-            return d == null ? "Samanvay refused the request." : d.toString();
+            Object v = e.getResponseBodyAs(MAP).get(name);
+            return v == null ? null : v.toString();
         } catch (RuntimeException ignored) {
-            return "Samanvay refused the request.";
+            return null;
         }
     }
 
