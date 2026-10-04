@@ -318,6 +318,8 @@ export interface OnboardingPlan {
   manifestKeyThumbprint?: string | null
   /** The key an admin approved earlier for this department; null/absent = none yet. */
   pinnedKeyThumbprint?: string | null
+  /** Present when the manifest would replace an existing department's login address, keys or signing key. */
+  identityChange?: { warning: string; changes: string[] } | null
 }
 
 export interface OnboardRequest {
@@ -328,6 +330,8 @@ export interface OnboardRequest {
   mappings: Record<string, FieldMapping[]>
   /** The signing-key thumbprint the admin confirmed with the department (needed for a key that is new or changed). */
   approvedManifestKey?: string
+  /** Required when the plan shows an identityChange: the admin accepts that the department's identity is replaced. */
+  acknowledgeIdentityChange?: boolean
 }
 
 /** What was created; all connectors and journeys are DRAFT until tested and published. */
