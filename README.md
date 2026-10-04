@@ -58,217 +58,199 @@ The `#` in the staff URLs matters — the app uses hash routing. The **citizen**
 ## Contents
 
 1. [The problem and the idea](#the-problem-and-the-idea)
-2. [Architecture](#architecture)
-3. [How a citizen is mapped across departments](#how-a-citizen-is-mapped-across-departments)
-4. [The four departments: assumptions and workings](#the-four-departments-assumptions-and-workings)
-5. [What a department has to implement](#what-a-department-has-to-implement)
-6. [How a department is onboarded](#how-a-department-is-onboarded)
-7. [How a journey runs end to end](#how-a-journey-runs-end-to-end)
-8. [Decisions and trade-offs](#decisions-and-trade-offs)
-9. [Feasibility, viability and what staff can see](#feasibility-viability-and-what-staff-can-see)
-10. [How it is deployed today](#how-it-is-deployed-today)
-11. [Internal working](#internal-working)
-12. [Security and sensitivity](#security-and-sensitivity)
-13. [Future scope, including where AI genuinely helps](#future-scope-including-where-ai-genuinely-helps)
+2. [Architecture at a glance](#architecture-at-a-glance)
+3. [How a department portal works: our assumptions, and what they changed in the middle layer](#how-a-department-portal-works-our-assumptions-and-what-they-changed-in-the-middle-layer)
+4. [What a department has to implement](#what-a-department-has-to-implement)
+5. [Protocols and the security each one is handled with](#protocols-and-the-security-each-one-is-handled-with)
+6. [How a citizen is linked across departments](#how-a-citizen-is-linked-across-departments)
+7. [How a department is onboarded](#how-a-department-is-onboarded)
+8. [The Journeys dashboard: is a journey connected, and what did the middle layer do](#the-journeys-dashboard-is-a-journey-connected-and-what-did-the-middle-layer-do)
+9. [The edges we handle](#the-edges-we-handle)
+10. [Decisions and trade-offs](#decisions-and-trade-offs)
+11. [Feasibility, viability and what staff can see](#feasibility-viability-and-what-staff-can-see)
+12. [How it is deployed today](#how-it-is-deployed-today)
+13. [Internal working](#internal-working)
+14. [Security and sensitivity](#security-and-sensitivity)
+15. [Future scope, including where AI genuinely helps](#future-scope-including-where-ai-genuinely-helps)
 
 ## The problem and the idea
 
-A Maharashtra citizen who applies for a scholarship needs an income certificate and a caste certificate (Revenue), a marks statement
-(Education) and a verified bank account (DBT). Each of those lives in a different department system with a different protocol, a different
-login and a different security scheme. Today the citizen carries paper between counters, or each department builds a bilateral integration
-with every other one (N departments, up to N x N integrations).
+A Maharashtra citizen who applies for a scholarship needs an income and a caste certificate (Revenue), a marks statement (Education) and a
+verified bank account (DBT). Each lives in a different department system with its own protocol, login and security scheme. Today the citizen
+carries paper between counters, or each pair of departments builds its own integration (up to N x N for N departments).
 
 Samanvay is the **middle layer** that removes that work without replacing any department system:
 
-- Departments stay the **system of record**. Samanvay never stores a certificate, mark or bank number. It fetches live, under consent,
-  and keeps only the *interoperability state*: who the citizen is at each department, what they consented to, how each department's fields map
-  onto one central schema, the workflow, the tracking reference and a tamper-evident audit trail.
-- A department joins by **publishing a manifest** (what it holds and how to reach it), not by changing its system. Onboarding is a few
-  minutes of staff work, not an integration project.
-- **Samanvay has no citizen screens.** The citizen stays on the department they already trust. The department's own portal calls Samanvay
-  behind the scenes, and the department itself signs the citizen's consent.
+- Departments stay the **system of record**. Samanvay never stores a certificate, mark or bank number. It fetches live, under consent, and keeps
+  only the *interoperability state*: who the citizen is at each department, what they consented to, how each department's fields map onto one
+  central schema, the workflow, the tracking reference and a tamper-evident audit trail.
+- A department joins by **publishing a signed manifest** (what it holds and how to reach it), not by changing its system.
+- **Samanvay has no citizen screens and no citizen login.** The citizen stays on the department's own portal. That portal calls Samanvay behind
+  the scenes, and the department itself vouches for who the citizen is and signs their consent.
 
-## Architecture
-
-### Where Samanvay sits
+## Architecture at a glance
 
 ```mermaid
 flowchart LR
-  subgraph Citizen side
-    C[Citizen]
-  end
-  subgraph Departments[Department systems of record]
-    R[Revenue<br/>REST + SFTP]
-    D[DBT<br/>REST + OAuth2]
-    E[Education<br/>SOAP + WS-Security]
-    A[Agriculture<br/>JDBC view + SFTP]
-  end
-  subgraph Portals[Each department's own portal and login]
+  C[Citizen]
+  subgraph Portals[Department portals - the citizen's own door]
     RP[Revenue portal]
     DP[DBT portal]
     EP[Education portal]
     AP[Agriculture portal]
   end
   subgraph Samanvay[Samanvay middle layer - one deployable]
-    CP[Control plane<br/>identity - consent - catalog - registry]
-    DPL[Data plane<br/>connector - orchestration - tracking - notifications]
+    CP[Control plane: identity, consent, catalog, registry]
+    DPL[Data plane: connector, orchestration, tracking, notifications]
     AU[(Hash-chained audit)]
   end
-  S[Staff console<br/>officer - reviewer - admin]
+  subgraph Sources[Department systems of record]
+    R[Revenue: REST + SFTP]
+    D[DBT: REST + OAuth2]
+    E[Education: SOAP + WS-Security]
+    A[Agriculture: JDBC view + SFTP]
+  end
+  S[Staff console: officer, reviewer, admin]
   C --> RP & DP & EP & AP
-  RP & DP & EP & AP -->|signed login, signed consent,<br/>start journey| CP
+  RP & DP & EP & AP -->|"signed login, signed consent, start journey"| CP
   CP --> DPL
-  DPL -->|live fetch under a 60 s single-use grant| R & D & E & A
+  DPL -->|"live fetch under a 60 s single-use grant"| R & D & E & A
   CP -.-> AU
   DPL -.-> AU
   S --> Samanvay
 ```
 
-### Control plane decides, data plane moves
+The control plane decides (identity, consent, catalog, registry); the data plane moves (connector, orchestration, tracking, notifications). No
+fetch happens without a grant the control plane issued, and module boundaries are enforced at build time (Spring Modulith and ArchUnit).
 
-```mermaid
-flowchart TB
-  subgraph Control[Control plane - decides]
-    I[identity<br/>citizen links, no auto-merge]
-    CO[consent<br/>purpose, revoke, issues the grant]
-    CA[catalog<br/>departments, schemas, journeys]
-    RG[registry<br/>pointers: what exists where]
-  end
-  subgraph Data[Data plane - moves]
-    CN[connector<br/>adapters + mapping DSL]
-    OR[orchestration<br/>journey, retry, degrade]
-    TR[tracking<br/>one reference number, SLA]
-    NO[notifications<br/>events to citizen and officer]
-  end
-  AUD[(audit<br/>hash-chained ledger)]
-  CO -- "60 s, single-use access grant" --> CN
-  I --> CO
-  CA --> CN
-  CA --> OR
-  RG --> OR
-  OR --> CN
-  OR --> TR
-  OR --> NO
-  CO -.-> AUD
-  CN -.-> AUD
-  OR -.-> AUD
-```
+## How a department portal works: our assumptions, and what they changed in the middle layer
 
-No data fetch happens without a grant that the control plane issued. The module boundaries are enforced at build time (Spring Modulith and
-ArchUnit), so a data-plane class cannot reach into the control plane's tables.
+The four departments in `departments/` are separate Spring Boot services with fake data, built to look like real systems (own database, own
+protocol, own security, own login). Each also serves a **citizen portal** at `/portal/`. These are the assumptions we made about a department and
+its portal, and what each one forced us to build or change in Samanvay.
 
-### Stack
+| # | Assumption about the department | What it changed in the middle layer |
+|---|---|---|
+| A1 | The citizen already has an account and trusts the department's **own login and portal**. We will not ask them to sign in somewhere new. | Samanvay has **no citizen login or citizen UI**. The citizen identity provider (a Keycloak realm) is optional and switched off in the deployment. Samanvay learns who the citizen is only from the department. |
+| A2 | The portal has a **server side** (a back end for the front end) that can keep a secret and call Samanvay. The browser never talks to Samanvay and never holds a Samanvay token. | Each department gets its own Keycloak **client-credentials client** (`dept-<code>`) with the `department` claim. Every `/api/department/**` call is scoped to the caller's department (`DepartmentScope`): it can only start the journeys it runs, only for citizens linked to it. A citizen who is not its own is simply not found (404), not "forbidden". |
+| A3 | The department can hold a **signing key** and sign two small statements: "this person just logged in here" and "this person agreed to this use". | Samanvay verifies a department-signed **login assertion** (ES256 JWT, one-time `jti`) against the key an admin pinned at onboarding, and stores the department-signed **consent statement** as evidence. It no longer records consent itself. |
+| A4 | The department knows its own **person ID** for the citizen but not Samanvay's citizen ID. | A Samanvay citizen record is created or found from the assertion; a **link** maps it to the department's person ID. Departments never see each other's person IDs (the readiness call returns only which departments are linked). |
+| A5 | A service is started **on the department that offers it** (Education offers the scholarship) and that department is the *requester* of its own journeys. | Journeys are owned by a requester department. The portal calls `readiness`, then `consent`, then `start`. Samanvay's staff pages show journeys under their requester. |
+| A6 | A service may need records from **other** departments, and the citizen must prove they control those accounts too. | The **link flow**: the portal asks Samanvay for a one-time `state` and `nonce`, sends the citizen to the other department's own login with a return address, and posts back the other department's signed assertion. Return addresses are allow-listed per department. |
+| A7 | The department keeps its own **session**. | The shared kit (`departments/kit`) uses a signed, expiring, `HttpOnly` cookie with no server session. Throttling, request hygiene and security headers live in the kit. |
+| A8 | A department outage is normal and must not lose the citizen's application. | Orchestration records each document as a step. A source that is down leaves the step *pending source* and raises an exception for an officer; a retry fills the gap. |
+| A9 | Departments publish what they hold in a **manifest** they sign and control. | Onboarding is manifest-driven (see below); the manifest carries documents, protocols, parameter *names* (never values), the journeys the department offers, its `portalUrl`, and its `identity` block (login URL, public keys). |
+| A10 | Departments do not want to rename their fields or change their database. | A **central schema** per document and a field **mapping** layer: each department's fields are matched to central fields, the journey is written once against the central schema. |
 
-Java 21, Spring Boot 4 with Spring Modulith, PostgreSQL 16 and Flyway, Keycloak (staff only), Resilience4j, Flowable behind a port
-(`WorkflowEngine`), React + TypeScript for the staff console and the department portal, Docker Compose, Caddy for HTTPS.
-
-## How a citizen is mapped across departments
-
-There is **no national ID** and no central citizen database. The same person has a different identifier at every department
-(Revenue `RV-1001`, DBT `DBT-1001`, Education `EDU-1001`, Agriculture `AG-1001` in the demo). Samanvay holds a **citizen record of its own**
-(a random UUID, a display name) and a set of **links** from that record to the person's local identifier at each department.
-
-```mermaid
-flowchart LR
-  subgraph Samanvay
-    CZ((Citizen<br/>UUID))
-  end
-  CZ -- "link: RV-1001" --> RV[(Revenue)]
-  CZ -- "link: DBT-1001" --> DB[(DBT)]
-  CZ -- "link: EDU-1001" --> ED[(Education)]
-  CZ -- "link: AG-1001" --> AG[(Agriculture)]
-```
-
-How a link is made, and why it can be trusted:
-
-1. The citizen signs in **at a department** with that department's own login (mobile number, password, one-time code in the demo). The
-   department's portal then asks Samanvay to *resolve* the citizen and sends a **signed login assertion** (ES256 JWT: department, local person
-   ID, time, one-time `jti`, optionally name and date of birth). Samanvay verifies it against the department's **pinned signing key** and accepts
-   each assertion once. A citizen record is created, or found, with a link to that department's person ID.
-2. Later a service needs records from **another** department. The portal shows "Log in at Revenue". The citizen goes to Revenue's own login
-   and comes back with a second signed assertion, tied to a one-time `state` and `nonce` that Samanvay issued for **this** citizen. Samanvay
-   adds the second link to the same citizen. Nothing but proof of control of both accounts links them.
-3. If the person had already signed in at the second department on its own, there are now two Samanvay records for one human. When a
-   link proves they are the same person, the records are **merged** (links move to the surviving record, discovery pointers are re-created).
-   A record with applications or consents is never merged silently.
-4. Where the proof is weaker (a name and date-of-birth match without a login), the system only **proposes** a match. A human reviewer
-   confirms or rejects it in the reviewer queue. Probabilistic matches never become active links on their own.
-
-A department never learns the citizen's identifiers at another department: the readiness call returns only which departments are linked,
-not the local IDs.
-
-### Mapping documents onto one schema
-
-The same idea applies to data. Each department names its fields differently (`annualIncome`, `income_inr`, `ANNUAL_INC`). Samanvay has a
-**central schema per document type** (for example `Credential/Marks@1`, `Credential/Income@1`) that lists the fields a service needs and
-which are required. When a department is onboarded, each of its document fields is **matched** to a central field (the system proposes
-matches, an admin approves them). A connector then fetches over the department's protocol and a small mapping DSL converts the answer to the
-central shape, so a journey is written once against the central schema and works with any department that provides that document.
-The staff console's *Central schema* page shows, document by document, what the document contains and which onboarded department maps onto it.
-
-## The four departments: assumptions and workings
-
-These four are separate Spring Boot services in `departments/`, with their own data, protocols, security and login. They are **stand-ins with
-fake data**, built to look the way real systems look, so the platform is proven against four genuinely different integration styles.
+### The four departments
 
 | | Revenue | DBT | Education | Agriculture |
 |---|---|---|---|---|
 | Documents | income, caste, domicile certificates; 7/12 land record | bank account | marks statement | farmer record; crop sowing record |
 | Protocol | REST + SFTP batch CSV | REST | SOAP 1.1 | JDBC (read-only view) + SFTP batch CSV |
-| What Samanvay must satisfy | `X-Api-Key` (+ optional IP allow-list); SFTP password and pinned host key | OAuth2 client credentials, bearer token | WS-Security UsernameToken in the SOAP header | database account that can read one view only; SFTP password and pinned host key |
-| Citizen login | mobile + password + code | mobile + password + code | mobile + password + code | mobile + password + code |
 | Journey it offers | Income certificate renewal | DBT bank account seeding | Post-matric scholarship | Farmer subsidy |
-| Journey needs | income certificate | bank account | income + caste (Revenue), marks (Education), bank account (DBT) | land parcel (Revenue), crop record (Agriculture), bank account (DBT) |
-
-### Assumptions we made about every department
-
-- It already has an authoritative record per person and can look it up by its own person identifier.
-- It can expose that record **read-only** in one of the four styles above, or already does for another system. We do not ask for a new API.
-- It has its own citizen login and wants to **keep** it. We do not ask it to adopt a shared identity provider.
-- It can publish one small signed document (the manifest) and keep one signing key.
-- It can restrict who may read: give Samanvay a read-only credential, a key, an OAuth client or an IP allow-list.
-- It is willing to confirm "this citizen is who they say" (signed login assertion) and "this citizen agreed to this use" (signed consent
-  statement), because only the department can attest to its own login.
-- A department's field names and formats are its own business. We map, we do not ask it to rename.
-
-### Per department
-
-**Revenue.** Certificates are keyed by the certificate number, not the person, so the manifest declares a **resolve** step: Samanvay first
-calls `GET /v1/persons/{personId}/documents?type=...` to find the latest certificate key, then fetches `/v1/income/{key}`. The 7/12 land
-extract is a **batch CSV** on Revenue's SFTP server, one row per person. Because a batch file is what many revenue systems really
-produce, the connector reads it over SFTP with a **pinned host key** (no trust on first use). Revenue also demands a **discovery credential**
-before it will show its manifest at all, to show that a department can restrict even the onboarding handshake.
-
-**DBT.** A modern API. The connector first obtains an OAuth2 client-credentials token, then posts a lookup to `/v1/bank`. The answer
-carries an account reference and a masked IFSC, never the full account number; Samanvay does not need it to decide eligibility. DBT is needed by three of the four
-journeys, which is why it is the department most services depend on.
-
-**Education.** A SOAP service with a WS-Security UsernameToken. The connector builds the SOAP envelope, adds the header and parses the XML
-answer. It is the proof that Samanvay copes with an older enterprise protocol with no change on the department side.
-
-**Agriculture.** The farmer record is not behind an API at all: the department gives Samanvay a **read-only database account** that can read
-exactly one view. The manifest names the view and its key column and **no SQL**; Samanvay builds the fixed query itself, and a guard
-refuses anything but a parameterised `SELECT`. The crop sowing record is another SFTP batch CSV.
+| Journey draws on | income certificate | bank account | income and caste (Revenue), marks (Education), bank account (DBT) | land parcel (Revenue), crop record (Agriculture), bank account (DBT) |
+| Quirk | certificates are keyed by certificate number, so a **resolve** step finds the latest key first; also demands a discovery credential to even show its manifest | OAuth2 token before each fetch; returns an account reference and a masked IFSC, never the full number | SOAP envelope and XML answer | no API at all: the manifest names a view and its key column and **no SQL**; Samanvay builds a fixed, parameterised `SELECT` |
 
 ## What a department has to implement
 
-The goal is to keep this list small and mostly about **attesting**, not about integrating.
+The burden is mostly *attesting*, not integrating.
 
 | # | What | Why | Effort |
 |---|---|---|---|
-| 1 | **Publish `GET /.well-known/samanvay/manifest`** (v2): documents with fields, how to reach each, the security *parameter names* (never values), whether a resolve step is needed, the journeys it offers, and an `identity` block (login URL, public keys, ID type) | Lets Samanvay onboard it from one URL | A static document plus a signing key |
-| 2 | **Sign the manifest** (ES256, `X-Samanvay-Signature`, bound to the document hash, issue time and the department's own address) and keep the key | The admin pins the key fingerprint once; a changed manifest from anyone else is refused | One key file |
-| 3 | **Keep serving its existing data** over REST, SOAP, SFTP or a read-only JDBC view, and issue Samanvay a read-only credential | Samanvay fetches live | None if it already exposes the data |
-| 4 | **After its own login, send a signed login assertion** to Samanvay (`POST /api/department/citizens/resolve` with its client credentials) | This is how a citizen record gets linked to the department's person ID | One signed JWT per sign-in |
-| 5 | **Show the consent wording and sign the citizen's confirmation** (a `samanvay-consent` JWS: purpose, categories, one-time nonce) | The department is the one party that can attest the citizen agreed | One signed statement per consent |
-| 6 | **Offer its journey on its own portal** and call Samanvay to start it | The citizen never leaves the department they trust | The shared kit gives a ready portal |
+| 1 | **Publish `GET /.well-known/samanvay/manifest`** (v2): documents and fields, how to reach each, parameter names, resolve step if needed, journeys, `identity` block | Samanvay can onboard it from one URL | A document and a key |
+| 2 | **Sign the manifest** (ES256, `X-Samanvay-Signature`, over the document hash, issue time and the department's own address) | The admin pins the key once; anything else is refused | One key file |
+| 3 | **Keep serving its data** over REST, SOAP, SFTP or a read-only JDBC view, and issue Samanvay a read-only credential | Samanvay fetches live | None if it already exposes the data |
+| 4 | **After its own login, send a signed assertion** (`POST /api/department/citizens/resolve`, with its client credentials) | Links the citizen to the department's person ID | One signed JWT per sign-in |
+| 5 | **Show the consent wording, and sign the confirmation** (a `samanvay-consent` JWS: purpose, categories, one-time nonce) | Only the department can attest the citizen agreed | One signed statement per consent |
+| 6 | **Offer its journey on its own portal** and call Samanvay to start it | The citizen stays on the department they trust | The kit provides it |
 
-For a Spring Boot department steps 4 to 6 are the shared library `departments/kit` (auto-configuration, session handling, sign-in throttling,
-consent signing, the React portal). A department on another stack implements the same three small contracts
-([department API](docs/contracts/department-api.md), [login assertion](docs/contracts/login-assertion.md),
-[consent statement](docs/contracts/department-consent-statement.md), [manifest signature](docs/contracts/manifest-signature.md)).
-What the department does **not** do: change its database, adopt a new identity system, build a citizen screen for Samanvay, expose a new
-API, or share data in bulk.
+For a Spring Boot department steps 4 to 6 are the shared kit. A department on another stack implements the same small contracts:
+[department API](docs/contracts/department-api.md), [login assertion](docs/contracts/login-assertion.md),
+[consent statement](docs/contracts/department-consent-statement.md), [manifest signature](docs/contracts/manifest-signature.md).
+The department does **not**: change its database, adopt a new identity system, build a screen for Samanvay, expose a new API or share data in bulk.
+
+## Protocols and the security each one is handled with
+
+| Protocol | What the department requires | How Samanvay satisfies it | What Samanvay checks about itself |
+|---|---|---|---|
+| **REST + API key** (Revenue) | `X-Api-Key` header, optionally an IP allow-list | The key is read from the secret store at call time and sent as the header | The request URL is on the registered origin, the answer is capped at 1 MB, deadline, retry, circuit breaker |
+| **REST + OAuth2** (DBT) | Client-credentials token, then a bearer header | Fetches a token, caches it, sends the bearer, refreshes on a 401 | Token URL is validated like any endpoint |
+| **SOAP + WS-Security** (Education) | UsernameToken (username and password) in the SOAP header | Builds the envelope and header, parses the XML answer | Endpoint path is validated, answer capped |
+| **SFTP batch CSV** (Revenue, Agriculture) | Username and password; a host key | Password from the secret store; the server's **host key is pinned** (no trust on first use) | A different host key fails the fetch; the CSV is read by key (person ID) |
+| **JDBC** (Agriculture) | A database account | A **read-only role that can read exactly one view**; the manifest names the view and key column, never SQL | A guard allows a parameterised `SELECT` only |
+| **The manifest itself** | Optionally a discovery credential (`X-Discovery-Key`) before it shows the manifest | Sent from the secret store | Signature verified against the pinned key, bound to the department's own address (`aud`), checked for age |
+
+Secrets (every credential above) live in the secret store and are never typed into the console, never stored in the database and never logged.
+Every department-facing and staff-facing route is behind a token and listed in a test with the roles allowed.
+
+Trust between Samanvay and a department rests on three signed things, all checked against a key a human pinned once:
+
+```mermaid
+flowchart LR
+  K[(Department signing key<br/>fingerprint confirmed by an admin)]
+  K --> M[Signed manifest<br/>what it holds, where, how]
+  K --> L[Signed login assertion<br/>who just logged in here]
+  K --> N[Signed consent statement<br/>who agreed to what]
+  M --> S[Samanvay verifies and pins]
+  L --> S
+  N --> S
+```
+
+## How a citizen is linked across departments
+
+There is **no national ID** and no central citizen database. The same person has a different identifier at every department (Revenue `RV-1001`,
+DBT `DBT-1001`, Education `EDU-1001`, Agriculture `AG-1001` in the demo). Samanvay keeps a citizen record of its own (a random UUID and a display
+name) and a set of **links** from it to the person's ID at each department.
+
+```mermaid
+flowchart LR
+  CZ((Samanvay citizen<br/>UUID)) -- "link RV-1001" --> RV[(Revenue)]
+  CZ -- "link DBT-1001" --> DB[(DBT)]
+  CZ -- "link EDU-1001" --> ED[(Education)]
+  CZ -- "link AG-1001" --> AG[(Agriculture)]
+```
+
+**Step 1. Home sign-in (the first link).** The citizen signs in on a department's portal. The portal's back end sends Samanvay a signed
+assertion; Samanvay verifies it against the pinned key, accepts it once, and creates or finds the citizen with a link to that department.
+
+**Step 2. Linking another department (when a service needs it).**
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor C as Citizen
+  participant PE as Education portal
+  participant S as Samanvay
+  participant RL as Revenue login
+  C->>PE: Start the scholarship
+  PE->>S: Readiness for this citizen
+  S-->>PE: Revenue is not linked yet
+  PE->>S: Start a link to Revenue
+  S-->>PE: One-time state and nonce, plus Revenue login address
+  PE-->>C: Redirect to Revenue login with state, nonce and a return address
+  C->>RL: Sign in at Revenue (password and one-time code)
+  RL-->>C: Redirect back to the Education portal with a signed assertion
+  C->>PE: Arrives at the return address
+  PE->>S: Post the assertion
+  S->>S: Verify signature, state, nonce and single use, then add the link
+  S-->>PE: Linked
+```
+
+**Step 3. The same human twice.** If the person had already signed in at the second department on their own, there are two Samanvay records for one
+human. When a link proves they are the same person, the records are **merged**: links move to the surviving record and the registry pointers are
+recreated. A record that already has applications or consents is never merged silently.
+
+**Step 4. Weak evidence only proposes.** A name and date-of-birth match without a login only creates a **candidate**. A human reviewer confirms or
+rejects it in the reviewer queue. A probabilistic match never becomes an active link by itself.
+
+### The same idea for documents
+
+Each department names fields differently (`annualIncome`, `income_inr`, `ANNUAL_INC`). Samanvay has a **central schema per document type**
+(for example `Credential/Income@1`) with required fields. At onboarding every department field is **matched** to a central field (the system
+proposes, an admin approves), and a connector converts the answer to the central shape. A journey is written once against the central schema and works
+with any department that provides that document. The staff console's **Central schema** page shows, document by document, what the document
+contains and which onboarded department maps onto it, field by field.
 
 ## How a department is onboarded
 
@@ -278,64 +260,82 @@ sequenceDiagram
   actor Admin as Staff admin
   participant S as Samanvay
   participant D as Department
-  Admin->>S: Paste the department's base URL, Review plan
-  S->>D: GET /.well-known/samanvay/manifest (discovery credential if required)
+  Admin->>S: Paste the department base URL and press Review plan
+  S->>D: GET the manifest (discovery credential if required)
   D-->>S: Signed manifest
-  S-->>Admin: Plan: documents, field matches, key fingerprint, steps (nothing saved yet)
-  Admin->>Admin: Compare the key fingerprint with the department's own record
-  Admin->>S: Tick fingerprint confirmed, documents and matches, Onboard
-  S->>S: Pin the key, create the department, data sources, connectors, mappings, journeys (all drafts)
+  S->>S: Check signature, address binding, paths, host is public
+  S-->>Admin: Plan with documents, field matches, key fingerprint, steps. Nothing saved
+  Admin->>Admin: Compare the fingerprint with the department's own record
+  Admin->>S: Tick fingerprint confirmed, documents and matches, press Onboard
+  S->>S: Pin the key, create department, sources, connectors, mappings, journeys as drafts
   Admin->>S: Run trial fetch on each connector
-  S->>D: Real fetch with the real credential for a sample person
+  S->>D: Real fetch with the real credential for the sample person
   D-->>S: Record
   Admin->>S: Test and publish the connectors, then the journeys
 ```
 
-What the operator provisions outside the console (the console lists each step in the plan): the department's read-only credential for each
-data source, the SFTP host-key pin, the discovery credential if the department wants one, and the department portal's own Keycloak client
-so it can call Samanvay. Secrets are never typed into the console and never stored in the database; they sit in the secret store.
+Outside the console the operator provisions: each source credential into the secret store, the SFTP host key pin, the discovery credential if the
+department wants one, and the department portal's own Keycloak client. The plan lists each of these steps.
 
-A change to a department's manifest later is never silent. A new key fingerprint, a different login address or a changed host is shown
-in the plan and needs an explicit confirmation.
+What makes onboarding safe:
 
-The staff console then shows only what was really onboarded: **Departments** (sources, health, each document with its connector status,
-last trial and how its fields map to the central schema), **Journeys** (readiness, counts, the log of each run) and **Central schema**
-(document by document). Seeded demo rows are not shown.
+- The **key fingerprint** is the one human trust decision. Re-onboarding with a different key, a different login address or a different host is shown
+  as an **identity change** and needs an explicit acknowledgement; without it the request is refused.
+- The manifest signature covers the document hash, the issue time and the department's own address, so a signed manifest cannot be replayed from
+  another host.
+- Endpoint paths cannot retarget a call: a path must start with `/`, may not contain `@`, `//`, `..`, backslashes or spaces, and the final URL host
+  is checked against the registered origin before anything is sent.
+- The base URL must be https (outside an explicit dev allow-list), may not carry a user name or password, and every address its name resolves to
+  must be public (loopback, link-local, private, carrier-grade NAT, IPv6 unique-local and multicast are refused).
+- A manifest cannot adopt another department's data sources or journeys, and a journey's requester must be the manifest's own department.
+- **Publish needs proof**: a connector can only be published after a successful recorded trial in the last 24 hours, decided by the server, not by the request.
 
-## How a journey runs end to end
+## The Journeys dashboard: is a journey connected, and what did the middle layer do
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor C as Citizen
-  participant P as Education portal
-  participant S as Samanvay
-  participant R as Revenue
-  participant B as DBT
-  participant O as Officer
-  C->>P: Sign in (mobile, password, code)
-  P->>S: Signed login assertion, resolve citizen
-  C->>P: Start Post-matric scholarship
-  P->>S: Readiness: which departments are linked, is consent active
-  S-->>P: Needs Revenue and DBT links
-  C->>R: Log in at Revenue's own login
-  R-->>S: Signed assertion tied to state and nonce (link added)
-  C->>B: Log in at DBT's own login
-  B-->>S: Signed assertion (link added)
-  P->>C: Show purpose and categories
-  C->>P: Confirm with the one-time code
-  P->>S: Department-signed consent statement
-  P->>S: Start journey
-  S->>R: Live fetch income, caste (grant 60 s, single use)
-  S->>B: Live fetch bank account
-  S->>S: Map to the central schema, verify, one tracking reference
-  S-->>O: Application with provenance on every field
-  O->>S: Approve or reject, retry a source that was down
-  S-->>C: Status and reference on the portal
-```
+After onboarding, staff do not have to guess whether a journey works. The staff console shows only what was really onboarded (seeded demo rows are
+hidden):
 
-If a source is down, the application waits as **pending source** with an exception raised for an officer, and a retry fills the missing
-document without restarting the citizen's journey. An application is verified only when every required document has been fetched.
+- **Departments**: each onboarded department with its sources and health, and each document with its connector status, last trial and how its
+  fields map onto the central schema. A draft connector has a **Test and publish** button.
+- **Journeys**: each journey with whether it is **ready** (every document it needs has a published connector) and how many applications are
+  running, approved and rejected.
+- **Journey page** (`#/staff/admin/journeys/<code>`), the part that answers "is it connected":
+
+| Section | What it shows |
+|---|---|
+| **Connected and working** | One row per document the journey needs: the department, the connector, the data source **health** (green, amber, red, or *not checked yet*), the **last trial** and its outcome, and whether it is working. **Check source** probes reachability now; **Run trial** fetches the department's sample person through the real protocol and credential and records the result. |
+| **Applications** | Counts: running, approved, rejected, last seven days. |
+| **Recent applications** | Reference number, state, start time. |
+| **Middle-layer log** | One row per step of each recent application: time, application, document, department, connector, **outcome**, **latency** and the **error** if it did not complete. |
+
+The log shows no secret, no citizen value and no document content: only what the middle layer did and how it went. A source that has never
+been checked is shown as *not checked yet*, never as working, and a journey whose source is red says what it is waiting for instead of offering to publish.
+
+## The edges we handle
+
+| Edge | What happens |
+|---|---|
+| A source is **down or slow** | The step becomes *pending source*, an exception is raised for an officer, the citizen's application is kept. A retry fills the gap without restarting. |
+| An adapter fails in any way (timeout, 4xx or 5xx, malformed answer, answer over 1 MB, mapping error) | Mapped to *unavailable* or *not found*; never an orphan application or a 500 to the citizen. A circuit breaker and bulkhead stop one bad source from stalling the rest. |
+| A **missing record** (SFTP row absent, empty JDBC row, all-null answer) | Treated as *not found*, not as success. |
+| An application is **verified only when every required document** has completed | A partly fetched application stays partial. |
+| **Double start**, a draft journey, a finished application | A second open start for the same citizen and journey is refused (409), a draft journey cannot be started, and an approved, rejected or closed application cannot be overwritten or cancelled. |
+| A department starts a journey **it does not run**, or for a citizen **not linked to it** | Refused (403) or not found (404). |
+| **Replay** of a login assertion, link state, consent statement or grant | Each `jti`, `state`, `nonce` and grant is single use; a statement or assertion dated in the future is refused. |
+| **Consent** double-submitted, or the terms changed after the request | The second submit gets 409; a grant after the data types or validity changed gets 409 `CONSENT_TERMS_CHANGED`. |
+| A citizen **withdraws consent** | Revoked by the citizen or by the department that holds it; the next fetch is denied. Ended records are purged with their evidence. |
+| **Two records for one person**, a revoked link, a different person at the same department | The same human is merged under row locks and pointers are recreated; a revoked link can be re-made; a second person at the same department is refused (409). A suspended citizen has no active links. |
+| A department's **key, login address or host changes** | Shown as an identity change and refused until acknowledged. |
+| A **manifest tries to redirect** a call or reach an internal address | Rejected at planning and again at call time. |
+| A `;`, encoded `;`, encoded slash or `..` in a department URL | Rejected (400); everything except an explicit public list is protected by default. |
+| **Password or code guessing** on a department portal | Throttled per mobile, per ticket and per address (429); a ticket opens one session at most; the answer takes the same time for a known and an unknown mobile. |
+| A department started with **default secrets or a demo code** | Refuses to start unless it is told, on purpose, that it is a demo. |
+| Samanvay started with **default database passwords** or **mock departments** outside a demo profile | Refuses to start. |
+| **Seeded demo data** | Kept for tests, hidden from the staff console behind an `onboarded` flag. |
+
+**What we do not handle yet** (stated plainly): DNS rebinding after the host check (an egress firewall or pinned-address connector is the
+upgrade); sign-in throttles and used-ticket memory are per server and in memory; portal sessions cannot be revoked before they expire; metrics
+for connectors, consent and notifications reset when the service restarts (SLA and the exception queue are in the database).
 
 ## Decisions and trade-offs
 
