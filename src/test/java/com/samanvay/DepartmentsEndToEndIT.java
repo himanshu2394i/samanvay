@@ -265,7 +265,7 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
 
     static void start(String dept, String... args) throws IOException {
         List<String> cmd = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-jar",
-                jar(dept).toString(), "--server.port=" + PORT.get(dept), "--spring.main.banner-mode=off"));
+                jar(dept).toString(), "--server.port=" + PORT.get(dept), "--spring.main.banner-mode=off", "--department.demo-mode=true"));
         cmd.addAll(List.of(args));
         // Each department signs its manifest with a key kept in a file; keep the test's keys out of the source tree.
         Path keys = Path.of("target", "e2e-keys");

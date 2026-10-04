@@ -164,7 +164,7 @@ How it fits together (details and decisions: [docs/FINAL-CHANGES.md](docs/FINAL-
 5. **Fetching** sends the person ID (or the document key from the optional `resolve` step) plus Samanvay's credentials over the
    declared protocol.
 
-Run one: `./mvnw -f departments/pom.xml -pl revenue -am spring-boot:run`. Run all with their data stores:
+Run one: `./mvnw -f departments/pom.xml -pl revenue -am spring-boot:run -Dspring-boot.run.profiles=dev` (the `dev` profile turns on demo mode; without it a department refuses to start on the dev default secrets). Run all with their data stores:
 `docker compose up -d dept-revenue dept-dbt dept-education dept-agriculture revenue-sftp agriculture-db agriculture-sftp`.
 More: [departments/README.md](departments/README.md).
 

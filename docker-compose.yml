@@ -118,6 +118,7 @@ services:
       - "8091:8091"
     environment:
       REVENUE_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+      DEPARTMENT_DEMO_MODE: "true"
     volumes:
       - dept-revenue-data:/data
   dept-dbt:
@@ -126,6 +127,7 @@ services:
       - "8092:8092"
     environment:
       DBT_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+      DEPARTMENT_DEMO_MODE: "true"
     volumes:
       - dept-dbt-data:/data
   dept-education:
@@ -134,6 +136,7 @@ services:
       - "8093:8093"
     environment:
       EDUCATION_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+      DEPARTMENT_DEMO_MODE: "true"
     volumes:
       - dept-education-data:/data
   dept-agriculture:
@@ -142,6 +145,7 @@ services:
       - "8094:8094"
     environment:
       AGRICULTURE_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+      DEPARTMENT_DEMO_MODE: "true"
     volumes:
       - dept-agriculture-data:/data
 
