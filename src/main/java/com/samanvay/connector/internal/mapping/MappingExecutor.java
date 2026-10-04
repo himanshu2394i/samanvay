@@ -24,7 +24,7 @@ public class MappingExecutor {
             "upper", (v, args) -> v == null ? null : v.toUpperCase(Locale.ROOT),
             "lower", (v, args) -> v == null ? null : v.toLowerCase(Locale.ROOT),
             "date_parse",
-                    (v, args) -> LocalDate.parse(v, DateTimeFormatter.ofPattern(args.getFirst())).toString(),
+                    (v, args) -> v == null ? null : LocalDate.parse(v, DateTimeFormatter.ofPattern(args.getFirst())).toString(),
             "coalesce", (v, args) -> v != null && !v.isBlank() ? v : args.getFirst(),
             "split_name", (v, args) -> v == null ? null : v.trim().replaceAll("\\s+", " "),
             "lookup", (v, args) -> v,

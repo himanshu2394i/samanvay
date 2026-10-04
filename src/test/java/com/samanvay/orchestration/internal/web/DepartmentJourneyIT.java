@@ -122,6 +122,14 @@ class DepartmentJourneyIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void a_department_cannot_start_a_journey_for_a_citizen_it_is_not_linked_to() {
+        UUID stranger = profiles.register(new ProfileDraft("Someone Else", null, null, null, null, LocalDate.of(1999, 1, 1), "DAY", null, null));
+        int status = TestHttp.as(owner).post().uri(url("/api/journeys/" + JOURNEY + "/start")).contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("citizenId", stranger, "submission", Map.of())).exchange((rq, rs) -> rs.getStatusCode().value());
+        assertThat(status).isEqualTo(404);
+    }
+
+    @Test
     void a_department_must_name_the_citizen_when_listing() {
         assertThat(getStatus(owner, "/api/applications")).isEqualTo(400);
     }
@@ -134,6 +142,9 @@ class DepartmentJourneyIT extends PostgresIntegrationTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) before.get("departments");
         assertThat(items).isNotEmpty();
         assertThat(items).anyMatch(i -> Boolean.FALSE.equals(i.get("linked")));
+        // The caller learns which departments are connected, never another department's person ID.
+        assertThat(items).allSatisfy(i -> assertThat(i.keySet())
+                .containsExactlyInAnyOrder("departmentCode", "departmentName", "categories", "linked", "departmentLoginAvailable"));
         assertThat(before.get("consentActive")).isEqualTo(false);
 
         linkEverything();

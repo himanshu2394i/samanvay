@@ -123,6 +123,8 @@ public class ApplicationApprovalService {
             }
             throw new ApplicationNotRejectableException(instanceId, current);
         }
+        // A rejected application is final: its queue entries cannot be worked any more.
+        jdbc.update("UPDATE orchestration_exception SET status = 'RESOLVED' WHERE instance_id = ? AND status = 'OPEN'", instanceId);
         audit.record(new AuditEntry(
                 ActorType.OFFICER,
                 officer,
