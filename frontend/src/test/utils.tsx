@@ -3,9 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 import { ApiProvider } from '../api/ApiProvider'
 import { AuthContext, type AuthContextValue } from '../auth/authContext'
-import { CitizenApp } from '../surfaces/citizen/CitizenApp'
 import { StaffApp } from '../surfaces/staff/StaffApp'
-import { writeCitizenId } from '../surfaces/citizen/lib/citizenStore'
 
 export const SUB = 'sub-citizen-1'
 export const CITIZEN_ID = '11111111-1111-4111-8111-111111111111'
@@ -71,7 +69,7 @@ export function signedInAuth(overrides: Partial<AuthContextValue> = {}): AuthCon
     signOut: vi.fn(async () => {}),
     getAccessToken: vi.fn(async () => 'test-token'),
     expireSession: vi.fn(),
-    realm: 'citizen',
+    realm: 'staff',
     ...overrides,
   }
 }
@@ -83,30 +81,6 @@ export function signedOutAuth(overrides: Partial<AuthContextValue> = {}): AuthCo
     getAccessToken: vi.fn(async () => null),
     ...overrides,
   })
-}
-
-interface RenderOptions {
-  route: string
-  fetchImpl: typeof fetch
-  auth?: AuthContextValue
-  /** Pre-register the citizen record id for the signed-in subject. */
-  registered?: boolean
-}
-
-export function renderCitizen({ route, fetchImpl, auth = signedInAuth(), registered = true }: RenderOptions) {
-  if (registered && auth.user) writeCitizenId(auth.user.sub, CITIZEN_ID)
-  return {
-    auth,
-    ...render(
-      <AuthContext.Provider value={auth}>
-        <ApiProvider fetchImpl={fetchImpl}>
-          <MemoryRouter initialEntries={[route]}>
-            <CitizenApp />
-          </MemoryRouter>
-        </ApiProvider>
-      </AuthContext.Provider>,
-    ),
-  }
 }
 
 /** A signed-in staff session whose token carries `roles` (lower-case, as Keycloak names them, or any case). */

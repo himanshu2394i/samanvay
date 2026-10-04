@@ -19,7 +19,7 @@ export interface OidcManager {
 
 interface Props {
   manager: OidcManager
-  /** Which realm this manager signs in to; remembered across the IdP redirect. Default citizen. */
+  /** Which realm this manager signs in to; remembered across the IdP redirect. Default staff. */
   realm?: RealmKey
   children: ReactNode
 }
@@ -39,7 +39,7 @@ function toAuthUser(user: User): AuthUser {
   }
 }
 
-export function AuthProvider({ manager, realm = 'citizen', children }: Props) {
+export function AuthProvider({ manager, realm = 'staff', children }: Props) {
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [user, setUser] = useState<AuthUser | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
