@@ -15,7 +15,7 @@ Every department publishes `GET /.well-known/samanvay/manifest` (v2): documents 
 required security parameters (never values), whether a `resolve` step is needed, the journeys it offers, and an
 `identity` block (login URL, public keys, ID type). Login contract: [docs/contracts/login-assertion.md](../docs/contracts/login-assertion.md).
 
-Run one: `./mvnw -f departments/revenue/pom.xml spring-boot:run`. Test one: `./mvnw -f departments/revenue/pom.xml test`.
+Run one: `./mvnw -f departments/pom.xml -pl revenue -am spring-boot:run` (the shared kit builds first). Test one: `./mvnw -f departments/pom.xml -pl revenue -am test`. Each department also serves its citizen portal at `/portal/` (run `scripts/build-portal.sh` first to put the pages there).
 Run all with their data stores: `docker compose up -d dept-revenue dept-dbt dept-education dept-agriculture revenue-sftp agriculture-db agriculture-sftp`.
 
 Dev credentials are env-overridable defaults in each `application.yml`; they exist only so the stand-ins work out of the box.

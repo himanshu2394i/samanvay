@@ -805,6 +805,48 @@ Honest limits: the middle layer was run against the department stacks one hop at
 not all together in one run; the fixed codes are back doors by design; department database connections have no pool; no login lockout; Keycloak in
 `start-dev` keeps its data in memory; the department stacks use Caddy/Let's Encrypt, which needs real DNS names (nip.io works) and was not run here.
 
+### Phase 8 (2026-10-04, branch `feat/department-journeys`): journeys live on the departments' own portals
+
+Spec: `docs/superpowers/specs/2026-10-04-department-journeys-design.md`. Plan: `docs/superpowers/plans/2026-10-04-department-journeys.md`.
+Contracts: `docs/contracts/department-api.md`, `docs/contracts/department-consent-statement.md`, and `login-assertion.md` (home sign in, `name`, `dob`).
+
+**The decision:** Samanvay is for the Samanvay team and officers. A citizen never signs in to it and never sees a Samanvay screen. Every citizen
+journey runs on a department's own portal (`https://<department>/portal/`): the citizen signs in there (mobile + password + code), sees that
+department's services, and when a service needs another department's records the portal sends them to THAT department's own login and back
+(the link is saved). Consent is collected on the portal and is **signed by the department**; Samanvay verifies and keeps it as evidence. The
+manifest is made from the department's own `journeys.json`, so it cannot promise a journey the portal does not have.
+
+What was built:
+- **Samanvay, department API** (`/api/department/**`, role DEPARTMENT, the department is the token's claim): resolve-or-create the citizen from the
+  home sign-in assertion (accepted once, by `jti`); start and complete a link to another department (the return address must be on the caller's own
+  host); readiness; the consent wording plus a one-time nonce; grant from a signed statement; start and read applications only for journeys the
+  caller runs (replaces the old "scoped for every data source" start rule). A person who starts at two departments ends up as ONE citizen: when a
+  link collides with an existing citizen and the current one is an empty record made by a home sign in, the two are merged (audited
+  `CITIZEN_MERGED`); any other collision stays a 409. Migrations V206 (consent evidence, nonce), V207 (assertion use), V208 (citizen origin),
+  V209 (Education's purpose, clearances for Education, Revenue, DBT).
+- **Consent statement:** ES256 JWS `typ=samanvay-consent` signed with the department's manifest key. Samanvay checks it against the key it PINNED from the
+  signed manifest, the open request, citizen, purpose, categories, nonce (single use), recency, and `jti` (single use). One generic refusal.
+- **Manifest** `journeys[].portalUrl` (must be on the manifest's own host); the citizen realm is optional and switched off in the deployment;
+  the three old citizen portals, their helpers and the React citizen surface are deleted; `/` is a short staff landing page.
+- **`departments/kit`** (library, reactor `departments/pom.xml`): `SamanvayClient` (client credentials, cached token), `ConsentSigner`, `PortalSession`
+  (HMAC cookie), `JourneyCatalog` (from `journeys.json`), the `/portal-api` backend, `/portal/` pages. Each department supplies only a
+  `CitizenDirectory`, a `HomeAssertions`, `journeys.json` and the `portal:` config. Education's journey is now `EDUCATION_SCHOLARSHIP`
+  (requester EDUCATION); Revenue, DBT and Agriculture keep their codes. `/login` opened directly is the portal sign in. Agriculture's farmer table gains `date_of_birth`.
+- **Portal front end** (`frontend/src/portal`, built by `scripts/build-portal.sh` into each department's `static/portal/`, git-ignored): sign in, services,
+  a three-step journey page (connect departments, consent, apply), tracking with the records received.
+- **Staff per-journey page** `#/staff/admin/journeys/:code` (`GET /api/ops/journeys/{code}`): per document the serving connector, source health, last trial and
+  whether it works; counts; recent applications; the middle-layer log of those applications.
+- **Deployment:** the generator gives every department server its own Keycloak client secret, session secret, Samanvay and Keycloak addresses and the
+  other portals' return addresses; `scripts/provision-department-clients.py` sets the four client secrets in Keycloak; Dockerfiles build from `departments/`.
+
+Tests: `DepartmentIdentityIT`, `DepartmentConsentIT`, `DepartmentJourneyIT`, `StaffOnlyRealmIT`, `JourneyStatus*`, kit (21), each department's `*PortalTest`,
+the portal and staff front-end tests, the generator tests, and `DepartmentsEndToEndIT` now runs all four journeys through the real department jars
+(sign in, link the others by their own logins, department-signed consent, apply, track) plus the two-home-sign-in merge.
+
+Honest limits: the last connector trial shown on the staff page is kept in memory (lost on restart); the log's latency is the step's duration and its
+connector is derived from what the instance pinned; the staff page has no Probe or Run-trial buttons (they are on the Catalog and Onboarding screens);
+pending consent wordings and the portal session secret live in one process (a restart signs citizens out); the fixed codes remain demo back doors.
+
 ## Decisions closed from the open questions
 
 - **Case A vs B:** no separate cases. One mechanism: optional `resolve` (§12). Revenue's simulated
@@ -841,6 +883,7 @@ not all together in one run; the fixed codes are back doors by design; departmen
 
 | Date | Change |
 |---|---|
+| 2026-10-04 | Phase 8: journeys run on the departments' own portals; department-signed consent; department API; kit module; portal front end; staff journey page; Samanvay has no citizen UI. |
 | 2026-10-04 | Phase 7: real department Postgres, one login style (mobile + password + code), 20 citizens per department, generator, deployment bundles, staff code 000000 (env-gated), React department login. |
 | 2026-10-04 | Phase 6: signed manifest with an admin-pinned key, optional discovery credential, credential map, compose key volumes, staff console key confirmation. |
 | 2026-10-04 | Phase 5: identity URLs must be on the manifest's host; recorded that document keys are resolved per fetch, never stored; manifest trust model written down. |
