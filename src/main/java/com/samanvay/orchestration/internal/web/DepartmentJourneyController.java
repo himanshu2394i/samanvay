@@ -5,7 +5,6 @@ import com.samanvay.catalog.api.Purpose;
 import com.samanvay.catalog.api.PurposeCatalog;
 import com.samanvay.consent.api.ConsentArtifact;
 import com.samanvay.consent.api.ConsentService;
-import com.samanvay.identity.api.DepartmentLinkNeed;
 import com.samanvay.identity.api.IdentityLinking;
 import com.samanvay.shared.DataCategory;
 import com.samanvay.shared.InvalidRequestException;
@@ -66,8 +65,16 @@ class DepartmentJourneyController {
                         .find(new RequesterRef(caller.department()), new SubjectRef(citizenId), new DataCategory(category), new PurposeCode(purpose.code()))
                         .filter(c -> "ACTIVE".equals(c.status()))
                         .isPresent());
-        return new Readiness(code, linking.connectAccounts(citizenId, code).departments(), consentActive);
+        // Only what a department may know: which departments are connected. The person IDs behind a link belong to the
+        // other departments and never leave Samanvay.
+        List<DepartmentNeed> departments = linking.connectAccounts(citizenId, code).departments().stream()
+                .map(d -> new DepartmentNeed(d.departmentCode(), d.departmentName(), d.categories(), d.linked(), d.departmentLoginAvailable()))
+                .toList();
+        return new Readiness(code, departments, consentActive);
     }
 
-    record Readiness(String journeyCode, List<DepartmentLinkNeed> departments, boolean consentActive) {}
+    record Readiness(String journeyCode, List<DepartmentNeed> departments, boolean consentActive) {}
+
+    record DepartmentNeed(
+            String departmentCode, String departmentName, List<String> categories, boolean linked, boolean departmentLoginAvailable) {}
 }

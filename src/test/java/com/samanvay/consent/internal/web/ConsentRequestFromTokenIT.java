@@ -42,6 +42,9 @@ class ConsentRequestFromTokenIT extends PostgresIntegrationTest {
     @Autowired
     CitizenProfiles profiles;
 
+    @Autowired
+    com.samanvay.identity.api.IdentityLinking linking;
+
     @Test
     void citizenCannotSpoofRequesterPurposeTextOrCategories() {
         String subject = "cit-spoof-" + UUID.randomUUID();
@@ -102,6 +105,12 @@ class ConsentRequestFromTokenIT extends PostgresIntegrationTest {
         assertThat(post(TestHttp.as(TestTokens.departmentOf("dept-x", "AGRICULTURE", "revenue-rest-mock")), body))
                 .isEqualTo(403);
         assertNoRequestFor(citizen);
+        // A department client may ask only for a citizen who is linked to that department.
+        assertThat(post(TestHttp.as(TestTokens.departmentOf("dept-x", "SCHOLARSHIP", "revenue-rest-mock")), body))
+                .isEqualTo(404);
+        assertNoRequestFor(citizen);
+        linking.assertLink(citizen, "SCHOLARSHIP", "SCHOLARSHIP_ID", "SC-" + citizen.toString().substring(0, 8),
+                com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         assertThat(post(TestHttp.as(TestTokens.departmentOf("dept-x", "SCHOLARSHIP", "revenue-rest-mock")), body))
                 .isEqualTo(200);
     }

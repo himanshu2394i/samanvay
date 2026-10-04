@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 @Service
 class TrackingSlaOverview implements SlaOverview {
 
-    private static final String OPEN = "status NOT IN ('APPROVED','REJECTED','CLOSED') AND sla_due_at IS NOT NULL";
+    private static final String OPEN = "status NOT IN ('APPROVED','REJECTED','CLOSED') AND sla_due_at IS NOT NULL"
+            // a due time at or before submission means "no SLA" (a journey with 0 hours), never a born-breached case
+            + " AND sla_due_at > submitted_at";
 
     private final JdbcTemplate jdbc;
 

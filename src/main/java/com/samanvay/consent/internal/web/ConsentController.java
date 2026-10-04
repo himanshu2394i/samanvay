@@ -8,6 +8,8 @@ import com.samanvay.catalog.api.PurposeCatalog;
 import com.samanvay.consent.api.ConsentNotFoundException;
 import com.samanvay.consent.api.ConsentRequestDraft;
 import com.samanvay.consent.api.UnknownPurposeException;
+import com.samanvay.identity.api.IdentityLinking;
+import com.samanvay.shared.NotFoundException;
 import com.samanvay.shared.security.Caller;
 import com.samanvay.consent.api.ConsentService;
 import com.samanvay.shared.security.Callers;
@@ -37,9 +39,15 @@ class ConsentController {
     private final CitizenAccess citizenAccess;
     private final PurposeCatalog purposes;
     private final CitizenOwnership ownership;
+    private final IdentityLinking linking;
 
     ConsentController(
-            ConsentService consents, CitizenAccess citizenAccess, PurposeCatalog purposes, CitizenOwnership ownership) {
+            ConsentService consents,
+            CitizenAccess citizenAccess,
+            PurposeCatalog purposes,
+            CitizenOwnership ownership,
+            IdentityLinking linking) {
+        this.linking = linking;
         this.consents = consents;
         this.citizenAccess = citizenAccess;
         this.purposes = purposes;
@@ -68,6 +76,14 @@ class ConsentController {
             requester = caller.department();
             if (requester == null || requester.isBlank()) {
                 throw new AccessDeniedException("token carries no department; cannot request consent");
+            }
+            // A department client asks only for citizens linked to it (404, so it learns nothing about anyone else).
+            // Staff officers are not department clients and keep asking for any citizen as their department. A purpose of
+            // another department is left to consent's own refusal below (403, audited).
+            if (caller.isDepartmentClient()
+                    && requester.equals(purpose.requesterDepartment())
+                    && (body.citizenId() == null || linking.activeLink(body.citizenId(), requester).isEmpty())) {
+                throw new NotFoundException("citizen");
             }
         }
         return consents.request(new ConsentRequestDraft(body.citizenId(), requester, purpose.code(), caller.principal()));

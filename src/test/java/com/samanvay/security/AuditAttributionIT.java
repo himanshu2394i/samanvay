@@ -116,6 +116,9 @@ class AuditAttributionIT extends PostgresIntegrationTest {
     @Test
     void departmentClientTokenRecordsClientId() {
         UUID citizen = seededScholarshipCitizen();
+        // a department client starts journeys only for citizens linked to it
+        linking.assertLink(citizen, "SCHOLARSHIP", "SCHOLARSHIP_ID", "SC-" + citizen.toString().substring(0, 8),
+                com.samanvay.identity.api.AuthProof.localIdOtpDemo());
         startAs(
                 TestTokens.department("dept-scholarship-it", "dept-income-rest", "revenue-rest-mock", "dept-marks-soap", "dept-bank-rest"),
                 citizen);

@@ -26,4 +26,18 @@ class MappingExecutorTest {
                 "m", "c", List.of(new FieldMapping("name", "name", List.of(new TransformCall("eval", List.of())))));
         assertThatThrownBy(() -> exec.apply(bad, src)).isInstanceOf(UnknownTransformException.class);
     }
+
+    @Test
+    void aMissingFieldIsNullThroughDateParseAndMaskInsteadOfAnNpe() {
+        MappingExecutor exec = new MappingExecutor();
+        var def = new MappingDefinition(
+                "m",
+                "c",
+                List.of(
+                        new FieldMapping("dob", "dob", List.of(new TransformCall("date_parse", List.of("dd-MM-yyyy")))),
+                        new FieldMapping("account", "account", List.of(new TransformCall("mask", List.of("4"))))));
+        var out = exec.apply(def, JsonMapper.builder().build().readTree("{}"));
+        assertThat(out.get("dob").isNull()).isTrue();
+        assertThat(out.get("account").isNull()).isTrue();
+    }
 }

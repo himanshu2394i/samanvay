@@ -52,6 +52,10 @@ public class StepStateEntity {
         this.status = status;
     }
 
+    public int getAttemptCount() {
+        return attemptCount;
+    }
+
     public void setAttemptCount(int attemptCount) {
         this.attemptCount = attemptCount;
     }
