@@ -127,7 +127,6 @@ class GeneratedData(unittest.TestCase):
         # the same naming rule as the Java side (CatalogServices.discoverySecretKey): host, plus -port when explicit
         self.assertIn("SAMANVAY_SECRET_MANIFEST_REVENUE_EXAMPLE_NET_CREDENTIAL", env)
         self.assertIn("SAMANVAY_SECRET_MANIFEST_203_0_113_9_8094_CREDENTIAL", env)
-        self.assertEqual(env["SAMANVAY_DEPARTMENT_RETURN_PREFIXES"], "https://app.example.net/")
         state = json.loads((self.out / "state.json").read_text(encoding="utf-8"))
         import base64
         self.assertEqual(json.loads(base64.b64decode(env["SAMANVAY_SECRET_SOURCE_REVENUE_REST_CREDENTIAL"])),
@@ -139,8 +138,43 @@ class GeneratedData(unittest.TestCase):
         self.assertEqual(env["REVENUE_LOGIN_HINT"], "")
         self.assertEqual(env["REVENUE_LOGIN_CODE"], "123456")
         self.assertEqual(env["REVENUE_DB_URL"], "jdbc:postgresql://db:5432/revenue")
-        self.assertEqual(env["REVENUE_ALLOWED_RETURN_URIS"], "https://app.example.net/")
+        # a citizen is only ever sent back to a department portal: the OTHER departments' callbacks, never its own, never Samanvay
+        self.assertEqual(env["REVENUE_ALLOWED_RETURN_URIS"],
+                         "https://dbt.example.net/portal/callback,https://education.example.net/portal/callback,http://203.0.113.9:8094/portal/callback")
         self.assertEqual(env["REVENUE_PUBLIC_URL"], "https://revenue.example.net")
+
+    def test_every_department_server_knows_how_to_reach_samanvay_with_its_own_client_and_a_session_secret(self):
+        def env(path):
+            return dict(l.split("=", 1) for l in path.read_text(encoding="utf-8").splitlines() if l and not l.startswith("#"))
+        clients = json.loads((self.out / "middle-layer" / "department-clients.json").read_text(encoding="utf-8"))
+        self.assertEqual(sorted(clients), [f"dept-{d}" for d in sorted(DEPTS)])
+        self.assertEqual(len(set(clients.values())), 4)
+        for d in DEPTS:
+            e = env(self.out / d / f"{d}.env")
+            self.assertEqual(e["SAMANVAY_URL"], "https://app.example.net")
+            self.assertEqual(e["SAMANVAY_TOKEN_URL"], "https://auth.example.net/realms/samanvay-staff/protocol/openid-connect/token")
+            self.assertEqual(e["SAMANVAY_CLIENT_ID"], f"dept-{d}")
+            self.assertEqual(e["SAMANVAY_CLIENT_SECRET"], clients[f"dept-{d}"])
+            self.assertGreaterEqual(len(e[f"{d.upper()}_SESSION_SECRET"]), 32)
+        self.assertEqual(len({env(self.out / d / f"{d}.env")[f"{d.upper()}_SESSION_SECRET"] for d in DEPTS}), 4)
+
+    def test_the_middle_layer_has_no_citizen_realm_because_citizens_use_the_department_portals(self):
+        env = dict(l.split("=", 1) for l in (self.out / "middle-layer" / "departments.env").read_text(encoding="utf-8").splitlines()
+                   if l and not l.startswith("#"))
+        self.assertEqual(env["SAMANVAY_CITIZEN_ISSUER_URI"], "")
+
+    def test_the_credentials_sheet_tells_citizens_to_use_the_department_portals(self):
+        sheet = (self.out / "CREDENTIALS.md").read_text(encoding="utf-8")
+        for url in ("https://revenue.example.net/portal/", "https://dbt.example.net/portal/", "https://education.example.net/portal/",
+                    "http://203.0.113.9:8094/portal/"):
+            self.assertIn(url, sheet)
+        self.assertNotIn("sign up on the middle layer", sheet)
+
+    def test_auth_url_can_be_given_and_otherwise_is_derived_from_the_app_url(self):
+        other = self.tmp / "auth"
+        generate(other, "--auth-url", "https://login.example.net")
+        env = (other / "dbt" / "dbt.env").read_text(encoding="utf-8")
+        self.assertIn("SAMANVAY_TOKEN_URL=https://login.example.net/realms/samanvay-staff/protocol/openid-connect/token", env)
 
     @unittest.skipUnless(shutil.which("ssh-keygen"), "ssh-keygen is not available")
     def test_the_sftp_host_key_pin_is_the_fingerprint_of_the_key_that_gets_mounted_and_is_the_same_on_both_sides(self):
