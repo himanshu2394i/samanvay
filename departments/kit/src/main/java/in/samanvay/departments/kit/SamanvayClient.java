@@ -24,6 +24,7 @@ public class SamanvayClient {
 
     private static final ParameterizedTypeReference<Map<String, Object>> MAP = new ParameterizedTypeReference<>() {};
     private static final ParameterizedTypeReference<List<Map<String, Object>>> LIST = new ParameterizedTypeReference<>() {};
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SamanvayClient.class);
     private static final Duration EARLY = Duration.ofSeconds(30);
 
     private final PortalProperties.Samanvay config;
@@ -115,6 +116,7 @@ public class SamanvayClient {
         } catch (SamanvayException e) {
             throw e;
         } catch (RuntimeException e) {
+            log.warn("a call to Samanvay failed: {}", e.toString()); // the exception text never holds the token or the request body
             throw new SamanvayException(503, "Samanvay could not be reached.");
         }
     }
@@ -144,6 +146,7 @@ public class SamanvayClient {
             tokenExpires = now.plusSeconds(((Number) reply.getOrDefault("expires_in", 60)).longValue());
             return token;
         } catch (RuntimeException e) {
+            log.warn("the token request to Samanvay's identity provider failed: {}", e.toString());
             throw new SamanvayException(503, "Samanvay could not be reached.");
         }
     }
