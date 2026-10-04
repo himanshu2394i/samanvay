@@ -9,6 +9,7 @@ import { ApplicationsReviewPage } from './pages/ApplicationsReviewPage'
 import { ApplicationReviewPage } from './pages/ApplicationReviewPage'
 import { CitizenViewPage } from './pages/CitizenViewPage'
 import { MetricsPage } from './pages/MetricsPage'
+import { JourneyStatusPage } from './pages/JourneyStatusPage'
 import { AuditPage } from './pages/AuditPage'
 import { CatalogPage } from './pages/CatalogPage'
 import { OnboardingPage } from './pages/OnboardingPage'
@@ -21,7 +22,7 @@ import { StaffNotFoundPage } from './pages/StaffNotFoundPage'
  * Keycloak realm. Access is by the roles in the token:
  *
  *   OFFICER          exceptions, bank reviews, applications
- *   OFFICER, ADMIN   metrics, audit ledger
+ *   OFFICER, ADMIN   metrics, audit ledger, a journey's connected-and-working status and log
  *   ADMIN            catalog, onboarding
  *   REVIEWER         identity review
  *
@@ -45,6 +46,7 @@ export function StaffApp() {
           <Route element={<RequireRole allow={OPS} />}>
             <Route path="ops/metrics" element={<MetricsPage />} />
             <Route path="ops/audit" element={<AuditPage />} />
+            <Route path="admin/journeys/:code" element={<JourneyStatusPage />} />
           </Route>
           <Route element={<RequireRole allow={ADMIN} />}>
             <Route path="admin/catalog" element={<CatalogPage />} />

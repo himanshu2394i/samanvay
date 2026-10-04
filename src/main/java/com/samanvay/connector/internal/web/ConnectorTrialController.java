@@ -4,6 +4,7 @@ import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.connector.api.ConnectorResult;
 import com.samanvay.connector.api.ConnectorRuntime;
+import com.samanvay.connector.internal.service.TrialLog;
 import com.samanvay.shared.InvalidRequestException;
 import com.samanvay.shared.SamanvayException;
 import com.samanvay.shared.security.Callers;
@@ -28,10 +29,12 @@ class ConnectorTrialController {
 
     private final ConnectorRuntime runtime;
     private final ConnectorCatalog catalog;
+    private final TrialLog trials;
 
-    ConnectorTrialController(ConnectorRuntime runtime, ConnectorCatalog catalog) {
+    ConnectorTrialController(ConnectorRuntime runtime, ConnectorCatalog catalog, TrialLog trials) {
         this.runtime = runtime;
         this.catalog = catalog;
+        this.trials = trials;
     }
 
     record TrialBody(String personId) {}
@@ -41,6 +44,12 @@ class ConnectorTrialController {
 
     @PostMapping("/trial/{ref}")
     TrialResult trial(@PathVariable String ref, @RequestBody(required = false) TrialBody body) {
+        TrialResult result = run(ref, body);
+        trials.record(ref, result.outcome());
+        return result;
+    }
+
+    private TrialResult run(String ref, TrialBody body) {
         ConnectorDefinition connector = catalog.byRef(ref); // 404 when unknown
         String person = body != null && body.personId() != null && !body.personId().isBlank() ? body.personId().trim() : sample(connector);
         if (person == null) {

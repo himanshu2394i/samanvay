@@ -113,6 +113,7 @@ export function CatalogPage() {
                     <th scope="col">Purpose</th>
                     <th scope="col">Records needed (department)</th>
                     <th scope="col">Readiness</th>
+                    <th scope="col">Live view</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -159,6 +160,9 @@ export function CatalogPage() {
                               <Badge tone="warn">Pending</Badge> <span className="hint">needs {missing.join(', ')}</span>
                             </span>
                           )}
+                        </td>
+                        <td>
+                          <Link to={`/staff/admin/journeys/${encodeURIComponent(j.code)}`}>Status</Link>
                         </td>
                       </tr>
                     )

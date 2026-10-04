@@ -296,7 +296,7 @@ function Done({ result, plan }: { result: OnboardingResult; plan: OnboardingPlan
         ))}
         {result.journeysCreated.map((c) => (
           <li key={c}>
-            Journey draft <span className="mono">{c}</span>
+            Journey draft <span className="mono">{c}</span> <Link to={`/staff/admin/journeys/${encodeURIComponent(c)}`}>Status</Link>
           </li>
         ))}
         {result.skipped.map((c) => (

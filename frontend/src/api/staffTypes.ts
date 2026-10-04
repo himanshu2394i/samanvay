@@ -429,3 +429,42 @@ export interface SchemaDraft {
   category: string
   fields: SchemaField[]
 }
+
+/** GET /api/ops/journeys/{code}: one journey's connected-and-working view and middle-layer log (OFFICER, ADMIN). */
+export interface JourneyStatusCategory {
+  category: string
+  department: string | null
+  /** The published connector serving this category; null when there is none. */
+  connectorRef: string | null
+  /** The connector's status, NONE when there is no published connector. */
+  connectorStatus: string
+  dataSourceCode: string | null
+  /** GREEN, AMBER, RED or UNKNOWN (the last probe of the data source). */
+  sourceHealth: string
+  lastTrial: { at: IsoInstant; outcome: string } | null
+  /** A published connector exists and its source is not RED. */
+  working: boolean
+}
+
+export interface JourneyLogRow {
+  at: IsoInstant | null
+  referenceNo: string
+  category: string
+  department: string | null
+  connector: string | null
+  outcome: string
+  latencyMs: number | null
+  error: string | null
+}
+
+export interface JourneyStatus {
+  code: string
+  name: string
+  requester: string | null
+  status: string
+  portalUrl: string | null
+  categories: JourneyStatusCategory[]
+  counts: { running: number; completed: number; failed: number; last7Days: number }
+  recent: { instanceId: string; referenceNo: string | null; state: string; startedAt: IsoInstant }[]
+  log: JourneyLogRow[]
+}

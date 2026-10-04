@@ -17,6 +17,7 @@ import type {
   ImportPreview,
   JourneyDraft,
   JourneyException,
+  JourneyStatus,
   JourneyState,
   MappingDraft,
   OpenApiImportRequest,
@@ -78,6 +79,8 @@ export function createStaffApi(client: ApiClient) {
 
     // --- officer + admin: ops dashboards (OpsMetricsController; OFFICER, ADMIN) ---
     getMetrics: () => client.get<OpsMetrics>('/api/ops/metrics'),
+    /** One journey: is each document source connected and working, its applications and its middle-layer log. */
+    getJourneyStatus: (code: string) => client.get<JourneyStatus>(`/api/ops/journeys/${enc(code)}`),
 
     // --- officer + admin: audit ledger, read only (AuditController; OFFICER, ADMIN) ---
     auditHead: () => client.get<{ seq: number }>('/api/audit/head'),
