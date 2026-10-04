@@ -1,0 +1,10 @@
+{"journeys":[
+  {"code":"INCOME_CERT_RENEWAL","name":"Income certificate renewal",
+   "description":"Renew an income certificate; Revenue checks the one already on file.",
+   "referencePrefix":"ICR","slaHours":120,"consentPurpose":"INCOME_CERT_RENEWAL",
+   "requiredCategories":[
+     {"category":"INCOME_CERTIFICATE","department":"REVENUE"}],
+   "form":[
+     {"name":"financialYear","label":"Financial year to renew for","type":"select","required":true,"options":["2024-25","2025-26","2026-27"]},
+     {"name":"reason","label":"Reason for renewal","type":"text","required":true,"options":[]}]}
+]}

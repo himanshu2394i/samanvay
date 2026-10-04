@@ -1,5 +1,6 @@
 package in.samanvay.departments.revenue;
 
+import in.samanvay.departments.kit.JourneyCatalog;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,16 +23,19 @@ class RevenueManifestController {
     private final int sftpPort;
     private final String sftpHostKey;
     private final String publicBaseUrl;
+    private final JourneyCatalog journeys;
 
     RevenueManifestController(
             @Value("${revenue.public-base-url}") String publicBaseUrl,
             @Value("${revenue.sftp.host}") String sftpHost,
             @Value("${revenue.sftp.port}") int sftpPort,
-            @Value("${revenue.sftp.host-key-sha256:}") String sftpHostKey) {
+            @Value("${revenue.sftp.host-key-sha256:}") String sftpHostKey,
+            JourneyCatalog journeys) {
         this.publicBaseUrl = publicBaseUrl;
         this.sftpHost = sftpHost;
         this.sftpPort = sftpPort;
         this.sftpHostKey = sftpHostKey;
+        this.journeys = journeys;
     }
 
     @GetMapping(path = "/.well-known/samanvay/manifest", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -53,10 +57,7 @@ class RevenueManifestController {
                                 new Field("holderName", "string", true), new Field("state", "string", false),
                                 new Field("district", "string", false), new Field("issuerOffice", "string", false)),
                         landRecord()),
-                List.of(new Journey("INCOME_CERT_RENEWAL", "Income certificate renewal",
-                        "Renew an income certificate; Revenue checks the one already on file.", "ICR", 120,
-                        "INCOME_CERT_RENEWAL", "REVENUE",
-                        List.of(new RequiredCategory("INCOME_CERTIFICATE", "REVENUE")))));
+                journeys.manifestJourneys(publicBaseUrl));
     }
 
     /** 7/12 extract: a batch CSV on Revenue's SFTP server, one row per person, keyed by personId. */
@@ -88,7 +89,7 @@ class RevenueManifestController {
                 List.of(fields), new Lookup(resolve(category)), API_KEY, null);
     }
 
-    record Manifest(int manifestVersion, Dept department, Identity identity, Sample sample, List<Document> documents, List<Journey> journeys) {}
+    record Manifest(int manifestVersion, Dept department, Identity identity, Sample sample, List<Document> documents, List<Map<String, Object>> journeys) {}
 
     /** A FAKE person this department can answer for, so an admin can run a trial fetch at onboarding. Never a real person. */
     record Sample(String personId) {}
@@ -120,9 +121,4 @@ class RevenueManifestController {
     record Auth(String scheme, List<AuthParam> parameters, String docs) {}
 
     record AuthParam(String name, String in, boolean secret) {}
-
-    record Journey(String code, String name, String description, String referencePrefix, int slaHours,
-                   String consentPurpose, String requester, List<RequiredCategory> requiredCategories) {}
-
-    record RequiredCategory(String category, String department) {}
 }

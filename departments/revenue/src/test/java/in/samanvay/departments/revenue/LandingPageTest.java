@@ -29,20 +29,10 @@ class LandingPageTest {
     }
 
     @Test
-    void the_home_address_explains_what_this_service_is_in_plain_words() throws Exception {
+    void the_home_address_is_the_citizen_portal() throws Exception {
         HttpResponse<String> r = get("/", "text/html");
-        assertThat(r.statusCode()).isEqualTo(200);
-        assertThat(r.headers().firstValue("Content-Type").orElse("")).startsWith("text/html");
-        assertThat(r.body()).contains(NAME).contains("demonstration service").contains("fake data");
-        assertThat(r.body()).doesNotContain("Whitelabel");
-    }
-
-    @Test
-    void the_home_page_is_accessible_and_works_in_light_and_dark_with_no_scripts_or_outside_requests() throws Exception {
-        String body = get("/", "text/html").body();
-        assertThat(body).contains("<html lang=\"en\">").contains("name=\"viewport\"").contains("prefers-color-scheme: dark");
-        assertThat(body).doesNotContain("<script").doesNotContain("http://").doesNotContain("https://");
-        assertThat(body).doesNotContain("—").doesNotContain("–");
+        assertThat(r.statusCode()).isEqualTo(302);
+        assertThat(r.headers().firstValue("Location").orElse("")).isEqualTo("/portal/");
     }
 
     @Test

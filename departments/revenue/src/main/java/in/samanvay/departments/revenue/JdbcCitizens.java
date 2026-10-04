@@ -1,5 +1,7 @@
 package in.samanvay.departments.revenue;
 
+import in.samanvay.departments.kit.Person;
+import java.time.LocalDate;
 import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -28,5 +30,11 @@ class JdbcCitizens implements CitizenStore {
         }
         return jdbc.sql("SELECT person_id FROM citizen_login WHERE mobile = :m AND password_hash = crypt(:p, password_hash)")
                 .param("m", mobile).param("p", password).query(String.class).optional();
+    }
+
+    @Override
+    public Optional<Person> person(String personId) {
+        return jdbc.sql("SELECT full_name, date_of_birth FROM person WHERE person_id = :id").param("id", personId)
+                .query((rs, n) -> new Person(personId, rs.getString("full_name"), rs.getObject("date_of_birth", LocalDate.class))).optional();
     }
 }

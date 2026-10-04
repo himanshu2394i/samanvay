@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     Revenue department: a SEPARATE Spring Boot application with its own build (same pattern as simulators/).
-    Not a module of the root pom; it reaches Samanvay only over HTTP.
-    Build: ./mvnw -f departments/revenue/pom.xml verify
-    Run:   ./mvnw -f departments/revenue/pom.xml spring-boot:run   (port 8091)
+    Not a module of the root pom; it reaches Samanvay only over HTTP. Built together with the kit (departments/pom.xml).
+    Build: ./mvnw -f departments/pom.xml -pl revenue -am verify
+    Run:   ./mvnw -f departments/pom.xml -pl revenue -am spring-boot:run   (port 8091)
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -28,6 +28,12 @@
     </properties>
 
     <dependencies>
+        <!-- The portal backend, the Samanvay client and the consent signer shared by every department. -->
+        <dependency>
+            <groupId>com.samanvay</groupId>
+            <artifactId>samanvay-dept-kit</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
