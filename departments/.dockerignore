@@ -1,0 +1,4 @@
+**/target
+**/*.jwk
+**/*.secret
+**/node_modules

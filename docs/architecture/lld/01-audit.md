@@ -26,8 +26,17 @@ caught by a judge who happens to know Postgres.
 
 | Role | Used by | Privilege on `audit.*` |
 |---|---|---|
-| `samanvay_migrate` | Flyway only (`spring.flyway.*`), and it is `docker-compose`'s `POSTGRES_USER` | Owner — full DDL, created every table |
+| `samanvay_migrate` | Flyway (`spring.flyway.*`), and it is `docker-compose`'s `POSTGRES_USER` | Owner — full DDL, created every table |
 | `samanvay_app` | The running application (`spring.datasource.*`) | Explicit `SELECT, INSERT` only — never granted `UPDATE`/`DELETE`, and never the owner of anything |
+
+**What this does and does not guarantee.** The role split protects `audit.*` from the app's *SQL connection*: a SQL
+injection or a bug that goes through the app's datasource cannot UPDATE or DELETE an audit row. It is not a claim that the
+application process never holds the migrate credential. Today Flyway runs *in the same process* (`spring.flyway.enabled=true`),
+so the process is configured with `SAMANVAY_MIGRATE_DB_PASSWORD` and anyone who can run code inside it can use that
+credential (the demo-only tamper endpoint, off unless `samanvay.demo.tamper-endpoints=true`, deliberately does). To make the claim
+literal in a production deployment, split migrations out: set `spring.flyway.enabled=false` on the running app, run Flyway as a
+separate job (a Kubernetes Job / CI step with the migrate credential, e.g. `flyway migrate` or this jar with
+`--spring.main.web-application-type=none`), and give the app container only `SAMANVAY_APP_DB_PASSWORD`.
 
 Everywhere else in the system (`public.*`, i.e. every other module's tables), `samanvay_app`
 gets full CRUD — it's only `audit.*` where the restriction matters. Rather than repeat a
@@ -93,8 +102,9 @@ CREATE TABLE audit.audit_checkpoint (
 );
 
 -- The actual guarantee: samanvay_app can append and read, nothing else.
--- Rewriting history needs samanvay_migrate's credential, which the
--- running application never holds.
+-- Rewriting history needs samanvay_migrate's credential, which the app's
+-- SQL connection (samanvay_app) does not have. (Flyway currently runs in-process with that
+-- credential; see the note after section 1 for how to split it out.)
 GRANT USAGE ON SCHEMA audit TO samanvay_app;
 GRANT SELECT, INSERT ON audit.audit_entry TO samanvay_app;
 GRANT SELECT, INSERT ON audit.audit_checkpoint TO samanvay_app;
@@ -415,16 +425,16 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/samanvay
     username: samanvay_app
-    password: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
+    password: ${SAMANVAY_APP_DB_PASSWORD:}   # no default in the base file; application-dev/-demo.yml carry the local ones
   flyway:
     enabled: true
     url: jdbc:postgresql://localhost:5432/samanvay
     user: samanvay_migrate
-    password: ${SAMANVAY_MIGRATE_DB_PASSWORD:samanvay_migrate}
+    password: ${SAMANVAY_MIGRATE_DB_PASSWORD:}
     placeholders:
-      appRolePassword: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
+      appRolePassword: ${SAMANVAY_APP_DB_PASSWORD:}
 ```
 
-Dev-only default passwords, overridable by environment variable — never a real credential
-committed, same convention the bootstrap commit already established for the single-role
-setup.
+The local default passwords (`samanvay_app_dev_password`, `samanvay_migrate`) now live only in `application-dev.yml` /
+`application-demo.yml`. Outside the dev/demo/test profiles `DbCredentialsStartupCheck` refuses to start unless both
+variables are set and are not those defaults.

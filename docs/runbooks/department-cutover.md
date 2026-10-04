@@ -42,10 +42,10 @@ which needs the operator secrets (`scripts/dev-department-secrets.sh`) and the S
      `samanvay.security.staff.allowed-clients`, and give the department its secret out of band.
 5. **Onboard**: tick the documents, approve the proposed field matches, *Onboard*. Check the result: data sources, connector
    drafts, mapping refs, journey drafts, and any skipped items.
-6. **Test and publish each connector** (Catalog or the existing wizard steps): the config test passes, then publish. Until the new
+6. **Test and publish each connector** (the Onboarding page's *Run trial fetch*, then publish): the config test passes, then publish. Until the new
    version is published the old one serves. Probe each data source (reachability).
 7. **Link a test citizen** through the department's own login (the portal's *Log in at ...* button), then run a journey end to end.
-8. **Publish the journeys** once every required category has a published connector (the catalog shows readiness).
+8. **Publish the journeys** once every required category has a published connector (the Journeys page shows readiness).
 9. **Only then** retire what is left of the old sandbox: remove the old `dept-*` / `sandbox-*` source configuration (and the
    `department-db` / `department-sftp` compose services once nothing uses them). Their catalog rows are harmless and can stay.
 

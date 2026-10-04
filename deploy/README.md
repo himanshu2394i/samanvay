@@ -130,7 +130,15 @@ will refuse the manifest until you approve the new fingerprint.
    fixed one. Once Keycloak is up, copy `deploy/generated/middle-layer/department-clients.json` to the middle-layer server and run
    `python3 scripts/provision-department-clients.py department-clients.json`. It sets the four secrets (`dept-revenue`, `dept-dbt`,
    `dept-education`, `dept-agriculture`) and proves each works (a token with the right department claim). Run it again after any re-import.
-5. **Profile.** Run the app with the `demo` profile as before.
+5. **Profile.** Run the app with the `demo` profile as before. Under `demo` the local database passwords default to the repo's
+   (`samanvay_app_dev_password`, `samanvay_migrate`); outside `dev`/`demo`/`test` the app refuses to start unless
+   `SAMANVAY_APP_DB_PASSWORD` and `SAMANVAY_MIGRATE_DB_PASSWORD` are set to real secrets, and refuses while PUBLISHED connectors
+   still use the seeded `mock.samanvay.test` sources (retire them, or knowingly set `samanvay.allow-mock-departments=true`).
+6. **Demo-only switches (all OFF unless you set them).** The `demo` profile alone does not expose the audit tamper button or the
+   department kill/revive ("chaos") endpoints. For a rehearsal or a judge walkthrough that needs them, add to the app's environment
+   file and restart: `SAMANVAY_DEMO_TAMPER_ENDPOINTS=true` (`POST /api/audit/demo/tamper/{seq}`, the audit page's tamper button) and/or
+   `SAMANVAY_DEMO_CHAOS_ENDPOINTS=true` (`/api/connector/chaos/**`, the ops page's kill/revive). The fixed-OTP link proof
+   (`samanvay.identity.demo-otp-link`) is on under `dev`/`demo`. Turn the first two off again before leaving the server public.
 
 ## 4. Onboard the departments, one by one
 
@@ -145,7 +153,7 @@ For each department:
 5. Publish the connectors that worked, then the journeys.
 6. Open a department's portal (`https://<department address>/portal/`), sign in with a citizen from `CREDENTIALS.md`, start the service,
    press **Log in at** the other departments it needs, give consent with the code, and apply. The staff console's journey page
-   (`/app/#/staff/admin/journeys/<code>`, from Catalog) shows whether the journey is connected and working, with its log.
+   (`/app/#/staff/admin/journeys/<code>`, from the Journeys page) shows whether the journey is connected and working, with its log.
 
 Do Revenue first (it carries four documents), then DBT, Education, Agriculture. The journeys need documents from several departments, so a
 journey becomes ready only once all of its departments are onboarded and published.
@@ -168,6 +176,8 @@ journey becomes ready only once all of its departments are onboarded and publish
 - Keycloak in `start-dev` mode keeps its data in memory. Fine for a short demo, not for anything longer.
 - Department passwords are bcrypt-hashed in each database, but `deploy/generated/` holds them in plain text for you. Keep it private.
 - There is no lockout or rate limiting on the department logins.
+- The audit tamper and chaos endpoints are off by default, even under the `demo` profile (step 3.6 above). Tamper uses the migrate
+  credential on purpose, so never enable it on a server that holds anything you care about.
 
 ## 7. When something is refused
 

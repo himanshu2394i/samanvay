@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the four department jars (departments/<d>/target/samanvay-dept-<d>.jar) together with the shared kit. The end-to-end test
-# (DepartmentsEndToEndIT) runs them as real processes; it is skipped, not failed, if they have not been built.
+# (DepartmentsEndToEndIT) runs them as real processes; it is skipped locally, but FAILS when the CI variable is set (see ci.yml), if they have not been built.
 # Usage (repo root): scripts/build-departments.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."

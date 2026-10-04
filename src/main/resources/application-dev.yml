@@ -1,7 +1,18 @@
 # Profile "dev": local docker-compose Keycloak over plain http (see
-# docker-compose.yml). Only dev/demo may use http issuers or show the
-# dev sign-in tools (paste-token bar, /shared/auth-dev.js).
+# docker-compose.yml). Only dev/demo may use plain-http issuers; there is no
+# demo sign-in or paste-token bar any more (everyone signs in through Keycloak).
+# Also the only profiles with local-database default passwords (DbCredentialsStartupCheck), the fixed-OTP link proof,
+# and the department stand-in hosts. Audit tamper and chaos endpoints stay OFF even here unless
+# samanvay.demo.tamper-endpoints / samanvay.demo.chaos-endpoints are set to true (see deploy/README.md).
 spring:
+  datasource:
+    # DEV/DEMO ONLY local-database defaults (the docker-compose Postgres). Outside dev/demo/test the base config has no
+    # password and DbCredentialsStartupCheck refuses to boot without real ones.
+    password: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
+  flyway:
+    password: ${SAMANVAY_MIGRATE_DB_PASSWORD:samanvay_migrate}
+    placeholders:
+      appRolePassword: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
   mail:
     # DEV-ONLY Mailpit catcher from docker-compose.yml (SMTP 1025, inbox UI http://localhost:8025).
     # Plain SMTP, no auth/TLS - never point a real environment at this.
@@ -18,6 +29,8 @@ samanvay:
     # (departments/*, localhost:809x) can be discovered and onboarded. Exact host names only.
     allowed-private-hosts: ${SAMANVAY_CATALOG_ALLOWED_PRIVATE_HOSTS:localhost,127.0.0.1}
   identity:
+    # DEV/DEMO ONLY: the fixed-OTP (000000) link proof LOCAL_ID_OTP. Off (absent) everywhere else.
+    demo-otp-link: true
     department-assertion:
       # DEV/DEMO ONLY: the local department stand-ins (departments/*, localhost:809x) publish their keys on a
       # loopback address, which is otherwise refused (SSRF guard).
@@ -25,10 +38,10 @@ samanvay:
       # Where a department login may send the citizen back to (prefix match; empty = refuse all).
       allowed-return-prefixes: ${SAMANVAY_DEPARTMENT_RETURN_PREFIXES:http://localhost:8080/}
   sources:
-    # DEV/DEMO ONLY. Points the V193 sandbox REST/SOAP sources at the standalone department service
-    # (the simulators/ app: `docker compose up department-service`, or ./mvnw -f simulators/pom.xml
-    # spring-boot:run) instead of their unresolvable *.example hosts. Calls still go through the REAL
-    # RestAdapter/SoapAdapter over the network. Refused at boot outside the dev/demo profiles.
+    # DEV/DEMO ONLY. Points department REST/SOAP sources at the local department stand-ins (departments/*,
+    # `docker compose up dept-revenue dept-dbt dept-education dept-agriculture`, ports 8091-8094) by source code, instead
+    # of the host recorded in the catalog. Calls still go through the REAL RestAdapter/SoapAdapter over the network.
+    # Refused at boot outside the dev/demo profiles (DepartmentServiceOverrides).
     department-service:
       urls:
         # The four department stand-ins (departments/*): REST/SOAP sources created by onboarding them from their manifests
