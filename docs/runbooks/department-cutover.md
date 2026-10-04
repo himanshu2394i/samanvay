@@ -29,7 +29,7 @@ which needs the operator secrets (`scripts/dev-department-secrets.sh`) and the S
    ([docs/contracts/manifest-signature.md](../contracts/manifest-signature.md)). An unsigned manifest is refused unless
    `samanvay.catalog.allow-unsigned-manifests=true` (local development only).
    If the department keeps its manifest private it issued you a **discovery credential**: provision it first under
-   `manifest-<host[-port]>-credential` (the refusal message names the exact key), otherwise the plan cannot even read the manifest.
+   `manifest-<host>[---<port>]-credential` (the refusal message names the exact key; the encoding is in [the signature contract](../contracts/manifest-signature.md)), otherwise the plan cannot even read the manifest.
 4. **Do the operator steps the plan lists, before onboarding or at least before publishing:**
    - `PROVISION_SECRET`: put the credential the department gave you into the SecretStore under the key shown, as a JSON object
      keyed by the parameter names shown (env var `SAMANVAY_SECRET_<KEY>` as base64, or a mounted file). In dev:
@@ -42,8 +42,12 @@ which needs the operator secrets (`scripts/dev-department-secrets.sh`) and the S
      `samanvay.security.staff.allowed-clients`, and give the department its secret out of band.
 5. **Onboard**: tick the documents, approve the proposed field matches, *Onboard*. Check the result: data sources, connector
    drafts, mapping refs, journey drafts, and any skipped items.
-6. **Test and publish each connector** (Catalog or the existing wizard steps): the config test passes, then publish. Until the new
-   version is published the old one serves. Probe each data source (reachability).
+6. **Test and publish each connector** (Catalog or the existing wizard steps): the test step checks the configuration and, when the
+   manifest published a sample person, **calls the department** for that fake person and records the trial; then publish. Publish is
+   decided by the server, not by the request body: it needs a **successful recorded trial within the last 24 hours** (HTTP 409 otherwise,
+   naming what is missing). A connector with no sample person needs a trial run by hand (`POST /api/connector/trial/{ref}` naming a person
+   that looks like the department's sample). Until the new version is published the old one serves. Probe each data source (reachability;
+   REST/SOAP sources stay `UNKNOWN`, and so not working, until probed).
 7. **Link a test citizen** through the department's own login (the portal's *Log in at ...* button), then run a journey end to end.
 8. **Publish the journeys** once every required category has a published connector (the catalog shows readiness).
 9. **Only then** retire what is left of the old sandbox: remove the old `dept-*` / `sandbox-*` source configuration (and the
@@ -56,8 +60,9 @@ No data is lost: Samanvay stores links, consents and audit, never the documents.
 
 ## Known limits
 
-- The connector "test" is a configuration check and the data-source probe is reachability. A true per-document trial fetch needs a
-  sample person ID the manifest does not publish yet.
+- The connector "test" is a configuration check plus, where the manifest publishes a sample person, one trial fetch; the data-source probe is
+  reachability only (it cannot probe SFTP or JDBC, which stay `UNKNOWN`). The trial endpoint accepts only the sample person or an ID of the
+  same form and audits the person by a hash; it is not a way to look up real citizens.
 - REST connectors support GET with path and query inputs; POST bodies, SOAPAction, HMAC request signing, client certificates and
   SFTP key login are not implemented.
 - A department's login keys are fetched with an unauthenticated request. Their URL (and the login URL) must be on the same host as

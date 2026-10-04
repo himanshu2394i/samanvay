@@ -24,10 +24,9 @@ public class MappingExecutor {
             "upper", (v, args) -> v == null ? null : v.toUpperCase(Locale.ROOT),
             "lower", (v, args) -> v == null ? null : v.toLowerCase(Locale.ROOT),
             "date_parse",
-                    (v, args) -> LocalDate.parse(v, DateTimeFormatter.ofPattern(args.getFirst())).toString(),
+                    (v, args) -> v == null || v.isBlank() ? null : LocalDate.parse(v, DateTimeFormatter.ofPattern(args.getFirst())).toString(),
             "coalesce", (v, args) -> v != null && !v.isBlank() ? v : args.getFirst(),
             "split_name", (v, args) -> v == null ? null : v.trim().replaceAll("\\s+", " "),
-            "lookup", (v, args) -> v,
             "mask", (v, args) -> maskExcept(v, Integer.parseInt(args.getFirst())));
 
     public JsonNode apply(MappingDefinition def, JsonNode source) {
@@ -65,6 +64,9 @@ public class MappingExecutor {
             if (n == null) {
                 return null;
             }
+        }
+        if (n.isNull()) {
+            return null; // a JSON null is no value: it must not turn into "" or "null" and pass a required-field check
         }
         return n.isValueNode() ? n.asString() : n.toString();
     }

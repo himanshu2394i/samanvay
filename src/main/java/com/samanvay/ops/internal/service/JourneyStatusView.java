@@ -23,7 +23,7 @@ public record JourneyStatusView(
      * @param connectorRef the published connector serving this category, null when none
      * @param connectorStatus its status, {@code NONE} when there is no published connector
      * @param sourceHealth GREEN, AMBER, RED or UNKNOWN (the last probe of its data source)
-     * @param working a published connector exists and its source is not RED
+     * @param working a published connector exists and its source is GREEN or AMBER (an SFTP/JDBC source, always UNKNOWN, counts when its last trial succeeded)
      */
     public record Category(
             String category,

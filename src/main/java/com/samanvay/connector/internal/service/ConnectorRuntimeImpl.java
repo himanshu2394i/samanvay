@@ -94,6 +94,14 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
         ConnectorDefinition connector = connectors.byRef(connectorRef);
         String department = connectors.dataSourceFor(connector).departmentCode();
         String person = samplePersonId.trim();
+        String declared = declaredSample(connector);
+        if (declared != null && !declared.equals(person) && !shape(declared).equals(shape(person))) {
+            // A trial reads the department's real service. With a published FAKE sample, only that sample or an id of the same
+            // shape may be tried, so the trial endpoint is not a way to look up an arbitrary citizen without consent.
+            throw new com.samanvay.shared.InvalidRequestException("The person ID does not look like the department's published sample (" + declared
+                    + "): a trial is run for the sample person or an ID of the same form");
+        }
+        String subject = person.equals(declared) ? "sample:" + person : "person:" + fingerprint(person);
         // A synthetic, never-stored grant only so the same fetch path runs; it names no real citizen.
         var grant = new AccessGrant(java.util.UUID.randomUUID(), new byte[0], java.util.UUID.randomUUID(), 0,
                 new com.samanvay.shared.SubjectRef(java.util.UUID.randomUUID()), null, connector.category(), department, connectorRef, null, by,
@@ -106,7 +114,48 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             outcome = result instanceof ConnectorResult.Success ? Outcome.ALLOWED : Outcome.DENIED;
             return result;
         } finally {
-            audit.record(new AuditEntry(ActorType.ADMIN, by.id(), "CONNECTOR_TRIAL", "sample", connectorRef, department, null, null, outcome, null, Map.of()));
+            audit.record(new AuditEntry(ActorType.ADMIN, by.id(), "CONNECTOR_TRIAL", subject, connectorRef, department, null, null, outcome, null, Map.of()));
+        }
+    }
+
+    /**
+     * No record at all: nothing came back, or every field is a JSON null. An SFTP source with no matching row and a JDBC source with
+     * no row both answer with an empty object; that is "the department holds nothing", not a success with nothing in it.
+     */
+    static boolean isEmptyRecord(JsonNode body) {
+        if (body == null || body.isNull() || body.isMissingNode()) {
+            return true;
+        }
+        if (!body.isObject()) {
+            return false;
+        }
+        for (JsonNode v : body.values()) {
+            if (!v.isNull()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The fake person the department's manifest published for trials ({@code sample_person_id}), or null. */
+    private String declaredSample(ConnectorDefinition connector) {
+        JsonNode fetch = json.readTree(connector.capabilitiesJson()).get("FETCH");
+        JsonNode s = fetch == null ? null : fetch.get("sample_person_id");
+        return s == null || s.asString().isBlank() ? null : s.asString();
+    }
+
+    /** "DBT-1001" and "DBT-9999" have the same shape; "NOBODY" does not: runs of letters, runs of digits, other characters kept. */
+    static String shape(String id) {
+        return id.trim().replaceAll("[A-Za-z]+", "a").replaceAll("[0-9]+", "0");
+    }
+
+    /** A short one-way fingerprint, so the audit trail can tell two trials of one person apart without holding the person ID. */
+    private static String fingerprint(String person) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(person.getBytes(java.nio.charset.StandardCharsets.UTF_8))).substring(0, 16);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
         }
     }
 
@@ -245,7 +294,7 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
             try (ExchangeDeadline deadline = ExchangeDeadline.start(totalTimeout)) {
                 raw = timedExchange(dataSource.code(), () -> resolveThenExecute(adapter, request, resolveSpec));
             }
-            if (raw == NO_DOCUMENT) {
+            if (raw == NO_DOCUMENT || isEmptyRecord(raw.body())) {
                 // The department answered, but holds no document for this person: nothing was accessed.
                 return new ConnectorResult.NotFound("the department holds no such document for this person");
             }
@@ -273,6 +322,8 @@ class ConnectorRuntimeImpl implements ConnectorRuntime {
                         attribution(grant)));
             }
             return new ConnectorResult.Success(mapped, provenance);
+        } catch (com.samanvay.connector.internal.protocol.ResponseTooLargeException e) {
+            return new ConnectorResult.Unavailable(FailureKind.RESPONSE_TOO_LARGE, true);
         } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException e) {
             return new ConnectorResult.Unavailable(FailureKind.BREAKER_OPEN, true);
         } catch (io.github.resilience4j.bulkhead.BulkheadFullException e) {

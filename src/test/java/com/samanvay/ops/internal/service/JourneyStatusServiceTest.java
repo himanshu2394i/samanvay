@@ -64,12 +64,16 @@ class JourneyStatusServiceTest {
     }
 
     private ConnectorDefinition connector(String category, int version) {
+        return connector(category, version, "REST");
+    }
+
+    private ConnectorDefinition connector(String category, int version, String protocol) {
         ConnectorDefinition c = new ConnectorDefinition(
                 "conn-" + category + "@" + version, "conn-" + category, version, "ds-" + category,
                 DataCategory.of(category), "{\"FETCH\":{}}", "[]", 1000, ConnectorStatus.PUBLISHED);
         when(connectors.resolve("DEPT_" + category, DataCategory.of(category), Capability.FETCH)).thenReturn(Optional.of(c));
         when(connectors.dataSourceFor(c)).thenReturn(new DataSourceDefinition(
-                "ds-" + category, "DEPT_" + category, "REST", "host", "NONE", "secret:none", "{}", "{}"));
+                "ds-" + category, "DEPT_" + category, protocol, "host", "NONE", "secret:none", "{}", "{}"));
         return c;
     }
 
@@ -130,14 +134,35 @@ class JourneyStatusServiceTest {
     }
 
     @Test
-    void anUnprobedSourceIsUnknownButStillWorking() {
+    void anUnprobedRestSourceIsUnknownAndNotWorking() {
         journey("INCOME");
         connector("INCOME", 1); // not in the health list
 
         Category income = service.status(CODE).categories().getFirst();
 
         assertThat(income.sourceHealth()).isEqualTo("UNKNOWN");
-        assertThat(income.working()).isTrue();
+        assertThat(income.working()).isFalse();
+    }
+
+    @Test
+    void anSftpOrJdbcSourceIsAlwaysUnknownSoItWorksOnlyWhenItsLastDurableTrialSucceeded() {
+        journey("PARCEL", "POLLUTION", "NOTRIAL");
+        connector("PARCEL", 1, "SFTP_CSV");
+        health("PARCEL", "UNKNOWN");
+        connector("POLLUTION", 1, "JDBC");
+        health("POLLUTION", "UNKNOWN");
+        connector("NOTRIAL", 1, "SFTP_CSV");
+        health("NOTRIAL", "UNKNOWN");
+        when(trials.last("conn-PARCEL@1")).thenReturn(Optional.of(new TrialHistory.Trial(NOW.minusSeconds(60), "SUCCESS")));
+        when(trials.last("conn-POLLUTION@1")).thenReturn(Optional.of(new TrialHistory.Trial(NOW.minusSeconds(60), "NOT_FOUND")));
+
+        Map<String, Category> byCategory = new java.util.HashMap<>();
+        service.status(CODE).categories().forEach(c -> byCategory.put(c.category(), c));
+
+        assertThat(byCategory.get("PARCEL").sourceHealth()).isEqualTo("UNKNOWN");
+        assertThat(byCategory.get("PARCEL").working()).isTrue();
+        assertThat(byCategory.get("POLLUTION").working()).isFalse();
+        assertThat(byCategory.get("NOTRIAL").working()).isFalse();
     }
 
     @Test

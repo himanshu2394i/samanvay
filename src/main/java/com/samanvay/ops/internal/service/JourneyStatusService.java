@@ -128,8 +128,9 @@ public class JourneyStatusService {
         String source = connectors.dataSourceFor(c).code();
         String sourceHealth = health.getOrDefault(source, "UNKNOWN");
         Trial trial = trials.last(c.ref()).map(t -> new Trial(t.at(), t.outcome())).orElse(null);
-        return new Category(
-                category, department, c.ref(), c.status().name(), source, sourceHealth, trial, !"RED".equals(sourceHealth));
+        boolean working = SourceWorking.working(c.status() == com.samanvay.catalog.api.ConnectorStatus.PUBLISHED, sourceHealth,
+                connectors.dataSourceFor(c).protocol(), trial == null ? null : trial.outcome());
+        return new Category(category, department, c.ref(), c.status().name(), source, sourceHealth, trial, working);
     }
 
     /** The connector version the instance pinned at start, else today's serving connector (older instances pinned none). */

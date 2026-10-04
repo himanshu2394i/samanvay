@@ -25,6 +25,7 @@ import com.samanvay.catalog.api.DepartmentCatalog;
 import com.samanvay.catalog.api.DepartmentDraft;
 import com.samanvay.catalog.api.DepartmentIdentity;
 import com.samanvay.catalog.api.DepartmentRegistered;
+import com.samanvay.catalog.api.IdentityChangeNotAcknowledgedException;
 import com.samanvay.catalog.api.IllegalConnectorStateException;
 import com.samanvay.catalog.api.MappingCatalog;
 import com.samanvay.catalog.api.MappingDefinition;
@@ -46,7 +47,6 @@ import com.samanvay.shared.DataCategory;
 import com.samanvay.shared.InvalidRequestException;
 import java.net.InetAddress;
 import java.net.URI;
-import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -86,6 +86,7 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
     private final MappingCatalog mappingCatalog;
     private final ApplicationEventPublisher events;
     private final DataSourceHostPolicy hosts;
+    private final Map<String, String> devOverrides;
 
     @org.springframework.beans.factory.annotation.Autowired
     CatalogServices(
@@ -97,9 +98,10 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             SchemaRepository schemas,
             MappingCatalog mappingCatalog,
             ApplicationEventPublisher events,
-            @org.springframework.beans.factory.annotation.Value("${samanvay.catalog.allowed-private-hosts:}") List<String> allowedPrivateHosts) {
-        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events, CatalogServices::resolveHost,
-                java.util.Set.copyOf(allowedPrivateHosts));
+            @org.springframework.beans.factory.annotation.Value("${samanvay.catalog.allowed-private-hosts:}") List<String> allowedPrivateHosts,
+            org.springframework.core.env.Environment environment) {
+        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events,
+                DataSourceHostPolicy.system(java.util.Set.copyOf(allowedPrivateHosts)), devOverrides(environment));
     }
 
     /** No exempt hosts: what every non-dev run and the unit tests use. */
@@ -112,8 +114,8 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             SchemaRepository schemas,
             MappingCatalog mappingCatalog,
             ApplicationEventPublisher events) {
-        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events, CatalogServices::resolveHost,
-                java.util.Set.of());
+        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events,
+                DataSourceHostPolicy.system(java.util.Set.of()), Map.of());
     }
 
     CatalogServices(
@@ -129,7 +131,8 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events, resolver, java.util.Set.of());
     }
 
-    private CatalogServices(
+    /** Test seam: a resolver and the dev/demo exempt hosts. */
+    CatalogServices(
             DepartmentRepository departments,
             DataSourceRepository dataSources,
             ConnectorRepository connectors,
@@ -140,6 +143,21 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             ApplicationEventPublisher events,
             Function<String, InetAddress> resolver,
             java.util.Set<String> allowedPrivateHosts) {
+        this(departments, dataSources, connectors, mappings, journeys, schemas, mappingCatalog, events,
+                new DataSourceHostPolicy(resolver, allowedPrivateHosts), Map.of());
+    }
+
+    private CatalogServices(
+            DepartmentRepository departments,
+            DataSourceRepository dataSources,
+            ConnectorRepository connectors,
+            MappingRepository mappings,
+            JourneyRepository journeys,
+            SchemaRepository schemas,
+            MappingCatalog mappingCatalog,
+            ApplicationEventPublisher events,
+            DataSourceHostPolicy hosts,
+            Map<String, String> devOverrides) {
         this.departments = departments;
         this.dataSources = dataSources;
         this.connectors = connectors;
@@ -148,7 +166,20 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         this.schemas = schemas;
         this.mappingCatalog = mappingCatalog;
         this.events = events;
-        this.hosts = new DataSourceHostPolicy(resolver, allowedPrivateHosts);
+        this.hosts = hosts;
+        this.devOverrides = devOverrides;
+    }
+
+    /**
+     * The dev/demo map that points a data source's real calls at a local department service
+     * ({@code samanvay.sources.department-service.urls}; the connector module refuses it outside dev/demo). The health probe
+     * follows the same map so a dev source is probed where it is actually called.
+     */
+    private static Map<String, String> devOverrides(org.springframework.core.env.Environment environment) {
+        return org.springframework.boot.context.properties.bind.Binder.get(environment)
+                .bind("samanvay.sources.department-service.urls",
+                        org.springframework.boot.context.properties.bind.Bindable.mapOf(String.class, String.class))
+                .orElse(Map.of());
     }
 
     @Override
@@ -193,6 +224,35 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
     @Override
     @Transactional
     public Department register(DepartmentDraft draft) {
+        Optional<DepartmentEntity> existing = departments.findById(draft.code());
+        if (existing.isPresent()) {
+            // Registering again MERGES what was provided: it never wipes the pinned manifest key, the manifest digest, the identity or
+            // the creation time, and it cannot replace an identity the department already has (that needs manifest onboarding with
+            // an explicit acknowledgement).
+            DepartmentEntity e = existing.get();
+            if (draft.identity() != null) {
+                DepartmentIdentity current = identity(draft.code()).orElse(null);
+                if (current != null && !current.equals(draft.identity())) {
+                    throw new IdentityChangeNotAcknowledgedException("Department " + draft.code() + " already has a different identity (login, keys, "
+                            + "issuer); it is not replaced here. Re-onboard from its manifest and acknowledge the identity change.");
+                }
+                e.setIdentitySpec(JSON.writeValueAsString(draft.identity()));
+            }
+            if (draft.name() != null && !draft.name().isBlank()) {
+                e.setName(draft.name());
+            }
+            if (draft.idpRealm() != null) {
+                e.setIdpRealm(draft.idpRealm());
+            }
+            if (draft.contactEmail() != null) {
+                e.setContactEmail(draft.contactEmail());
+            }
+            if (draft.defaultSlaMs() != null) {
+                e.setDefaultSlaMs(draft.defaultSlaMs());
+            }
+            departments.save(e);
+            return new Department(e.getCode(), e.getName(), e.getStatus());
+        }
         DepartmentEntity e = new DepartmentEntity();
         e.setCode(draft.code());
         e.setName(draft.name());
@@ -224,6 +284,33 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
     @Transactional
     public DataSourceDefinition registerDataSource(DataSourceDraft draft) {
         hosts.assertAllowed(draft.baseHost());
+        Optional<DataSourceEntity> existing = dataSources.findById(draft.code());
+        if (existing.isPresent()) {
+            // Registering again MERGES what was provided and keeps the onboarded flag, health and resilience settings.
+            DataSourceEntity e = existing.get();
+            if (draft.departmentCode() != null && !draft.departmentCode().equals(e.getDepartmentCode())) {
+                throw new InvalidRequestException("Data source " + draft.code() + " already exists and belongs to department " + e.getDepartmentCode()
+                        + "; it cannot be moved to " + draft.departmentCode() + ".");
+            }
+            if (draft.protocol() != null) {
+                e.setProtocol(draft.protocol());
+            }
+            if (!draft.baseHost().equals(e.getBaseHost())) {
+                e.setBaseHost(draft.baseHost());
+                e.setHealthStatus("UNKNOWN"); // a different host: the last probe says nothing about it
+            }
+            if (draft.authType() != null) {
+                e.setAuthType(draft.authType());
+            }
+            if (draft.authConfigRef() != null) {
+                e.setAuthConfigRef(draft.authConfigRef());
+            }
+            if (draft.authSpecJson() != null) {
+                e.setAuthSpec(draft.authSpecJson());
+            }
+            dataSources.save(e);
+            return toDataSource(e);
+        }
         DataSourceEntity e = new DataSourceEntity();
         e.setCode(draft.code());
         e.setDepartmentCode(draft.departmentCode());
@@ -344,6 +431,11 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
     public ValidationResult validate(String schemaRef, JsonNode document) {
         String def = definition(schemaRef);
         JsonNode schema = JSON.readTree(def);
+        boolean anyValue = document != null && document.isObject() && document.values().stream().anyMatch(v -> !v.isNull());
+        if (!anyValue) {
+            // whether or not the schema lists required fields, an answer with no value in it is not a valid document
+            return new ValidationResult(false, List.of("the document is empty"));
+        }
         if (schema.get("required") != null) {
             for (JsonNode req : schema.get("required")) {
                 if (document.get(req.asString()) == null || document.get(req.asString()).isNull()) {
@@ -492,10 +584,49 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         this.discoveryCredentials = source;
     }
 
-    /** SecretStore key of the credential a department asks for on its manifest: {@code manifest-<host[-port]>-credential}. */
+    /** What a manifest or discovery answer may weigh. A real manifest is a few KB; more is a mistake or an attack. */
+    static final int MAX_MANIFEST_BYTES = 1024 * 1024;
+
+    /** Letters, digits, dots and dashes: the host shapes whose secret-key name cannot be confused with another host's. */
+    private static final java.util.regex.Pattern KEYABLE_HOST = java.util.regex.Pattern.compile("[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*");
+
+    /**
+     * SecretStore key of the credential a department asks for on its manifest: {@code manifest-<host>[---<port>]-credential}.
+     * In the host a dot is one dash and a real dash is two ({@code a.b} and {@code a-b} differ); the port follows three
+     * dashes (so {@code a.b:80} and {@code a.b.80} differ). A host that is not letters, digits, dots and dashes (an IPv6
+     * literal) has no key, so it can never share one. Null when there is none.
+     */
     static String discoverySecretKey(URI uri) {
-        String hostPort = uri.getHost().toLowerCase(java.util.Locale.ROOT) + (uri.getPort() > 0 ? "-" + uri.getPort() : "");
-        return "manifest-" + hostPort.replaceAll("[^a-z0-9]+", "-") + "-credential";
+        List<String> keys = discoverySecretKeys(uri);
+        return keys.isEmpty() ? null : keys.get(0);
+    }
+
+    /**
+     * The key above first, then, only where it could not belong to any other host, the name used before the encoding was made
+     * unambiguous ({@code manifest-<host-with-dots-as-dashes>-<port>-credential}): a host with no dash, on a port. Without a port the
+     * two names are the same; with a dash in the host the old name is shared with the dotted host, so it is not accepted.
+     */
+    static List<String> discoverySecretKeys(URI uri) {
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(java.util.Locale.ROOT);
+        if (!KEYABLE_HOST.matcher(host).matches()) {
+            return List.of();
+        }
+        String encoded = host.replace("-", "--").replace('.', '-');
+        String port = uri.getPort() > 0 ? "---" + uri.getPort() : "";
+        List<String> keys = new ArrayList<>();
+        keys.add("manifest-" + encoded + port + "-credential");
+        if (uri.getPort() > 0 && !host.contains("-")) {
+            keys.add("manifest-" + encoded + "-" + uri.getPort() + "-credential");
+        }
+        return keys;
+    }
+
+    /** {@code scheme://host[:port]}, lower case, no trailing slash, default port dropped: what a department signs as {@code aud}. */
+    static String originOf(URI uri) {
+        String scheme = uri.getScheme().toLowerCase(java.util.Locale.ROOT);
+        int port = uri.getPort();
+        boolean dflt = port < 0 || ("http".equals(scheme) && port == 80) || ("https".equals(scheme) && port == 443);
+        return scheme + "://" + uri.getHost().toLowerCase(java.util.Locale.ROOT) + (dflt ? "" : ":" + port);
     }
 
     @Override
@@ -510,12 +641,25 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         if (uri.getScheme() == null || uri.getHost() == null) {
             throw new InvalidRequestException("baseUrl must include a scheme and host, for example https://dept.example.gov");
         }
+        if (uri.getUserInfo() != null) {
+            throw new InvalidRequestException("baseUrl must not contain a user name or password");
+        }
         hosts.assertAllowed(uri.getHost()); // same SSRF guard as a data source: no private/loopback targets
-        String credentialKey = discoverySecretKey(uri);
+        boolean https = "https".equalsIgnoreCase(uri.getScheme());
+        if (!https && !("http".equalsIgnoreCase(uri.getScheme()) && hosts.isDevExempt(uri.getHost()))) {
+            throw new InvalidRequestException("baseUrl must use https (plain http is accepted only for a host named in samanvay.catalog.allowed-private-hosts, in dev/demo)");
+        }
+        List<String> credentialKeys = discoverySecretKeys(uri);
+        String credentialKey = credentialKeys.isEmpty() ? "(none: use a host name made of letters, digits, dots and dashes)" : credentialKeys.get(0);
         try {
             HttpRequest.Builder request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8)).header("Accept", "application/json").GET();
-            discoveryCredentials.apply(credentialKey).filter(c -> !c.isEmpty()).ifPresent(c -> request.header(DISCOVERY_HEADER, c));
-            HttpResponse<byte[]> resp = HTTP.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
+            credentialKeys.stream().map(discoveryCredentials).flatMap(Optional::stream).filter(c -> !c.isEmpty()).findFirst()
+                    .ifPresent(c -> request.header(DISCOVERY_HEADER, c));
+            HttpResponse<byte[]> resp = HTTP.send(request.build(),
+                    com.samanvay.shared.CappedBody.upTo(MAX_MANIFEST_BYTES));
+            if (resp.body() != null && resp.body().length > MAX_MANIFEST_BYTES) {
+                throw new InvalidRequestException("The response at " + uri + " is too large to be a manifest (over " + MAX_MANIFEST_BYTES / 1024 + " KB)");
+            }
             if (resp.statusCode() == 401 || resp.statusCode() == 403) {
                 throw new InvalidRequestException("The department refused the manifest request (HTTP " + resp.statusCode() + "). If it asks for a "
                         + "discovery credential, provision the SecretStore key " + credentialKey + " with the value it issued to Samanvay.");
@@ -523,9 +667,9 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             if (resp.statusCode() != 200) {
                 throw new InvalidRequestException("No Samanvay manifest at " + uri + " (HTTP " + resp.statusCode() + ")");
             }
-            // Verify the signature over the exact bytes received, before parsing them.
-            String thumbprint = ManifestSignatures.verify(resp.body(), resp.headers().firstValue(ManifestSignatures.HEADER).orElse(null), Instant.now())
-                    .orElse(null);
+            // Verify the signature over the exact bytes received, before parsing them; it must name this host (aud).
+            String thumbprint = ManifestSignatures.verify(resp.body(), resp.headers().firstValue(ManifestSignatures.HEADER).orElse(null), Instant.now(),
+                    originOf(uri)).orElse(null);
             DepartmentManifest m = parseManifest(new String(resp.body(), java.nio.charset.StandardCharsets.UTF_8));
             if (m == null || m.department() == null || m.documents() == null) {
                 throw new InvalidRequestException("The response at " + uri + " is not a Samanvay manifest");
@@ -557,13 +701,18 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         if ("REST".equals(protocol) || "SOAP".equals(protocol)) {
             URI uri;
             try {
-                uri = URI.create("https://" + e.getBaseHost() + "/");
+                // dev/demo: a source pointed at a local department service is probed there, like its real calls
+                String override = devOverrides.get(e.getCode());
+                uri = URI.create(override != null ? override.trim().replaceAll("/+$", "") + "/" : "https://" + e.getBaseHost() + "/");
             } catch (RuntimeException ex) {
                 uri = null;
             }
-            if (uri == null || uri.getHost() == null) {
+            if (uri == null || uri.getHost() == null || uri.getUserInfo() != null) {
                 health = "RED";
                 detail = "Invalid host";
+            } else if (!devOverrides.containsKey(e.getCode()) && isPrivateHost(uri.getHost())) {
+                health = "RED";
+                detail = "Refused: the host is not a public address";
             } else {
                 String probed = probeHttp(uri);
                 health = probed == null ? "GREEN" : "RED";
@@ -578,6 +727,16 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
         return new DataSourceHealth(e.getCode(), e.getDepartmentCode(), protocol, e.getBaseHost(), health, detail);
     }
 
+    /** The host was checked when it was registered; the address behind a name can change, so it is checked again before it is called. */
+    private boolean isPrivateHost(String host) {
+        try {
+            hosts.assertAllowed(host);
+            return false;
+        } catch (com.samanvay.catalog.api.IllegalHostException ex) {
+            return true;
+        }
+    }
+
     /** GET the URL; null means reachable (any HTTP status), else the failure message. */
     private static String probeHttp(URI uri) {
         try {
@@ -586,14 +745,6 @@ class CatalogServices implements DepartmentCatalog, ConnectorCatalog, SchemaCata
             return null;
         } catch (Exception ex) {
             return ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
-        }
-    }
-
-    private static InetAddress resolveHost(String host) {
-        try {
-            return InetAddress.getByName(host);
-        } catch (UnknownHostException e) {
-            return null;
         }
     }
 }
