@@ -7,7 +7,6 @@ import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
 import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.DataSourceHealth;
-import com.samanvay.catalog.api.DepartmentManifest;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
 import com.samanvay.catalog.api.ConnectorTestReport;
@@ -164,12 +163,6 @@ class CatalogController {
     @PostMapping("/schemas")
     SchemaSummary addSchema(@RequestBody SchemaDraft draft) {
         return schemaAdmin.create(draft);
-    }
-
-    @PostMapping("/discover")
-    DepartmentManifest discover(@RequestBody DiscoverBody body) {
-        requireText(body.baseUrl(), "baseUrl");
-        return discovery.discover(body.baseUrl());
     }
 
     record DiscoverBody(String baseUrl) {}

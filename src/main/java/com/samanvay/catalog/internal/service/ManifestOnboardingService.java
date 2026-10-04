@@ -162,6 +162,10 @@ class ManifestOnboardingService implements ManifestOnboarding {
                 skipped.add("data source " + s.code() + " already exists");
             } else {
                 wizard.registerDataSource(new DataSourceDraft(s.code(), dept, s.protocol(), s.baseHost(), s.authType(), s.authConfigRef(), s.authSpecJson()));
+                dataSources.findById(s.code()).ifPresent(e -> {
+                    e.setOnboarded(true);
+                    dataSources.save(e);
+                });
                 createdSources.add(s.code());
             }
         }
@@ -175,6 +179,10 @@ class ManifestOnboardingService implements ManifestOnboarding {
             ((ObjectNode) caps.get("FETCH")).put("mapping_ref", mappingRef);
             var draft = wizard.createDraft(new ConnectorDraft(c.connectorId(), c.sourceCode(), DataCategory.of(c.category()), caps.toString(), c.inputsJson(), c.slaMs()));
             wizard.saveMapping(new MappingDraft(mappingRef, draft.ref(), rulesByCategory.get(c.category())));
+            connectors.findById(draft.ref()).ifPresent(e -> {
+                e.setOnboarded(true);
+                connectors.save(e);
+            });
             connectorRefs.add(draft.ref());
             mappingRefs.add(mappingRef);
         }
@@ -187,6 +195,11 @@ class ManifestOnboardingService implements ManifestOnboarding {
                 journeyWrite.createJourney(j.draft());
                 createdJourneys.add(j.draft().code());
             }
+            // created or already there: either way the manifest declares it, so the staff console shows it
+            journeys.findById(j.draft().code()).ifPresent(e -> {
+                e.setOnboarded(true);
+                journeys.save(e);
+            });
         }
         return new OnboardingResult(dept, List.copyOf(createdSources), List.copyOf(connectorRefs), List.copyOf(mappingRefs),
                 List.copyOf(createdJourneys), List.copyOf(skipped), planned.plan().pendingSteps());

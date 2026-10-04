@@ -2,8 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import type { JourneyStatus } from '../../api/staffTypes'
-import { connector } from '../../test/staffFixtures'
-import { DEPARTMENTS, DRAFT_JOURNEY, mockFetch, renderStaff, SCHOLARSHIP, staffAuth } from '../../test/utils'
+import { mockFetch, renderStaff, staffAuth } from '../../test/utils'
 
 const PATH = '/api/ops/journeys/POST_MATRIC_SCHOLARSHIP'
 const ROUTE = '/staff/admin/journeys/POST_MATRIC_SCHOLARSHIP'
@@ -185,22 +184,7 @@ describe('staff: journey status page', () => {
   })
 })
 
-describe('catalog links to the journey status page', () => {
-  it('gives each journey row a Status link', async () => {
-    const m = mockFetch([
-      { method: 'GET', path: '/api/catalog/journeys', reply: { body: [SCHOLARSHIP, DRAFT_JOURNEY] } },
-      { method: 'GET', path: '/api/catalog/departments', reply: { body: DEPARTMENTS } },
-      { method: 'GET', path: '/api/catalog/connectors', reply: { body: [connector] } },
-      { method: 'GET', path: '/api/catalog/data-sources', reply: { body: [] } },
-    ])
-    renderStaff({ route: '/staff/admin/catalog', fetchImpl: m.fetchImpl, auth: admin() })
-
-    const journeys = await screen.findByRole('table', { name: 'Journeys' })
-    const link = within(within(journeys).getByText('POST_MATRIC_SCHOLARSHIP').closest('tr') as HTMLElement).getByRole('link', { name: 'Status' })
-    expect(link).toHaveAttribute('href', '/staff/admin/journeys/POST_MATRIC_SCHOLARSHIP')
-    expect(within(journeys).getAllByRole('link', { name: 'Status' })).toHaveLength(2)
-  })
-
+describe('journey status: actions', () => {
   it('lets an admin check a source and run a trial on a connected document, then shows the new answers', async () => {
     let trialDone = false
     const m = mockFetch([

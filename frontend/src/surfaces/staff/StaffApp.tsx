@@ -11,7 +11,8 @@ import { CitizenViewPage } from './pages/CitizenViewPage'
 import { MetricsPage } from './pages/MetricsPage'
 import { JourneyStatusPage } from './pages/JourneyStatusPage'
 import { AuditPage } from './pages/AuditPage'
-import { CatalogPage } from './pages/CatalogPage'
+import { DepartmentsPage } from './pages/DepartmentsPage'
+import { JourneysPage } from './pages/JourneysPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { SchemasPage } from './pages/SchemasPage'
 import { ReviewerQueuePage } from './pages/ReviewerQueuePage'
@@ -22,8 +23,8 @@ import { StaffNotFoundPage } from './pages/StaffNotFoundPage'
  * Keycloak realm. Access is by the roles in the token:
  *
  *   OFFICER          exceptions, bank reviews, applications
- *   OFFICER, ADMIN   metrics, audit ledger, a journey's connected-and-working status and log
- *   ADMIN            catalog, onboarding
+ *   OFFICER, ADMIN   metrics, audit ledger, departments, journeys and a journey's status and log
+ *   ADMIN            central schema, onboarding
  *   REVIEWER         identity review
  *
  * These mirror SecurityConfig's route rules.
@@ -46,10 +47,11 @@ export function StaffApp() {
           <Route element={<RequireRole allow={OPS} />}>
             <Route path="ops/metrics" element={<MetricsPage />} />
             <Route path="ops/audit" element={<AuditPage />} />
+            <Route path="admin/departments" element={<DepartmentsPage />} />
+            <Route path="admin/journeys" element={<JourneysPage />} />
             <Route path="admin/journeys/:code" element={<JourneyStatusPage />} />
           </Route>
           <Route element={<RequireRole allow={ADMIN} />}>
-            <Route path="admin/catalog" element={<CatalogPage />} />
             <Route path="admin/onboarding" element={<OnboardingPage />} />
             <Route path="admin/schemas" element={<SchemasPage />} />
           </Route>

@@ -260,62 +260,6 @@ export interface ConnectorTestReport {
   failures: string[]
 }
 
-// --- department discovery manifest (GET {baseUrl}/.well-known/samanvay/manifest) ---
-export interface ManifestInput {
-  name: string
-  in: string
-  required: boolean
-  description: string | null
-}
-export interface ManifestField {
-  name: string
-  type: string
-  sensitive: boolean
-}
-export interface ManifestDocument {
-  category: string
-  title: string
-  protocol: string
-  method: string
-  path: string
-  inputs: ManifestInput[]
-  fields: ManifestField[]
-}
-/** A document category a journey needs, and the department that provides it. */
-export interface ManifestRequiredCategory {
-  category: string
-  department: string
-}
-export interface ManifestJourney {
-  code: string
-  name: string
-  description: string | null
-  referencePrefix: string
-  slaHours: number
-  consentPurpose: string
-  requester: string
-  requiredCategories: ManifestRequiredCategory[]
-}
-
-/** Body for POST /api/catalog/journeys (mirrors the Java JourneyDraft record). */
-export interface JourneyDraft {
-  code: string
-  name: string
-  referencePrefix: string
-  slaHours: number
-  consentPurpose: string
-  requester: string
-  requiredCategories: string[]
-  /** category -> department that provides it */
-  sources: Record<string, string>
-}
-export interface DepartmentManifest {
-  manifestVersion: number
-  department: { code: string; name: string; description: string | null }
-  documents: ManifestDocument[]
-  journeys: ManifestJourney[]
-}
-
 // --- data source health (live connectivity probe / monitoring) ---
 export interface DataSourceHealth {
   code: string
@@ -467,4 +411,67 @@ export interface JourneyStatus {
   counts: { running: number; completed: number; failed: number; last7Days: number }
   recent: { instanceId: string; referenceNo: string | null; state: string; startedAt: IsoInstant }[]
   log: JourneyLogRow[]
+}
+
+// --- staff overview: GET /api/ops/overview (OFFICER, ADMIN); see docs/contracts/ops-overview.md ---
+
+export interface OverviewMapping {
+  /** The department's own field name. */
+  source: string
+  /** The central schema field it fills. */
+  target: string
+  required: boolean
+}
+
+export interface OverviewDocument {
+  category: string
+  title: string
+  connectorRef: string | null
+  /** DRAFT or PUBLISHED. */
+  connectorStatus: string
+  dataSourceCode: string | null
+  /** GREEN, AMBER, RED or UNKNOWN. */
+  sourceHealth: string
+  lastTrial: { at: IsoInstant; outcome: string } | null
+  /** A published connector exists and its source is not RED. */
+  working: boolean
+  centralSchemaRef: string | null
+  mappings: OverviewMapping[]
+  /** Required central fields no mapping rule fills. */
+  unmappedRequired: string[]
+}
+
+export interface OverviewDataSource {
+  code: string
+  protocol: string
+  host: string
+  health: string
+  healthDetail: string | null
+}
+
+export interface OverviewJourney {
+  code: string
+  name: string
+  /** DRAFT or PUBLISHED. */
+  status: string
+  /** Every required category has a published connector (the rule that allows publishing). */
+  ready: boolean
+  needs: { category: string; department: string; working: boolean }[]
+  counts: { running: number; completed: number; failed: number; last7Days: number }
+}
+
+export interface OverviewDepartment {
+  code: string
+  name: string
+  pinnedKeyThumbprint: string | null
+  loginUrl: string | null
+  dataSources: OverviewDataSource[]
+  documents: OverviewDocument[]
+  /** Journeys whose requester is this department. */
+  journeys: OverviewJourney[]
+}
+
+export interface OpsOverview {
+  generatedAt: IsoInstant
+  departments: OverviewDepartment[]
 }

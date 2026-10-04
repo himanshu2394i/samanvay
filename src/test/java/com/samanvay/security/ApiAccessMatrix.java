@@ -59,7 +59,6 @@ final class ApiAccessMatrix {
         allow("POST /api/catalog/connectors/{ref}/test", ADMIN);
         allow("POST /api/catalog/connectors/{ref}/publish", ADMIN);
         allow("POST /api/catalog/import/openapi", ADMIN);
-        allow("POST /api/catalog/discover", ADMIN);
         allow("POST /api/catalog/onboard/plan", ADMIN);
         allow("POST /api/catalog/onboard", ADMIN);
         allow("GET /api/catalog/data-sources", OFFICER, ADMIN);
@@ -116,6 +115,7 @@ final class ApiAccessMatrix {
         // ops dashboards
         allow("GET /api/ops/metrics", OFFICER, ADMIN);
         allow("GET /api/ops/journeys/{code}", OFFICER, ADMIN);
+        allow("GET /api/ops/overview", OFFICER, ADMIN);
         // audit
         allow("GET /api/audit/head", OFFICER, ADMIN);
         allow("GET /api/audit/verify", OFFICER, ADMIN);

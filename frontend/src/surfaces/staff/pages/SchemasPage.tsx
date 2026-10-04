@@ -8,6 +8,7 @@ import { Loading } from '../../../ui/Loading'
 import { TextArea } from '../../../ui/TextArea'
 import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
+import type { OverviewDepartment, SchemaSummary } from '../../../api/staffTypes'
 import { parseFieldLines } from '../lib/schemas'
 
 /**
@@ -18,6 +19,9 @@ export function SchemasPage() {
   const api = useStaffApi()
   const [reload, setReload] = useState(0)
   const schemas = useAsync(() => api.listSchemaDetails(), `schemas:${reload}`)
+  // The mappings come from the overview; if it fails the schema list still shows.
+  const overview = useAsync(() => api.getOverview(), 'overview')
+  const documents = schemas.status === 'success' ? schemas.data.filter((s) => s.category) : []
   const add = useAction()
   const [ref, setRef] = useState('')
   const [category, setCategory] = useState('')
@@ -47,41 +51,51 @@ export function SchemasPage() {
     <section aria-labelledby="schemas-h">
       <h1 id="schemas-h">Central schema</h1>
       <p className="lede">
-        The shared field names every department&rsquo;s documents are matched onto. Onboarding proposes matches against the
-        highest version for a document category. A schema is not edited in place: to change one, add a new version
-        (<span className="mono">@2</span>).
+        For each document: the shared field names it has, and how every onboarded department&rsquo;s own fields are mapped onto
+        them. Onboarding proposes matches against the highest version for a document category. A schema is not edited in place:
+        to change one, add a new version (<span className="mono">@2</span>).
       </p>
 
       {schemas.status === 'loading' ? <Loading variant="table" label="Loading the schemas" /> : null}
       {schemas.status === 'error' ? <ErrorNotice error={schemas.error} /> : null}
+      {overview.status === 'error' ? (
+        <p className="notice warn" role="status">
+          Which departments provide each document could not be loaded, so the mappings are not shown.{' '}
+          <button type="button" className="btn" onClick={overview.reload}>
+            Try again
+          </button>
+        </p>
+      ) : null}
+      {schemas.status === 'success' && documents.length === 0 ? <p>No schema describes a document yet. Add one below.</p> : null}
       {schemas.status === 'success' ? (
-        <table className="table" aria-label="Central schemas">
-          <thead>
-            <tr>
-              <th scope="col">Schema</th>
-              <th scope="col">Document</th>
-              <th scope="col">Fields</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schemas.data.map((s) => (
-              <tr key={s.ref}>
-                <td className="mono">{s.ref}</td>
-                <td>{s.category ? humanize(s.category) : <Badge tone="neutral">No category</Badge>}</td>
-                <td>
-                  <ul className="plain">
-                    {s.fields.map((f) => (
-                      <li key={f.name}>
-                        <span className="mono">{f.name}</span> ({f.type}
-                        {f.required ? ', required' : ''})
-                      </li>
-                    ))}
-                  </ul>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ul className="stack plain">
+          {documents.map((s) => (
+            <li key={s.ref} className="card">
+              <h2 style={{ marginTop: 0 }}>
+                {humanize(s.category as string)} <span className="mono hint">{s.ref}</span>
+              </h2>
+              <table aria-label={`Central fields of ${s.ref}`}>
+                <thead>
+                  <tr>
+                    <th scope="col">Central field</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Required</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {s.fields.map((f) => (
+                    <tr key={f.name}>
+                      <td className="mono">{f.name}</td>
+                      <td>{f.type}</td>
+                      <td>{f.required ? 'Required' : 'Optional'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {overview.status === 'success' ? <Providers schema={s} departments={overview.data.departments} /> : null}
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <form className="card spaced" onSubmit={(e) => void onSubmit(e)} aria-labelledby="add-schema-h">
@@ -126,5 +140,49 @@ export function SchemasPage() {
         </button>
       </form>
     </section>
+  )
+}
+
+/** For one central schema: each onboarded department that provides this document and how its fields map onto it. */
+function Providers({ schema, departments }: { schema: SchemaSummary; departments: OverviewDepartment[] }) {
+  const providers = departments.flatMap((d) => d.documents.filter((x) => x.centralSchemaRef === schema.ref).map((doc) => ({ dept: d, doc })))
+  if (providers.length === 0) return <p className="hint">No onboarded department provides this document yet</p>
+  return (
+    <>
+      {providers.map(({ dept, doc }) => (
+        <div key={dept.code} className="spaced">
+          <h3>
+            {dept.name} <span className="mono hint">{dept.code}</span>
+          </h3>
+          {doc.mappings.length === 0 ? (
+            <p>No field is mapped yet.</p>
+          ) : (
+            <table aria-label={`Mapping from ${dept.code} onto ${schema.ref}`}>
+              <thead>
+                <tr>
+                  <th scope="col">Department field</th>
+                  <th scope="col">Central field</th>
+                  <th scope="col">Required</th>
+                </tr>
+              </thead>
+              <tbody>
+                {doc.mappings.map((m) => (
+                  <tr key={`${m.source}:${m.target}`}>
+                    <td className="mono">{m.source}</td>
+                    <td className="mono">{m.target}</td>
+                    <td>{m.required ? <Badge tone="ok">Required</Badge> : null}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {doc.unmappedRequired.length > 0 ? (
+            <p className="notice warn" role="status">
+              Not mapped yet: {doc.unmappedRequired.join(', ')}. The central schema requires {doc.unmappedRequired.length === 1 ? 'this field' : 'these fields'}.
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </>
   )
 }

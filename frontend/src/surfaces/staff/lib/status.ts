@@ -71,3 +71,13 @@ export function bankReviewTone(status: string): Tone {
       return 'warn'
   }
 }
+
+/** Data source health (GREEN, AMBER, RED, UNKNOWN) as a badge tone. */
+export function healthTone(health: string): Tone {
+  return health === 'GREEN' ? 'ok' : health === 'RED' ? 'bad' : health === 'AMBER' ? 'warn' : 'neutral'
+}
+
+/** Journey or connector status: PUBLISHED is live, DRAFT is waiting for a person. */
+export function publishTone(status: string): Tone {
+  return status === 'PUBLISHED' ? 'ok' : status === 'DRAFT' ? 'warn' : 'neutral'
+}

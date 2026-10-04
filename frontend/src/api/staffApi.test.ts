@@ -27,6 +27,7 @@ describe('staff API endpoints', () => {
     ['getIssuedRecords', (a) => a.getIssuedRecords('SCH-1'), 'GET', '/api/applications/SCH-1/issued-records', undefined],
     ['searchCitizens', (a) => a.searchCitizens('ramesh'), 'GET', '/api/identity/citizens/search?q=ramesh', undefined],
     ['getMetrics', (a) => a.getMetrics(), 'GET', '/api/ops/metrics', undefined],
+    ['getOverview', (a) => a.getOverview(), 'GET', '/api/ops/overview', undefined],
     ['auditHead', (a) => a.auditHead(), 'GET', '/api/audit/head', undefined],
     ['auditCheckpoint', (a) => a.auditCheckpoint(), 'GET', '/api/audit/checkpoint', undefined],
     ['auditVerify', (a) => a.auditVerify(), 'GET', '/api/audit/verify', undefined],

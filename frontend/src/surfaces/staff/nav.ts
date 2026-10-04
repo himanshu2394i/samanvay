@@ -19,8 +19,9 @@ export const STAFF_LINKS: StaffLink[] = [
   { to: '/staff/officer/applications', label: 'Applications', blurb: 'Review applications, their department checks and the records received.', roles: OFFICER },
   { to: '/staff/ops/metrics', label: 'Metrics', blurb: 'Connector health, SLA, consent decisions and the exception queue.', roles: OPS },
   { to: '/staff/ops/audit', label: 'Audit ledger', blurb: 'Verify the tamper-evident chain and browse entries.', roles: OPS },
-  { to: '/staff/admin/catalog', label: 'Catalog', blurb: 'Departments, journeys and connectors.', roles: ADMIN },
-  { to: '/staff/admin/schemas', label: 'Central schema', blurb: 'The shared field names departments are matched onto; add a new schema or version.', roles: ADMIN },
+  { to: '/staff/admin/departments', label: 'Departments', blurb: 'The onboarded departments: their sources, documents and whether each one is working.', roles: OPS },
+  { to: '/staff/admin/journeys', label: 'Journeys', blurb: 'The onboarded journeys: publish a ready one, see its status and log.', roles: OPS },
+  { to: '/staff/admin/schemas', label: 'Central schema', blurb: 'Each document and how departments map onto it; add a new schema or version.', roles: ADMIN },
   { to: '/staff/admin/onboarding', label: 'Onboarding', blurb: 'Onboard a department in one go from its URL, or add a data source and connector by hand.', roles: ADMIN },
   { to: '/staff/reviewer/queue', label: 'Identity review', blurb: 'Confirm or reject candidate account links.', roles: REVIEWER },
 ]

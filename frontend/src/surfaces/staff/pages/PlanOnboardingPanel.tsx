@@ -281,7 +281,7 @@ function Done({ result, plan }: { result: OnboardingResult; plan: OnboardingPlan
     <div className="notice ok spaced" role="status">
       <p>
         <strong>Onboarded {plan.departmentName}.</strong> Everything is a draft: nothing is live until each connector is tested
-        and published. <Link to="/staff/admin/catalog">See it in the catalog</Link>.
+        and published. <Link to="/staff/admin/departments">See it under Departments</Link>.
       </p>
       <ul className="plain">
         {result.dataSources.map((c) => (

@@ -9,17 +9,9 @@ import { Loading } from '../../../ui/Loading'
 import { Tile } from '../../../ui/Tile'
 import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
-import { appStatus, stepTone, type Tone } from '../lib/status'
+import { appStatus, healthTone, publishTone, stepTone } from '../lib/status'
 import { ADMIN, OFFICER } from '../nav'
 import { useStaffSession } from '../StaffContext'
-
-function healthTone(health: string): Tone {
-  return health === 'GREEN' ? 'ok' : health === 'RED' ? 'bad' : health === 'AMBER' ? 'warn' : 'neutral'
-}
-
-function journeyTone(status: string): Tone {
-  return status === 'PUBLISHED' ? 'ok' : status === 'DRAFT' ? 'warn' : 'neutral'
-}
 
 /** Why a category is not working, in plain words; null when it is. */
 function whyNot(c: JourneyStatusCategory): string | null {
@@ -50,7 +42,7 @@ export function JourneyStatusPage() {
         <button type="button" className="btn" onClick={status.reload} disabled={status.refreshing}>
           {status.refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
-        <Link to="/staff/admin/catalog">Back to the catalog</Link>
+        <Link to="/staff/admin/journeys">Back to the journeys</Link>
       </div>
       {status.status === 'loading' ? <Loading variant="table" label="Loading the journey" rows={5} /> : null}
       {status.status === 'error' ? <ErrorNotice error={status.error} onRetry={status.reload} /> : null}
@@ -64,7 +56,7 @@ function Header({ s }: { s: JourneyStatus }) {
     <>
       <h1 id="js-h">{s.name}</h1>
       <p className="lede">
-        <span className="mono">{s.code}</span> <Badge tone={journeyTone(s.status)}>{humanize(s.status)}</Badge>
+        <span className="mono">{s.code}</span> <Badge tone={publishTone(s.status)}>{humanize(s.status)}</Badge>
         {s.requester ? <span className="hint"> run by {s.requester}</span> : null}
       </p>
       {s.portalUrl ? (

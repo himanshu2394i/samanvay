@@ -12,16 +12,15 @@ import type {
   DataSourceDraft,
   DataSourceHealth,
   DepartmentDraft,
-  DepartmentManifest,
   IdentityCandidate,
   ImportPreview,
-  JourneyDraft,
   JourneyException,
   JourneyStatus,
   JourneyState,
   MappingDraft,
   OpenApiImportRequest,
   OpsMetrics,
+  OpsOverview,
   Page,
   SchemaDraft,
   SchemaSummary,
@@ -79,6 +78,8 @@ export function createStaffApi(client: ApiClient) {
 
     // --- officer + admin: ops dashboards (OpsMetricsController; OFFICER, ADMIN) ---
     getMetrics: () => client.get<OpsMetrics>('/api/ops/metrics'),
+    /** Onboarded departments with their documents, central-schema mappings and journeys. */
+    getOverview: () => client.get<OpsOverview>('/api/ops/overview'),
     /** One journey: is each document source connected and working, its applications and its middle-layer log. */
     getJourneyStatus: (code: string) => client.get<JourneyStatus>(`/api/ops/journeys/${enc(code)}`),
 
@@ -107,8 +108,6 @@ export function createStaffApi(client: ApiClient) {
     createConnectorDraft: (draft: ConnectorDraft) => client.post<ConnectorDefinition>('/api/catalog/connectors', draft),
     /** Preview only: suggests lexical matches and never saves or publishes anything. */
     importOpenApi: (body: OpenApiImportRequest) => client.post<ImportPreview>('/api/catalog/import/openapi', body),
-    /** Fetch a department's published capability manifest so it can be onboarded from just a base URL. */
-    discover: (baseUrl: string) => client.post<DepartmentManifest>('/api/catalog/discover', { baseUrl }),
     /** Review what onboarding a department from its manifest would do. Changes nothing. ADMIN. */
     onboardPlan: (baseUrl: string) => client.post<OnboardingPlan>('/api/catalog/onboard/plan', { baseUrl }),
     /** Onboard what was reviewed and ticked (all drafts, one transaction); refused if the manifest changed. ADMIN. */
@@ -120,8 +119,6 @@ export function createStaffApi(client: ApiClient) {
     listDataSources: () => client.get<DataSourceHealth[]>('/api/catalog/data-sources'),
     /** Live connectivity check for one data source; records and returns GREEN/RED/UNKNOWN. ADMIN. */
     probeDataSource: (code: string) => client.post<DataSourceHealth>(`/api/catalog/data-sources/${enc(code)}/probe`),
-    /** Create a journey (service) onboarded from a manifest, as a DRAFT. ADMIN. */
-    createJourney: (draft: JourneyDraft) => client.post<JourneyDefinition>('/api/catalog/journeys', draft),
     /** Publish a ready DRAFT journey (make it live to citizens); 400 if a required connector is missing. ADMIN. */
     publishJourney: (code: string) => client.post<JourneyDefinition>(`/api/catalog/journeys/${enc(code)}/publish`),
     saveMapping: (draft: MappingDraft) => client.post<MappingDraft>('/api/catalog/mappings', draft),

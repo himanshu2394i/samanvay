@@ -29,6 +29,15 @@ public class ConnectorEntity {
     private String status;
     @Column(name = "created_at")
     private Instant createdAt;
+    private boolean onboarded;
+
+    public boolean isOnboarded() {
+        return onboarded;
+    }
+
+    public void setOnboarded(boolean onboarded) {
+        this.onboarded = onboarded;
+    }
 
     public String getRef() {
         return ref;
