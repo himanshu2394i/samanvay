@@ -200,4 +200,74 @@ describe('catalog links to the journey status page', () => {
     expect(link).toHaveAttribute('href', '/staff/admin/journeys/POST_MATRIC_SCHOLARSHIP')
     expect(within(journeys).getAllByRole('link', { name: 'Status' })).toHaveLength(2)
   })
+
+  it('lets an admin check a source and run a trial on a connected document, then shows the new answers', async () => {
+    let trialDone = false
+    const m = mockFetch([
+      {
+        method: 'GET',
+        path: PATH,
+        reply: () => ({
+          body: trialDone
+            ? { ...status, categories: status.categories.map((c) => (c.category === 'MARKS' ? { ...c, lastTrial: { at: '2026-10-04T11:00:00Z', outcome: 'SUCCESS' } } : c)) }
+            : status,
+        }),
+      },
+      {
+        method: 'POST',
+        path: '/api/catalog/data-sources/education-rest/probe',
+        reply: { body: { code: 'education-rest', departmentCode: 'EDUCATION', protocol: 'SOAP', baseHost: 'edu.example.gov', healthStatus: 'GREEN', detail: null } },
+      },
+      {
+        method: 'POST',
+        path: '/api/connector/trial/edu-marks%401',
+        reply: () => {
+          trialDone = true
+          return { body: { ok: true, outcome: 'SUCCESS', personId: 'EDU-1001', fields: { percentage: 91 }, detail: null } }
+        },
+      },
+    ])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: admin() })
+
+    const panel = await screen.findByRole('table', { name: 'Connected and working' })
+    const marks = within(within(panel).getByText('Marks').closest('tr') as HTMLElement)
+    await userEvent.click(marks.getByRole('button', { name: 'Check source' }))
+    expect(await screen.findByText(/Source education-rest is Green/)).toBeInTheDocument()
+    expect(m.find('POST', '/api/catalog/data-sources/education-rest/probe')).toHaveLength(1)
+
+    await userEvent.click(marks.getByRole('button', { name: 'Run trial' }))
+    expect(await screen.findByText(/Trial for Marks: worked/)).toBeInTheDocument()
+    expect(m.find('POST', '/api/connector/trial/edu-marks%401')).toHaveLength(1)
+    expect(await within(within(await screen.findByRole('table', { name: 'Connected and working' })).getByText('Marks').closest('tr') as HTMLElement).findByText(/Worked/)).toBeInTheDocument()
+    expect(m.unhandled).toEqual([])
+  })
+
+  it('offers no check or trial for a document with no connector, and none at all to an officer', async () => {
+    const m = mockFetch([{ method: 'GET', path: PATH, reply: { body: status } }])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: admin() })
+    const panel = await screen.findByRole('table', { name: 'Connected and working' })
+    const domicile = within(within(panel).getByText('Domicile certificate').closest('tr') as HTMLElement)
+    expect(domicile.queryByRole('button', { name: 'Run trial' })).not.toBeInTheDocument()
+    expect(domicile.queryByRole('button', { name: 'Check source' })).not.toBeInTheDocument()
+  })
+
+  it('shows an officer the page without the admin-only buttons', async () => {
+    const m = mockFetch([{ method: 'GET', path: PATH, reply: { body: status } }])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: staffAuth(['officer']) })
+    await screen.findByRole('table', { name: 'Connected and working' })
+    expect(screen.queryByRole('button', { name: 'Run trial' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Check source' })).not.toBeInTheDocument()
+  })
+
+  it('says plainly when a trial did not work', async () => {
+    const m = mockFetch([
+      { method: 'GET', path: PATH, reply: { body: status } },
+      { method: 'POST', path: '/api/connector/trial/rev-income%403', reply: { body: { ok: false, outcome: 'UNAVAILABLE', personId: 'RV-1001', fields: null, detail: 'TIMEOUT' } } },
+    ])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: admin() })
+    const panel = await screen.findByRole('table', { name: 'Connected and working' })
+    const income = within(within(panel).getByText('Income certificate').closest('tr') as HTMLElement)
+    await userEvent.click(income.getByRole('button', { name: 'Run trial' }))
+    expect(await screen.findByText(/Trial for Income certificate: did not work \(Unavailable\)/)).toBeInTheDocument()
+  })
 })

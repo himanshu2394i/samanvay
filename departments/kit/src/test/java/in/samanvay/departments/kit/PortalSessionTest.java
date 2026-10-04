@@ -43,4 +43,25 @@ class PortalSessionTest {
         assertThat(sessions.readTicket(ticket, NOW.plusSeconds(299))).contains("EDU-1001");
         assertThat(sessions.readTicket(ticket, NOW.plusSeconds(300))).isEmpty();
     }
+
+    @Test
+    void without_a_configured_secret_the_secret_is_kept_in_a_file_so_a_restart_does_not_sign_everyone_out() throws Exception {
+        java.nio.file.Path file = java.nio.file.Files.createTempDirectory("session").resolve("portal-session.secret");
+        String cookie = PortalSession.withSecretFile("", file).issue(who, NOW);
+
+        PortalSession afterRestart = PortalSession.withSecretFile("", file); // a new process reads the same file
+        assertThat(afterRestart.read(cookie, NOW.plusSeconds(60))).contains(who);
+        assertThat(java.nio.file.Files.size(file)).isGreaterThanOrEqualTo(32);
+
+        java.nio.file.Path other = java.nio.file.Files.createTempDirectory("session").resolve("portal-session.secret");
+        assertThat(PortalSession.withSecretFile(null, other).read(cookie, NOW)).as("another server's secret differs").isEmpty();
+    }
+
+    @Test
+    void a_configured_secret_wins_and_no_file_is_made() throws Exception {
+        java.nio.file.Path file = java.nio.file.Files.createTempDirectory("session").resolve("portal-session.secret");
+        PortalSession configured = PortalSession.withSecretFile("from-config", file);
+        assertThat(new PortalSession("from-config").read(configured.issue(who, NOW), NOW)).contains(who);
+        assertThat(java.nio.file.Files.exists(file)).isFalse();
+    }
 }

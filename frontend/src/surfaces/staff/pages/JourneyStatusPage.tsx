@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStaffApi } from '../../../api/apiContext'
 import type { JourneyStatus, JourneyStatusCategory } from '../../../api/staffTypes'
@@ -6,9 +7,10 @@ import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { formatDateTime, humanize, shortId } from '../../../ui/format'
 import { Loading } from '../../../ui/Loading'
 import { Tile } from '../../../ui/Tile'
+import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
 import { appStatus, stepTone, type Tone } from '../lib/status'
-import { OFFICER } from '../nav'
+import { ADMIN, OFFICER } from '../nav'
 import { useStaffSession } from '../StaffContext'
 
 function healthTone(health: string): Tone {
@@ -52,7 +54,7 @@ export function JourneyStatusPage() {
       </div>
       {status.status === 'loading' ? <Loading variant="table" label="Loading the journey" rows={5} /> : null}
       {status.status === 'error' ? <ErrorNotice error={status.error} onRetry={status.reload} /> : null}
-      {status.status === 'success' ? <Body s={status.data} /> : null}
+      {status.status === 'success' ? <Body s={status.data} reload={status.reload} /> : null}
     </section>
   )
 }
@@ -76,10 +78,10 @@ function Header({ s }: { s: JourneyStatus }) {
   )
 }
 
-function Body({ s }: { s: JourneyStatus }) {
+function Body({ s, reload }: { s: JourneyStatus; reload: () => void }) {
   return (
     <>
-      <Connected categories={s.categories} />
+      <Connected categories={s.categories} reload={reload} />
       <Counts counts={s.counts} />
       <Recent recent={s.recent} />
       <Log log={s.log} />
@@ -87,7 +89,33 @@ function Body({ s }: { s: JourneyStatus }) {
   )
 }
 
-function Connected({ categories }: { categories: JourneyStatusCategory[] }) {
+function Connected({ categories, reload }: { categories: JourneyStatusCategory[]; reload: () => void }) {
+  const api = useStaffApi()
+  const { can } = useStaffSession()
+  const canAct = can(ADMIN) // the probe and the trial are admin-only calls
+  const action = useAction()
+  const [result, setResult] = useState<string | null>(null)
+
+  async function check(c: JourneyStatusCategory) {
+    const code = c.dataSourceCode as string
+    setResult(null)
+    const ok = await action.run(`probe:${c.category}`, async () => {
+      const health = await api.probeDataSource(code)
+      setResult(`Source ${code} is ${humanize(health.healthStatus)}${health.detail ? `: ${health.detail}` : ''}.`)
+    }, '')
+    if (ok) reload()
+  }
+
+  async function trial(c: JourneyStatusCategory) {
+    const ref = c.connectorRef as string
+    setResult(null)
+    const ok = await action.run(`trial:${c.category}`, async () => {
+      const t = await api.trialConnector(ref)
+      setResult(`Trial for ${humanize(c.category)}: ${t.ok ? 'worked' : `did not work (${humanize(t.outcome)})`}${t.detail ? `. ${t.detail}` : ''}`)
+    }, '')
+    if (ok) reload()
+  }
+
   const allWorking = categories.length > 0 && categories.every((c) => c.working)
   return (
     <section aria-labelledby="js-conn-h">
@@ -95,6 +123,12 @@ function Connected({ categories }: { categories: JourneyStatusCategory[] }) {
       <p>
         <Badge tone={allWorking ? 'ok' : 'warn'}>{allWorking ? 'Every document source is working' : 'Some document sources are not working'}</Badge>
       </p>
+      {result ? (
+        <p role="status" className="notice">
+          {result}
+        </p>
+      ) : null}
+      {action.error ? <ErrorNotice error={action.error} /> : null}
       <div className="table-wrap">
         <table>
           <caption className="sr-only">Connected and working</caption>
@@ -106,6 +140,7 @@ function Connected({ categories }: { categories: JourneyStatusCategory[] }) {
               <th scope="col">Source health</th>
               <th scope="col">Last trial</th>
               <th scope="col">Working</th>
+              {canAct ? <th scope="col">Check</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -150,6 +185,22 @@ function Connected({ categories }: { categories: JourneyStatusCategory[] }) {
                       </p>
                     ) : null}
                   </td>
+                  {canAct ? (
+                    <td>
+                      <div className="actions">
+                        {c.dataSourceCode ? (
+                          <button type="button" className="btn" disabled={action.busy !== null} onClick={() => void check(c)}>
+                            {action.busy === `probe:${c.category}` ? 'Checking…' : 'Check source'}
+                          </button>
+                        ) : null}
+                        {c.connectorRef ? (
+                          <button type="button" className="btn" disabled={action.busy !== null} onClick={() => void trial(c)}>
+                            {action.busy === `trial:${c.category}` ? 'Running…' : 'Run trial'}
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               )
             })}

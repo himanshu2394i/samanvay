@@ -28,7 +28,7 @@ public class KitAutoConfiguration {
 
     @Bean
     PortalSession portalSession(PortalProperties p) {
-        return new PortalSession(p.sessionSecret());
+        return PortalSession.withSecretFile(p.sessionSecret(), Path.of(p.manifestKeyFile()).toAbsolutePath().resolveSibling("portal-session.secret"));
     }
 
     @Bean

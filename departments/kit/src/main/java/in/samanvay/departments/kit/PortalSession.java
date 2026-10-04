@@ -36,6 +36,38 @@ public final class PortalSession {
         }
     }
 
+    /**
+     * The secret from configuration if there is one; otherwise one made on first start and kept in {@code file} (next to the manifest signing
+     * key), so a restart or a re-created container does not sign every citizen out.
+     */
+    public static PortalSession withSecretFile(String configuredSecret, java.nio.file.Path file) {
+        if (configuredSecret != null && !configuredSecret.isBlank()) {
+            return new PortalSession(configuredSecret);
+        }
+        try {
+            if (java.nio.file.Files.exists(file)) {
+                String kept = java.nio.file.Files.readString(file, StandardCharsets.UTF_8).trim();
+                if (kept.length() >= 32) {
+                    return new PortalSession(kept);
+                }
+            }
+            byte[] raw = new byte[32];
+            new SecureRandom().nextBytes(raw);
+            String made = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+            if (file.getParent() != null) {
+                java.nio.file.Files.createDirectories(file.getParent());
+            }
+            java.nio.file.Files.writeString(file, made, StandardCharsets.UTF_8);
+            file.toFile().setReadable(false, false);
+            file.toFile().setReadable(true, true);
+            file.toFile().setWritable(false, false);
+            file.toFile().setWritable(true, true);
+            return new PortalSession(made);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("cannot load or create the portal session secret " + file, e);
+        }
+    }
+
     public String issue(Session s, Instant now) {
         return seal("S", now.plus(SESSION_TTL), s.personId(), s.citizenId().toString(), s.name() == null ? "" : s.name());
     }
