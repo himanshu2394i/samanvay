@@ -665,6 +665,16 @@ input[aria-invalid='true'] {
   border-color: var(--bad);
   color: var(--accent-ink);
 }
+/* a closed application's terminal step: ended, neither approved nor an error */
+.steps .closed {
+  color: var(--ink);
+  font-weight: 700;
+}
+.steps .closed .n {
+  background: var(--muted);
+  border-color: var(--muted);
+  color: var(--accent-ink);
+}
 
 .timeline {
   list-style: none;

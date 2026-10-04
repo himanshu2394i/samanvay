@@ -17,6 +17,10 @@ const PAGES: { route: string; heading: string; roles: string[] }[] = [
   { route: '/staff/admin/onboarding', heading: 'Onboarding', roles: ['admin'] },
   { route: '/staff/admin/schemas', heading: 'Central schema', roles: ['admin'] },
   { route: '/staff/reviewer/queue', heading: 'Identity review', roles: ['reviewer'] },
+  // routes with a parameter: the same guard has to hold on the deep links, not just the list pages
+  { route: '/staff/officer/applications/SCH-2026-0001', heading: 'Application SCH-2026-0001', roles: ['officer'] },
+  { route: '/staff/officer/citizens/11111111-1111-4111-8111-111111111111', heading: 'Citizen file', roles: ['officer'] },
+  { route: '/staff/admin/journeys/FARMER_SUBSIDY', heading: 'Journey FARMER_SUBSIDY', roles: ['officer', 'admin'] },
 ]
 
 describe('staff route guards', () => {

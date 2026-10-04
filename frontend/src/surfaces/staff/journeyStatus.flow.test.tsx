@@ -99,8 +99,14 @@ describe('staff: journey status page', () => {
     expect(marks.getByText('Not run yet')).toBeInTheDocument()
     expect(marks.getByText(/data source is not reachable/i)).toBeInTheDocument()
 
-    expect(screen.getByText('Running')).toBeInTheDocument()
-    expect(screen.getByText('Started in the last 7 days')).toBeInTheDocument()
+    // Each tile holds its own number; the backend counts APPROVED as completed and REJECTED as failed.
+    const tileValue = (label: string) => screen.getByText(label, { selector: '.tile-label' }).nextElementSibling
+    expect(tileValue('Running')).toHaveTextContent('2')
+    expect(tileValue('Approved')).toHaveTextContent('5')
+    expect(tileValue('Rejected')).toHaveTextContent('1')
+    expect(tileValue('Started in the last 7 days')).toHaveTextContent('4')
+    expect(screen.queryByText('Completed', { selector: '.tile-label' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Failed', { selector: '.tile-label' })).not.toBeInTheDocument()
 
     const recent = screen.getByRole('table', { name: 'Recent applications' })
     expect(within(recent).getByRole('link', { name: 'SCH-2026-0001' })).toHaveAttribute('href', '/staff/officer/applications/SCH-2026-0001')
@@ -110,6 +116,37 @@ describe('staff: journey status page', () => {
     expect(within(log).getByText('NOT_FOUND')).toBeInTheDocument()
     expect(within(log).getByText('edu-marks@1')).toBeInTheDocument()
     expect(m.unhandled).toEqual([])
+  })
+
+  it('says "Not checked yet" for a source that was never probed, and does not claim every source works', async () => {
+    const unchecked: JourneyStatus = {
+      ...status,
+      categories: status.categories.slice(0, 1).map((c) => ({ ...c, sourceHealth: 'UNKNOWN', working: true, lastTrial: null })),
+    }
+    const m = mockFetch([{ method: 'GET', path: PATH, reply: { body: unchecked } }])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: admin() })
+    const panel = await screen.findByRole('table', { name: 'Connected and working' })
+    const income = within(within(panel).getByText('Income certificate').closest('tr') as HTMLElement)
+    expect(income.getAllByText('Not checked yet')).toHaveLength(2) // source health and the Working column
+    expect(income.queryByText('Yes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Every document source is working')).not.toBeInTheDocument()
+    expect(screen.getByText(/have not been checked yet/)).toBeInTheDocument()
+  })
+
+  it('says every source is working only when all were checked and are green', async () => {
+    const green: JourneyStatus = { ...status, categories: status.categories.slice(0, 1) }
+    const m = mockFetch([{ method: 'GET', path: PATH, reply: { body: green } }])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: admin() })
+    expect(await screen.findByText('Every document source is working')).toBeInTheDocument()
+  })
+
+  it('does not render a portal address that is not http(s) as a link', async () => {
+    const hostile: JourneyStatus = { ...status, portalUrl: 'javascript:alert(document.cookie)' }
+    const m = mockFetch([{ method: 'GET', path: PATH, reply: { body: hostile } }])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: admin() })
+    await screen.findByRole('heading', { level: 1, name: 'Post-matric scholarship' })
+    expect(screen.queryByRole('link', { name: /Open the department portal/ })).not.toBeInTheDocument()
+    expect(document.querySelector('a[href^="javascript:"]')).toBeNull()
   })
 
   it('explains a category with no published connector and links to onboarding', async () => {

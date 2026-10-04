@@ -7,20 +7,29 @@ import { humanize } from '../../../ui/format'
 import { Loading } from '../../../ui/Loading'
 import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
-import { publishTone } from '../lib/status'
+import { publishTone, sourceState } from '../lib/status'
 import { ADMIN } from '../nav'
 import { useStaffSession } from '../StaffContext'
 
 interface Row extends OverviewJourney {
   requester: string
+  /** Health of each needed document's source, keyed `DEPARTMENT/CATEGORY`, read from the same overview. */
+  health: Map<string, string>
 }
 
-/** What a journey is waiting for, in words; null when nothing is. A draft that is ready only needs a person to publish it. */
-function waitingFor(j: OverviewJourney): string | null {
-  const missing = j.needs.filter((n) => !n.working).map((n) => humanize(n.category))
-  if (j.status === 'DRAFT' && j.ready) return null
+/**
+ * What a journey is waiting for, in words; null when nothing is. A need whose source is RED blocks it even on a draft
+ * whose connectors all exist (`ready`), so the warning is decided before "ready to publish".
+ */
+function waitingFor(j: Row): string | null {
+  const missing = j.needs.filter((n) => sourceState(n.working, j.health.get(`${n.department}/${n.category}`)) === 'blocked').map((n) => humanize(n.category))
   if (missing.length > 0) return `Waiting for: ${missing.join(', ')}`
   return j.ready ? null : 'Waiting for: connectors'
+}
+
+/** True when every need is working but at least one source has never been checked. */
+function hasUnchecked(j: Row): boolean {
+  return j.needs.some((n) => sourceState(n.working, j.health.get(`${n.department}/${n.category}`)) === 'unchecked')
 }
 
 /**
@@ -39,7 +48,9 @@ export function JourneysPage() {
     if (ok) overview.reload()
   }
 
-  const rows: Row[] = overview.status === 'success' ? overview.data.departments.flatMap((d) => d.journeys.map((j) => ({ ...j, requester: d.code }))) : []
+  const health = new Map<string, string>()
+  if (overview.status === 'success') for (const d of overview.data.departments) for (const x of d.documents) health.set(`${d.code}/${x.category}`, x.sourceHealth)
+  const rows: Row[] = overview.status === 'success' ? overview.data.departments.flatMap((d) => d.journeys.map((j) => ({ ...j, requester: d.code, health }))) : []
 
   return (
     <section aria-labelledby="jn-h">
@@ -78,8 +89,8 @@ export function JourneysPage() {
                 <th scope="col">Status</th>
                 <th scope="col">Readiness</th>
                 <th scope="col">Running</th>
-                <th scope="col">Completed</th>
-                <th scope="col">Failed</th>
+                <th scope="col">Approved</th>
+                <th scope="col">Rejected</th>
                 <th scope="col">Last 7 days</th>
                 <th scope="col">Open</th>
               </tr>
@@ -101,12 +112,15 @@ export function JourneysPage() {
                       ) : j.status === 'DRAFT' ? (
                         <>
                           <Badge tone="ok">Ready to publish</Badge>{' '}
+                          {hasUnchecked(j) ? <Badge tone="neutral">Not checked yet</Badge> : null}{' '}
                           {canAct ? (
                             <button type="button" className="btn" onClick={() => void publishJourney(j.code)} disabled={publish.busy !== null}>
                               {publish.busy === j.code ? 'Publishing…' : 'Publish'}
                             </button>
                           ) : null}
                         </>
+                      ) : hasUnchecked(j) ? (
+                        <Badge tone="neutral">Not checked yet</Badge>
                       ) : (
                         <Badge tone="ok">All sources working</Badge>
                       )}

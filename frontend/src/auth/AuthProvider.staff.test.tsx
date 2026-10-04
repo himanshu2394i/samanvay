@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeJwt } from '../test/jwt'
 import { AuthProvider, type OidcManager } from './AuthProvider'
 import { useAuth } from './authContext'
-import { detectRealm } from './realm'
 
 function staffUser(roles: string[], department?: string): User {
   return {
@@ -45,7 +44,7 @@ describe('AuthProvider with a staff session', () => {
   it('exposes the roles and department carried by the access token', async () => {
     const m = manager({ getUser: vi.fn(async () => staffUser(['officer', 'reviewer'], 'SCHOLARSHIP')) })
     render(
-      <AuthProvider manager={m} realm="staff">
+      <AuthProvider manager={m}>
         <Probe />
       </AuthProvider>,
     )
@@ -54,29 +53,27 @@ describe('AuthProvider with a staff session', () => {
     expect(screen.getByText('department:SCHOLARSHIP')).toBeInTheDocument()
   })
 
-  it('remembers the staff realm across the IdP redirect, then forgets it once the callback is handled', async () => {
+  it('sends the page it was asked for through the IdP redirect, and returns to it once the callback is handled', async () => {
     const m = manager()
     const view = render(
-      <AuthProvider manager={m} realm="staff">
+      <AuthProvider manager={m}>
         <Probe />
       </AuthProvider>,
     )
     await userEvent.click(await screen.findByRole('button', { name: 'sign in' }))
     expect(m.signinRedirect).toHaveBeenCalledWith({ state: { returnTo: '/staff/ops/metrics' } })
-    // the redirect lands on a bare URL: the marker is how main.tsx knows which realm to use
-    expect(detectRealm({ hash: '' }, true)).toBe('staff')
     view.unmount()
 
     window.history.replaceState(null, '', '/?code=abc&state=xyz')
-    const user = { ...staffUser(['admin']), state: { returnTo: '/staff/admin/catalog' } } as unknown as User
+    const user = { ...staffUser(['admin']), state: { returnTo: '/staff/admin/departments' } } as unknown as User
     const cb = manager({ signinCallback: vi.fn(async () => user), getUser: vi.fn(async () => user) })
     render(
-      <AuthProvider manager={cb} realm="staff">
+      <AuthProvider manager={cb}>
         <Probe />
       </AuthProvider>,
     )
     expect(await screen.findByText('status:authenticated')).toBeInTheDocument()
-    expect(window.location.hash).toBe('#/staff/admin/catalog')
-    expect(detectRealm({ hash: '' }, true)).toBe('citizen')
+    expect(window.location.search).toBe('')
+    expect(window.location.hash).toBe('#/staff/admin/departments')
   })
 })

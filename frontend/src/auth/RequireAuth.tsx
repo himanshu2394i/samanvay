@@ -5,11 +5,11 @@ import { useAuth } from './authContext'
 /**
  * Route guard: renders its children only for a signed-in session. Otherwise it explains
  * that sign-in is needed (no automatic redirect, so a failed sign-in cannot loop) and
- * offers a button that returns the citizen to this same page afterwards.
+ * offers a button that returns the user to this same page afterwards.
  */
 export function RequireAuth({ children, hint, audience = 'use this part of Samanvay' }: {
   children: ReactNode
-  /** Sign-in guidance shown under the prompt; defaults to the citizen realm's methods. */
+  /** Sign-in guidance shown under the prompt. */
   hint?: ReactNode
   audience?: string
 }) {
@@ -24,7 +24,7 @@ export function RequireAuth({ children, hint, audience = 'use this part of Saman
       <h1 id="signin-required">Sign in to continue</h1>
       {notice ? <p role="alert">{notice}</p> : <p>You need to sign in to {audience}.</p>}
       <p className="hint">
-        {hint ?? 'Sign in with your email and password, or with a passkey. New here? Choose Register on the sign-in page.'}
+        {hint ?? 'Sign in with your staff account.'}
       </p>
       <button type="button" className="btn primary" onClick={() => void signIn(returnTo)}>
         Sign in

@@ -1,5 +1,4 @@
 import { createContext, useContext } from 'react'
-import type { RealmKey } from './config'
 
 export interface AuthUser {
   /** Token subject: the identity the API binds a citizen record to. */
@@ -29,8 +28,6 @@ export interface AuthContextValue {
   getAccessToken: () => Promise<string | null>
   /** Drops the local session (e.g. after the API answered 401). */
   expireSession: (notice?: string) => void
-  /** Which realm this page signs in to (staff or citizen). */
-  realm: RealmKey
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

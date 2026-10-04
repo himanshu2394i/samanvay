@@ -5,6 +5,7 @@ import {
   formatMs,
   formatPercent,
   formatRatio,
+  safeHttpUrl,
   shortId,
 } from '../../../ui/format'
 import {
@@ -15,7 +16,7 @@ import {
   jsonError,
   parseSlaMs,
 } from './onboarding'
-import { appStatus, bankReviewTone, isOpenApplication, slaState, stepTone } from './status'
+import { appStatus, bankReviewTone, isOpenApplication, slaState, sourceState, stepTone } from './status'
 
 describe('formatting for dashboards', () => {
   it('formats durations, ratios and latencies; unknown values are n/a, never a made-up zero', () => {
@@ -68,6 +69,35 @@ describe('status helpers', () => {
     expect(slaState('2026-09-28T00:00:00Z', false, now)).toBe('none')
     expect(slaState(null, true, now)).toBe('none')
     expect(slaState('garbage', true, now)).toBe('none')
+  })
+})
+
+describe('safeHttpUrl', () => {
+  it('lets only absolute http(s) addresses through, so a server-supplied link can never run script', () => {
+    expect(safeHttpUrl('https://scholarship.example.gov/apply')).toBe('https://scholarship.example.gov/apply')
+    expect(safeHttpUrl('http://localhost:8081/login?x=1')).toBe('http://localhost:8081/login?x=1')
+    expect(safeHttpUrl('javascript:alert(1)')).toBeNull()
+    expect(safeHttpUrl('  JaVaScRiPt:alert(1)')).toBeNull()
+    expect(safeHttpUrl('data:text/html,<script>1</script>')).toBeNull()
+    expect(safeHttpUrl('//evil.example/x')).toBeNull()
+    expect(safeHttpUrl('/relative')).toBeNull()
+    expect(safeHttpUrl('')).toBeNull()
+    expect(safeHttpUrl(null)).toBeNull()
+  })
+})
+
+describe('source health', () => {
+  it('does not call a never-probed source working, even though the backend does (working=true for UNKNOWN)', () => {
+    expect(sourceState(true, 'GREEN')).toBe('working')
+    expect(sourceState(true, 'AMBER')).toBe('working')
+    expect(sourceState(true, 'UNKNOWN')).toBe('unchecked')
+    expect(sourceState(true, '')).toBe('unchecked')
+  })
+
+  it('treats a RED source or a missing connector as not working whatever the flag says', () => {
+    expect(sourceState(false, 'GREEN')).toBe('blocked')
+    expect(sourceState(false, 'UNKNOWN')).toBe('blocked')
+    expect(sourceState(true, 'RED')).toBe('blocked')
   })
 })
 

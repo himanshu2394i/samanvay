@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStaffApi } from '../../api/apiContext'
 import type { CitizenMatch } from '../../api/staffTypes'
@@ -8,7 +8,7 @@ type Result =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'done'; term: string; hits: CitizenMatch[] }
-  | { status: 'error'; error: unknown }
+  | { status: 'error'; term: string; error: unknown }
 
 const MIN_CHARS = 2
 
@@ -22,8 +22,11 @@ export function CitizenSearch() {
   const api = useStaffApi()
   const [query, setQuery] = useState('')
   const [result, setResult] = useState<Result>({ status: 'idle' })
+  // Only the newest search may update the page: an older, slower answer must not replace it.
+  const latest = useRef(0)
 
   async function search(term: string) {
+    const mine = ++latest.current
     if (term.length < MIN_CHARS) {
       setResult({ status: 'idle' })
       return
@@ -31,9 +34,9 @@ export function CitizenSearch() {
     setResult({ status: 'loading' })
     try {
       const hits = await api.searchCitizens(term)
-      setResult({ status: 'done', term, hits })
+      if (mine === latest.current) setResult({ status: 'done', term, hits })
     } catch (error) {
-      setResult({ status: 'error', error })
+      if (mine === latest.current) setResult({ status: 'error', term, error })
     }
   }
 
@@ -71,7 +74,7 @@ export function CitizenSearch() {
           Searching…
         </p>
       ) : null}
-      {result.status === 'error' ? <ErrorNotice error={result.error} onRetry={() => void search(query.trim())} /> : null}
+      {result.status === 'error' ? <ErrorNotice error={result.error} onRetry={() => void search(result.term)} /> : null}
       {result.status === 'done' ? (
         result.hits.length === 0 ? (
           <p aria-live="polite">No citizens match “{result.term}”.</p>

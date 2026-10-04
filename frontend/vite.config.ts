@@ -41,7 +41,8 @@ export default defineConfig(({ mode }): UserConfig => {
         '/ui': { target: api, changeOrigin: true },
       },
     },
-    build: { sourcemap: true },
+    // No source maps in production: they would ship the console's source to every browser.
+    build: { sourcemap: false },
     test: {
       environment: 'jsdom',
       globals: true,

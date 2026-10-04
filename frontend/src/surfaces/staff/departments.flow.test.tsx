@@ -45,6 +45,41 @@ describe('staff: onboarded departments', () => {
     expect(m.unhandled).toEqual([])
   })
 
+  it('shows "Not checked yet", not "Yes", for a document whose source was never probed', async () => {
+    const unchecked = {
+      ...overview,
+      departments: overview.departments.map((d) => ({
+        ...d,
+        dataSources: d.dataSources.map((s) => ({ ...s, health: 'UNKNOWN', healthDetail: null })),
+        documents: d.documents.map((x) => ({ ...x, sourceHealth: 'UNKNOWN', working: true, connectorStatus: 'PUBLISHED' })),
+      })),
+    }
+    const m = mockFetch([{ method: 'GET', path: PATH, reply: { body: unchecked } }])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: admin() })
+    await screen.findByRole('heading', { name: 'State Board of Education' })
+    const docs = within(card('State Board of Education')).getByRole('table', { name: 'Documents of EDUCATION' })
+    expect(within(docs).getByText('Not checked yet')).toBeInTheDocument()
+    expect(within(docs).queryByText('Yes')).not.toBeInTheDocument()
+    expect(within(docs).queryByText('No')).not.toBeInTheDocument()
+    const sources = within(card('State Board of Education')).getByRole('table', { name: 'Data sources of EDUCATION' })
+    expect(within(sources).getByText('Not checked yet')).toBeInTheDocument()
+  })
+
+  it('shows the document title once when the humanized category is the same text', async () => {
+    const same = {
+      ...overview,
+      departments: overview.departments.map((d) => ({
+        ...d,
+        documents: d.documents.map((x) => (x.category === 'MARKS' ? { ...x, title: 'Marks' } : x)),
+      })),
+    }
+    const m = mockFetch([{ method: 'GET', path: PATH, reply: { body: same } }])
+    renderStaff({ route: ROUTE, fetchImpl: m.fetchImpl, auth: admin() })
+    await screen.findByRole('heading', { name: 'State Board of Education' })
+    const docs = within(card('State Board of Education')).getByRole('table', { name: 'Documents of EDUCATION' })
+    expect(within(docs).getAllByText('Marks')).toHaveLength(1)
+  })
+
   it('lets an admin check a source and run a trial, then reloads', async () => {
     let trialDone = false
     const m = mockFetch([
