@@ -810,7 +810,6 @@ not all together in one run; the fixed codes are back doors by design; departmen
 
 ### Phase 8 (2026-10-04, branch `feat/department-journeys`): journeys live on the departments' own portals
 
-Spec: `docs/superpowers/specs/2026-10-04-department-journeys-design.md`. Plan: `docs/superpowers/plans/2026-10-04-department-journeys.md`.
 Contracts: `docs/contracts/department-api.md`, `docs/contracts/department-consent-statement.md`, and `login-assertion.md` (home sign in, `name`, `dob`).
 
 **The decision:** Samanvay is for the Samanvay team and officers. A citizen never signs in to it and never sees a Samanvay screen. Every citizen
