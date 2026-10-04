@@ -452,7 +452,7 @@ flowchart TB
 
 **Security and sensitivity in the future.** As real records arrive, the platform's value is its *restraint*: field-level minimisation per
 purpose, retention that ends with the purpose, purpose limitation checked in code, break-glass access that is itself audited, data-protection
-impact assessments per journey, and alignment with the DPDP Act (consent managers, grievance and erasure flows). Sensitive categories (caste,
+impact assessments per journey, and alignment with the DPDP Act (permission handling, grievance and erasure flows). Sensitive categories (caste,
 health, bank) get stricter policy: step-up consent, shorter grant lifetimes, officer access only with a reason.
 
 **Where AI could genuinely help.** We would only use AI where it assists a human or removes toil, never to decide an entitlement or to link two people.
