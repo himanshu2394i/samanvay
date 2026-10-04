@@ -128,6 +128,9 @@ final class ManifestOnboardingPlanner {
             ObjectNode fetch = F.objectNode();
             ArrayNode inputs = F.arrayNode();
             buildAccess(d, fetch, inputs, problems);
+            if (d.auth() != null && d.auth().tokenUrl() != null) {
+                pathOk(d.auth().tokenUrl(), "The auth tokenUrl", problems);
+            }
             if (m.sample() != null && m.sample().personId() != null && !m.sample().personId().isBlank()) {
                 fetch.put("sample_person_id", m.sample().personId());
             }
@@ -163,8 +166,8 @@ final class ManifestOnboardingPlanner {
             Map<String, String> src = new LinkedHashMap<>();
             j.requiredCategories().forEach(rc -> src.put(rc.category(), rc.department()));
             boolean exists = env.existingJourneys().contains(j.code());
-            journeys.add(new JourneySpec(new JourneyDraft(j.code(), j.name(), j.referencePrefix(), j.slaHours(), j.consentPurpose(), j.requester(), cats, src), exists));
-            journeyPlans.add(new JourneyPlan(j.code(), j.name(), exists, cats));
+            journeys.add(new JourneySpec(new JourneyDraft(j.code(), j.name(), j.referencePrefix(), j.slaHours(), j.consentPurpose(), j.requester(), cats, src, j.portalUrl()), exists));
+            journeyPlans.add(new JourneyPlan(j.code(), j.name(), exists, cats, j.portalUrl()));
         }
 
         boolean changed = env.departmentExists() && env.storedDigest() != null && !env.storedDigest().equals(digest);
@@ -178,7 +181,9 @@ final class ManifestOnboardingPlanner {
     private static void buildAccess(Document d, ObjectNode fetch, ArrayNode inputs, List<String> problems) {
         switch (d.protocol()) {
             case "REST" -> {
-                fetch.put("endpoint", d.path());
+                if (pathOk(d.path(), "The document path", problems)) {
+                    fetch.put("endpoint", d.path());
+                }
                 if ("POST".equalsIgnoreCase(d.method())) {
                     fetch.put("method", "POST");
                     String body = (d.inputs() == null ? List.<DepartmentManifest.Input>of() : d.inputs()).stream()
@@ -194,7 +199,9 @@ final class ManifestOnboardingPlanner {
                         problems.add("The document has a resolve step but its path has no {input} to receive the resolved key.");
                     } else {
                         ObjectNode resolve = fetch.putObject("resolve");
-                        resolve.put("path", r.path() + queryString(r.query()));
+                        if (pathOk(r.path(), "The resolve path", problems)) {
+                            resolve.put("path", r.path() + queryString(r.query()));
+                        }
                         if ("POST".equalsIgnoreCase(r.method())) {
                             // the person ID goes in the body (it does not belong in a URL), the same as a POST document call
                             resolve.put("method", "POST");
@@ -215,7 +222,10 @@ final class ManifestOnboardingPlanner {
             }
             case "SOAP" -> {
                 DepartmentManifest.Soap soap = d.access() == null ? null : d.access().soap();
-                fetch.put("endpoint", soap != null && soap.endpoint() != null ? soap.endpoint() : d.path());
+                String soapEndpoint = soap != null && soap.endpoint() != null ? soap.endpoint() : d.path();
+                if (pathOk(soapEndpoint, "The SOAP endpoint", problems)) {
+                    fetch.put("endpoint", soapEndpoint);
+                }
                 if (soap != null && soap.soapAction() != null && !soap.soapAction().isBlank()) {
                     fetch.put("soap_action", soap.soapAction());
                 }
@@ -251,6 +261,13 @@ final class ManifestOnboardingPlanner {
         }
     }
 
+    /** A manifest path is joined to the registered origin later, so it must be a plain path that cannot move the call to another host. */
+    private static boolean pathOk(String path, String what, List<String> problems) {
+        Optional<String> why = com.samanvay.shared.EndpointPath.problem(path, false);
+        why.ifPresent(w -> problems.add(what + " " + w + "."));
+        return why.isEmpty();
+    }
+
     private static void bindSingleInput(Document d, ArrayNode inputs, List<String> problems) {
         List<DepartmentManifest.Input> declared = d.inputs() == null ? List.of() : d.inputs();
         if (declared.size() != 1) {
@@ -273,7 +290,7 @@ final class ManifestOnboardingPlanner {
             return "";
         }
         return "?" + query.entrySet().stream()
-                .map(e -> e.getKey() + "=" + java.net.URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
+                .map(e -> java.net.URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "=" + java.net.URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
                 .collect(Collectors.joining("&"));
     }
 
@@ -296,10 +313,29 @@ final class ManifestOnboardingPlanner {
      * ponytail: host-only match; a department that serves login from another host needs an operator allow-list.
      */
     static Optional<String> identityHostProblem(DepartmentManifest m, String baseUrl) {
+        String expected = hostOf(baseUrl);
+        // Each journey's portal address is where a citizen is sent to use this department's service: it must be this department's own.
+        if (m.journeys() != null) {
+            for (DepartmentManifest.Journey j : m.journeys()) {
+                if (j.requester() == null || !j.requester().equals(m.department().code())) {
+                    return Optional.of("Journey " + j.code() + " names requester " + j.requester() + ", but this manifest is from department "
+                            + m.department().code() + ": a journey's requester must be the manifest's own department.");
+                }
+                String url = j.portalUrl();
+                if (url == null || url.isBlank()) {
+                    continue;
+                }
+                String scheme = schemeOf(url);
+                String host = hostOf(url);
+                if (!("http".equals(scheme) || "https".equals(scheme)) || host == null || !host.equals(expected)) {
+                    return Optional.of("The portal address " + url + " of journey " + j.code() + " is not an http(s) address on the manifest's own host ("
+                            + expected + ").");
+                }
+            }
+        }
         if (m.identity() == null) {
             return Optional.empty();
         }
-        String expected = hostOf(baseUrl);
         for (String url : new String[] {m.identity().loginUrl(), m.identity().jwksUrl()}) {
             if (url == null || url.isBlank()) {
                 continue;
@@ -313,6 +349,15 @@ final class ManifestOnboardingPlanner {
         return Optional.empty();
     }
 
+    private static String schemeOf(String url) {
+        try {
+            String s = URI.create(url.trim()).getScheme();
+            return s == null ? null : s.toLowerCase(Locale.ROOT);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     private static String hostOf(String url) {
         try {
             String h = URI.create(url.trim()).getHost();
@@ -322,12 +367,16 @@ final class ManifestOnboardingPlanner {
         }
     }
 
+    /** host[:port] only: a user name or password in the URL would hide the real host from the SSRF check and ride along in every call. */
     private static String authority(String baseUrl) {
-        String a = URI.create(baseUrl.trim()).getAuthority();
-        if (a == null) {
-            throw new IllegalArgumentException("baseUrl must include a scheme and host");
+        URI u = URI.create(baseUrl.trim());
+        if (u.getHost() == null) {
+            throw new com.samanvay.shared.InvalidRequestException("baseUrl must include a scheme and host");
         }
-        return a;
+        if (u.getUserInfo() != null) {
+            throw new com.samanvay.shared.InvalidRequestException("baseUrl must not contain a user name or password");
+        }
+        return u.getHost() + (u.getPort() >= 0 ? ":" + u.getPort() : "");
     }
 
     private static String shortProtocol(String protocol) {

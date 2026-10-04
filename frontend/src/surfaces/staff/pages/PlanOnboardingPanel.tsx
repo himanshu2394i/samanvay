@@ -24,6 +24,7 @@ export function PlanOnboardingPanel() {
   const [ticked, setTicked] = useState<Set<string>>(new Set())
   const [approved, setApproved] = useState(false)
   const [keyConfirmed, setKeyConfirmed] = useState(false)
+  const [identityAcknowledged, setIdentityAcknowledged] = useState(false)
   const [result, setResult] = useState<OnboardingResult | null>(null)
 
   async function runReview(e: FormEvent) {
@@ -60,6 +61,7 @@ export function PlanOnboardingPanel() {
         acceptSuggestedMappings: approved,
         mappings: {},
         ...(needsKeyApproval && keyConfirmed && plan.manifestKeyThumbprint ? { approvedManifestKey: plan.manifestKeyThumbprint } : {}),
+        ...(plan.identityChange && identityAcknowledged ? { acknowledgeIdentityChange: true } : {}),
       })
     }, '')
     if (ok && out) setResult(out)
@@ -69,7 +71,9 @@ export function PlanOnboardingPanel() {
   // A signing key the department has not been approved for yet (first time, or changed) must be confirmed by the admin.
   const needsKeyApproval = !!plan?.manifestKeyThumbprint && plan.manifestKeyThumbprint !== plan.pinnedKeyThumbprint
   const keyChanged = needsKeyApproval && !!plan?.pinnedKeyThumbprint
-  const canOnboard = count > 0 && approved && (!needsKeyApproval || keyConfirmed) && onboard.busy === null
+  const identityChange = plan?.identityChange ?? null
+  const canOnboard =
+    count > 0 && approved && (!needsKeyApproval || keyConfirmed) && (!identityChange || identityAcknowledged) && onboard.busy === null
 
   return (
     <div className="card spaced" aria-labelledby="plan-h">
@@ -118,6 +122,23 @@ export function PlanOnboardingPanel() {
           ) : plan.onboardedFromManifest ? (
             <div className="notice" role="status">
               <p>This department is already onboarded from this manifest and nothing has changed since.</p>
+            </div>
+          ) : null}
+
+          {identityChange ? (
+            <div className="notice warn" role="alert">
+              <p>
+                <strong>This changes an existing department&rsquo;s identity.</strong> {identityChange.warning}
+              </p>
+              <ul>
+                {identityChange.changes.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+              <label className="check">
+                <input type="checkbox" checked={identityAcknowledged} onChange={(e) => setIdentityAcknowledged(e.target.checked)} />{' '}
+                I understand and accept this change
+              </label>
             </div>
           ) : null}
 
@@ -281,7 +302,7 @@ function Done({ result, plan }: { result: OnboardingResult; plan: OnboardingPlan
     <div className="notice ok spaced" role="status">
       <p>
         <strong>Onboarded {plan.departmentName}.</strong> Everything is a draft: nothing is live until each connector is tested
-        and published. <Link to="/staff/admin/catalog">See it in the catalog</Link>.
+        and published. <Link to="/staff/admin/departments">See it under Departments</Link>.
       </p>
       <ul className="plain">
         {result.dataSources.map((c) => (
@@ -296,7 +317,7 @@ function Done({ result, plan }: { result: OnboardingResult; plan: OnboardingPlan
         ))}
         {result.journeysCreated.map((c) => (
           <li key={c}>
-            Journey draft <span className="mono">{c}</span>
+            Journey draft <span className="mono">{c}</span> <Link to={`/staff/admin/journeys/${encodeURIComponent(c)}`}>Status</Link>
           </li>
         ))}
         {result.skipped.map((c) => (

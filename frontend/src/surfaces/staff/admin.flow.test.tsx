@@ -3,84 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import type { Route } from '../../test/utils'
 import { connector } from '../../test/staffFixtures'
-import { DEPARTMENTS, mockFetch, renderStaff, SCHOLARSHIP, DRAFT_JOURNEY, staffAuth } from '../../test/utils'
+import { mockFetch, renderStaff, staffAuth } from '../../test/utils'
 
 const admin = () => staffAuth(['admin'])
-
-describe('admin: catalog view', () => {
-  const routes: Route[] = [
-    { method: 'GET', path: '/api/catalog/journeys', reply: { body: [SCHOLARSHIP, DRAFT_JOURNEY] } },
-    { method: 'GET', path: '/api/catalog/departments', reply: { body: DEPARTMENTS } },
-    { method: 'GET', path: '/api/catalog/connectors', reply: { body: [connector] } },
-    { method: 'GET', path: '/api/catalog/data-sources', reply: { body: [] } },
-  ]
-
-  it('shows journeys, departments and connectors', async () => {
-    const m = mockFetch(routes)
-    renderStaff({ route: '/staff/admin/catalog', fetchImpl: m.fetchImpl, auth: admin() })
-    const journeys = await screen.findByRole('table', { name: 'Journeys' })
-    expect(within(journeys).getByText('POST_MATRIC_SCHOLARSHIP')).toBeInTheDocument()
-    expect(within(journeys).getAllByText('72 h')).toHaveLength(2)
-    expect(within(journeys).getByText('Published')).toBeInTheDocument()
-    expect(within(journeys).getByText('Draft')).toBeInTheDocument()
-    expect(within(journeys).getAllByText(/Income certificate/)[0]).toBeInTheDocument()
-    expect(within(journeys).getAllByText('(REVENUE)').length).toBeGreaterThan(0)
-    // readiness: the published journey is Live; the draft has no connectors wired, so it is Pending
-    expect(within(journeys).getByText('Live')).toBeInTheDocument()
-    expect(within(journeys).getByText('Pending')).toBeInTheDocument()
-    expect(within(journeys).queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument()
-
-    const departments = screen.getByRole('table', { name: 'Departments' })
-    expect(within(departments).getByText('Direct Benefit Transfer')).toBeInTheDocument()
-
-    const connectors = screen.getByRole('table', { name: 'Connectors' })
-    expect(within(connectors).getByText('rev-conn-1@1')).toBeInTheDocument()
-    expect(within(connectors).getByText('3000 ms')).toBeInTheDocument()
-    expect(m.unhandled).toEqual([])
-  })
-
-  it('computes readiness and lets an admin publish a ready draft', async () => {
-    let published = false
-    const ready = {
-      ...DRAFT_JOURNEY,
-      code: 'READY_ONE',
-      name: 'Ready service',
-      requiredCategories: ['INCOME_CERTIFICATE'],
-      policy: { ...DRAFT_JOURNEY.policy, sources: { INCOME_CERTIFICATE: 'REVENUE' } },
-    }
-    const ds = { code: 'revenue-rest-mock', departmentCode: 'REVENUE', protocol: 'REST', baseHost: 'rev.example.gov', healthStatus: 'GREEN', detail: null }
-    const m = mockFetch([
-      { method: 'GET', path: '/api/catalog/journeys', reply: () => ({ body: [published ? { ...ready, status: 'PUBLISHED' } : ready] }) },
-      { method: 'GET', path: '/api/catalog/departments', reply: { body: DEPARTMENTS } },
-      { method: 'GET', path: '/api/catalog/connectors', reply: { body: [connector] } },
-      { method: 'GET', path: '/api/catalog/data-sources', reply: { body: [ds] } },
-      { method: 'POST', path: '/api/catalog/journeys/READY_ONE/publish', reply: () => { published = true; return { body: { ...ready, status: 'PUBLISHED' } } } },
-    ])
-    renderStaff({ route: '/staff/admin/catalog', fetchImpl: m.fetchImpl, auth: admin() })
-    const journeys = await screen.findByRole('table', { name: 'Journeys' })
-    expect(within(journeys).getByText('Ready to publish')).toBeInTheDocument()
-    await userEvent.click(within(journeys).getByRole('button', { name: 'Publish' }))
-    await waitFor(() => expect(m.find('POST', '/api/catalog/journeys/READY_ONE/publish')).toHaveLength(1))
-    // after publish + reload the journey is Live and the Publish button is gone
-    expect(await within(await screen.findByRole('table', { name: 'Journeys' })).findByText('Live')).toBeInTheDocument()
-    expect(within(screen.getByRole('table', { name: 'Journeys' })).queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument()
-    expect(m.unhandled).toEqual([])
-  })
-
-  it('surfaces a failure and can retry', async () => {
-    let fail = true
-    const m = mockFetch([
-      { method: 'GET', path: '/api/catalog/journeys', reply: () => (fail ? { status: 500, body: { status: 500 } } : { body: [] }) },
-      { method: 'GET', path: '/api/catalog/departments', reply: { body: [] } },
-      { method: 'GET', path: '/api/catalog/connectors', reply: { body: [] } },
-    ])
-    renderStaff({ route: '/staff/admin/catalog', fetchImpl: m.fetchImpl, auth: admin() })
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
-    fail = false
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByText('No journeys are registered.')).toBeInTheDocument()
-  })
-})
 
 describe('admin: OpenAPI onboarding importer', () => {
   const draft = { ...connector, ref: 'conn-1@1', status: 'DRAFT' }
@@ -189,9 +114,9 @@ describe('admin: OpenAPI onboarding importer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Publish' }))
     expect(await screen.findByText(/Published\./)).toBeInTheDocument()
     expect(m.find('POST', '/api/catalog/connectors/conn-1%401/publish')[0]?.body).toEqual({ passed: true, failures: [] })
-    expect(screen.getByRole('link', { name: 'See it in the catalog' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'See it under Departments' })).toHaveAttribute('href', '/staff/admin/departments')
     expect(m.unhandled).toEqual([])
-  })
+  }, 20000) // a long wizard walk: slow on a busy machine
 
   it('blocks publishing when the connector test fails, listing why', async () => {
     const m = mockFetch(routes({ test: { body: { passed: false, failures: ['mapping has no rule for annualIncome'] } } }))
@@ -259,65 +184,17 @@ describe('admin: OpenAPI onboarding importer', () => {
   })
 })
 
-describe('admin: discover a department from its URL', () => {
-  const manifest = {
-    manifestVersion: 1,
-    department: { code: 'SANDBOX', name: 'Sandbox Dept', description: null },
-    documents: [
-      {
-        category: 'INCOME_CERTIFICATE',
-        title: 'Income certificate',
-        protocol: 'REST',
-        method: 'GET',
-        path: '/v1/income',
-        inputs: [{ name: 'rationCard', in: 'query', required: true, description: null }],
-        fields: [],
-      },
-    ],
-    journeys: [
-      {
-        code: 'SANDBOX_SUBSIDY',
-        name: 'Sandbox subsidy',
-        description: 'A sample service.',
-        referencePrefix: 'SBX',
-        slaHours: 96,
-        consentPurpose: 'SANDBOX_ELIGIBILITY',
-        requester: 'SANDBOX',
-        requiredCategories: [{ category: 'INCOME_CERTIFICATE', department: 'SANDBOX' }],
-      },
-    ],
-  }
-
-  it('onboards the documents it holds and the journeys it offers', async () => {
-    const m = mockFetch([
-      { method: 'POST', path: '/api/catalog/discover', reply: { body: manifest } },
-      { method: 'POST', path: '/api/catalog/departments', reply: (c) => ({ body: { ...(c.body as object), status: 'ACTIVE' } }) },
-      { method: 'POST', path: '/api/catalog/data-sources', reply: (c) => ({ body: c.body }) },
-      { method: 'POST', path: '/api/catalog/connectors', reply: (c) => ({ body: { ...connector, category: (c.body as { category: unknown }).category } }) },
-      { method: 'POST', path: '/api/catalog/journeys', reply: (c) => ({ body: c.body }) },
-    ])
+describe('admin: onboarding page', () => {
+  it('offers the one-go onboarding and no longer the Discover form', async () => {
+    const m = mockFetch([{ method: 'GET', path: '/api/catalog/schemas', reply: { body: [] } }])
     renderStaff({ route: '/staff/admin/onboarding', fetchImpl: m.fetchImpl, auth: admin() })
-
-    await userEvent.type(await screen.findByLabelText(/Department base URL/), 'https://sandbox.example.gov')
-    await userEvent.click(screen.getByRole('button', { name: 'Discover' }))
-    // the enriched journey renders with its provider department, SLA and purpose
-    expect(await screen.findByText('Sandbox subsidy')).toBeInTheDocument()
-    expect(screen.getByText(/Income certificate \(SANDBOX\)/)).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: /Register Sandbox Dept and draft 1 connector/ }))
-    await waitFor(() => expect(m.find('POST', '/api/catalog/journeys')).toHaveLength(1))
-    expect(m.find('POST', '/api/catalog/journeys')[0]?.body).toEqual({
-      code: 'SANDBOX_SUBSIDY',
-      name: 'Sandbox subsidy',
-      referencePrefix: 'SBX',
-      slaHours: 96,
-      consentPurpose: 'SANDBOX_ELIGIBILITY',
-      requester: 'SANDBOX',
-      requiredCategories: ['INCOME_CERTIFICATE'],
-      sources: { INCOME_CERTIFICATE: 'SANDBOX' },
-    })
-    expect(await screen.findByText(/and 1 journey\./)).toBeInTheDocument()
-    expect(m.unhandled).toEqual([])
+    expect(await screen.findByRole('heading', { name: 'Onboard a department in one go' })).toBeInTheDocument()
+    expect(screen.queryByText('Discover a department from its URL')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Discover' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/Onboard from a URL/)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Department base URL/)).not.toBeInTheDocument()
+    const main = within(screen.getByRole('main'))
+    expect(main.getByRole('link', { name: 'Departments' })).toHaveAttribute('href', '/staff/admin/departments')
+    expect(main.getByRole('link', { name: 'Journeys' })).toHaveAttribute('href', '/staff/admin/journeys')
   })
 })
-

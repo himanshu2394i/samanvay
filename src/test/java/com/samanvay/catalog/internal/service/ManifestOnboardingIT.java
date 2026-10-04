@@ -51,6 +51,9 @@ class ManifestOnboardingIT extends PostgresIntegrationTest {
     CatalogOnboarding wizard;
 
     @Autowired
+    com.samanvay.catalog.api.JourneyWrite journeyWrite;
+
+    @Autowired
     ConnectorCatalog catalog;
 
     @Autowired
@@ -264,6 +267,48 @@ class ManifestOnboardingIT extends PostgresIntegrationTest {
         assertThat(catalog.mapping(r.mappingRefs().get(0)).rules()).hasSize(2);
     }
 
+    // --- the onboarded flag (what the staff console shows) ---------------------------------------------------------
+
+    boolean onboarded(String table, String keyColumn, String key) {
+        return jdbc.sql("SELECT onboarded FROM " + table + " WHERE " + keyColumn + " = :k").param("k", key).query(Boolean.class).single();
+    }
+
+    @Test
+    void onboarding_marks_what_it_creates_as_onboarded_and_leaves_hand_made_rows_alone() throws IOException {
+        String dept = code("DBTF");
+        // a hand-made source, connector and journey of another department, like the seeded demo rows
+        String other = code("HAND");
+        wizard.registerDepartment(new com.samanvay.catalog.api.DepartmentDraft(other, "Hand made", null, null, 1000));
+        wizard.registerDataSource(new com.samanvay.catalog.api.DataSourceDraft(other.toLowerCase() + "-rest", other, "REST", "hand.example.gov", "NONE", "secret:none"));
+        String handRef = wizard.createDraft(new com.samanvay.catalog.api.ConnectorDraft(other.toLowerCase() + "-bank", other.toLowerCase() + "-rest",
+                DataCategory.of("BANK_ACCOUNT"), "{\"FETCH\":{\"endpoint\":\"/x\"}}", "[]", 1000)).ref();
+        String url = serve("dbt", dept);
+
+        OnboardingResult r = onboarding.onboard(all(onboarding.plan(url), url));
+
+        assertThat(onboarded("catalog_data_source", "code", r.dataSources().get(0))).isTrue();
+        assertThat(onboarded("catalog_connector", "ref", r.connectorRefs().get(0))).isTrue();
+        assertThat(onboarded("catalog_journey", "code", r.journeysCreated().get(0))).isTrue();
+        assertThat(onboarded("catalog_data_source", "code", other.toLowerCase() + "-rest")).isFalse();
+        assertThat(onboarded("catalog_connector", "ref", handRef)).isFalse();
+    }
+
+    @Test
+    void a_journey_that_already_existed_with_a_declared_code_is_adopted_not_duplicated() throws IOException {
+        String dept = code("DBTJ");
+        String journeyCode = "DBT_ACCOUNT_SEEDING_" + dept;
+        journeyWrite.createJourney(new com.samanvay.catalog.api.JourneyDraft(journeyCode, "Hand made", "HM", 48, "SCHOLARSHIP_ELIGIBILITY", dept,
+                List.of("BANK_ACCOUNT"), Map.of("BANK_ACCOUNT", dept), null));
+        assertThat(onboarded("catalog_journey", "code", journeyCode)).isFalse();
+        String url = serve("dbt", dept);
+
+        OnboardingResult r = onboarding.onboard(all(onboarding.plan(url), url));
+
+        assertThat(r.journeysCreated()).isEmpty();
+        assertThat(r.skipped()).anyMatch(s -> s.contains(journeyCode));
+        assertThat(onboarded("catalog_journey", "code", journeyCode)).isTrue();
+    }
+
     // --- refusals leave nothing behind --------------------------------------------------------------------------
 
     @Test
@@ -363,5 +408,17 @@ class ManifestOnboardingIT extends PostgresIntegrationTest {
             server.stop(0);
             server = null;
         }
+    }
+
+    @Test
+    void a_mapping_that_uses_the_removed_lookup_transform_is_refused_before_anything_is_written() throws IOException {
+        String dept = code("DBTT");
+        String url = serve("dbt", dept);
+        OnboardingPlan plan = onboarding.plan(url);
+        var withLookup = List.of(new FieldMapping("accountRef", "accountRef", List.of(new com.samanvay.catalog.api.TransformCall("lookup", List.of("banks")))));
+
+        assertThatThrownBy(() -> onboarding.onboard(new OnboardRequest(url, plan.manifestDigest(), List.of("BANK_ACCOUNT"), false, Map.of("BANK_ACCOUNT", withLookup))))
+                .isInstanceOf(InvalidRequestException.class).hasMessageContaining("lookup");
+        assertThat(departments.byCode(dept)).isEmpty();
     }
 }

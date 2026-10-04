@@ -3,6 +3,7 @@ package com.samanvay.audit.internal.service;
 import com.samanvay.shared.NotFoundException;
 import java.sql.DriverManager;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
  * Proves beat 6 — verification fails after a live edit. Not a production mutation API.
  */
 @Profile("demo")
+@ConditionalOnProperty(name = "samanvay.demo.tamper-endpoints", havingValue = "true")
 @Component
 public class DemoAuditTamper {
 

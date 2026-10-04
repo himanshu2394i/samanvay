@@ -14,4 +14,12 @@ public interface DepartmentCatalog {
     default Optional<DepartmentIdentity> identity(String code) {
         return Optional.empty();
     }
+
+    /**
+     * Thumbprint (RFC 7638) of the manifest signing key pinned for this department at onboarding, empty when none is pinned.
+     * Anything the department later signs for Samanvay (such as a consent statement) must use this key.
+     */
+    default Optional<String> manifestKeyThumbprint(String code) {
+        return Optional.empty();
+    }
 }

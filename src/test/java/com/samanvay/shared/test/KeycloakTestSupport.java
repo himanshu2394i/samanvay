@@ -34,7 +34,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class KeycloakTestSupport {
 
-    public static final String IMAGE = "quay.io/keycloak/keycloak:26.4";
+    public static final String IMAGE = "quay.io/keycloak/keycloak:26.4.7";
     public static final String STAFF = "samanvay-staff";
     public static final String CITIZEN = "samanvay-citizen";
     /** The MOCK department identity provider the citizen realm brokers to. */

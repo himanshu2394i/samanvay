@@ -44,7 +44,7 @@ class ConnectorTrialEndpointIT extends PostgresIntegrationTest {
             department = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             department.createContext("/v1/bank", ex -> {
                 String q = ex.getRequestURI().getRawQuery() == null ? "" : ex.getRequestURI().getRawQuery();
-                int status = q.contains("dbtId=DBT-1001") ? 200 : q.contains("dbtId=BOOM") ? 500 : 404;
+                int status = q.contains("dbtId=DBT-1001") ? 200 : q.contains("dbtId=DBT-5000") ? 500 : 404;
                 byte[] out = (status == 200 ? "{\"accountRef\":\"XXXXXX1234\",\"holderName\":\"Asha Patil\"}" : "{}").getBytes(StandardCharsets.UTF_8);
                 ex.sendResponseHeaders(status, out.length);
                 ex.getResponseBody().write(out);
@@ -113,16 +113,16 @@ class ConnectorTrialEndpointIT extends PostgresIntegrationTest {
 
     @Test
     void an_admin_can_name_a_different_person_and_a_missing_one_is_a_clear_failure_not_a_crash() throws Exception {
-        JsonNode body = JSON.readTree(trial(withSample, "{\"personId\":\"NOBODY\"}", admin()).body());
+        JsonNode body = JSON.readTree(trial(withSample, "{\"personId\":\"DBT-0000\"}", admin()).body());
         assertThat(body.get("ok").asBoolean()).isFalse();
         assertThat(body.get("outcome").asString()).isEqualTo("ERROR");
         assertThat(body.get("detail").asString()).isNotBlank();
-        assertThat(body.get("personId").asString()).isEqualTo("NOBODY");
+        assertThat(body.get("personId").asString()).isEqualTo("DBT-0000");
     }
 
     @Test
     void a_department_server_error_is_reported_as_the_trials_result() throws Exception {
-        JsonNode body = JSON.readTree(trial(withSample, "{\"personId\":\"BOOM\"}", admin()).body());
+        JsonNode body = JSON.readTree(trial(withSample, "{\"personId\":\"DBT-5000\"}", admin()).body());
         assertThat(body.get("ok").asBoolean()).isFalse();
         assertThat(body.get("outcome").asString()).isEqualTo("ERROR");
     }
@@ -145,5 +145,10 @@ class ConnectorTrialEndpointIT extends PostgresIntegrationTest {
         assertThat(trial(withSample, null, TestTokens.officer("o-1")).statusCode()).isEqualTo(403);
         assertThat(trial(withSample, null, TestTokens.citizen("c-1")).statusCode()).isEqualTo(403);
         assertThat(trial(withSample, null, TestTokens.reviewer("r-1")).statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    void a_person_that_does_not_look_like_the_declared_sample_is_refused_with_400() throws Exception {
+        assertThat(trial(withSample, "{\"personId\":\"NOBODY\"}", admin()).statusCode()).isEqualTo(400);
     }
 }

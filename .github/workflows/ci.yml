@@ -20,5 +20,29 @@ jobs:
           java-version: "21"
           cache: maven
 
+      # The department services and their portal pages. The portal is a generated copy of the front end that each department jar
+      # bundles, so it is built first; then the departments reactor (kit + four services, with their tests) builds the jars that
+      # DepartmentsEndToEndIT runs as real processes. With CI set, that IT fails instead of skipping if a jar is missing.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the department portal pages
+        run: bash scripts/build-portal.sh
+
+      - name: Build and test the departments
+        run: ./mvnw --batch-mode --no-transfer-progress -f departments/pom.xml verify
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test the demo data generator
+        run: python -m unittest scripts/test_gen_demo_data.py
+
       - name: Build and test
         run: ./mvnw --batch-mode --no-transfer-progress verify

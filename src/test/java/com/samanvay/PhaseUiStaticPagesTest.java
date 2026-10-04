@@ -31,9 +31,8 @@ class PhaseUiStaticPagesTest {
             assertThat(html).contains("ops.html");
             assertThat(html).contains("audit.html");
             assertThat(html).contains("schemes.html");
-            assertThat(html).contains("/scholarship/");
-            assertThat(html).contains("/licence/");
-            assertThat(html).contains("/farmer/");
+            // Citizens use each department's own portal; Samanvay has no citizen pages to link to.
+            assertThat(html).doesNotContain("/scholarship/").doesNotContain("/licence/").doesNotContain("/farmer/");
             assertThat(html).contains("State operations");
             assertThat(html).contains("Government of Maharashtra");
             assertThat(html).contains("Skip to content");
@@ -49,11 +48,8 @@ class PhaseUiStaticPagesTest {
         }
 
         assertThat(demo).contains("Start demo (external caller)");
-        assertThat(demo).contains("/scholarship/");
-        assertThat(demo).contains("Open Citizen services");
-        assertThat(demo).contains("/farmer/");
+        assertThat(demo).contains("/app/");
         assertThat(demo).contains("interoperability middle layer");
-        assertThat(demo).contains("Officer desk");
         assertThat(demo).contains("Published schemes");
         assertThat(demo).contains("DEV SIGN-IN");
         assertThat(demo).doesNotContain("AUTH STUBBED");

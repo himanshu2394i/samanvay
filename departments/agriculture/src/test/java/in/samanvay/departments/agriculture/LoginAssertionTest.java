@@ -32,7 +32,7 @@ class LoginAssertionTest {
 
     static final HttpClient HTTP = HttpClient.newHttpClient(); // does not follow redirects
     static final JsonMapper JSON = JsonMapper.builder().build();
-    static final String RETURN_TO = "http://localhost:8080/identity/callback";
+    static final String RETURN_TO = "http://localhost:8091/portal/callback";
     static final String ASHA = "9000000001";
     static final String ASHA_PASSWORD = "asha-demo-pass";
     static final String CODE = "123456";
@@ -165,6 +165,8 @@ class LoginAssertionTest {
         assertThat(c.getSubject()).isEqualTo("AG-1001");
         assertThat(c.getStringClaim("person_id_type")).isEqualTo("AGRI_FARMER_ID");
         assertThat(c.getStringClaim("dept_code")).isEqualTo("AGRICULTURE");
+        assertThat(c.getStringClaim("name")).isEqualTo("Asha Patil");
+        assertThat(c.getStringClaim("dob")).isEqualTo("2004-03-09");
         assertThat(c.getStringClaim("nonce")).isEqualTo("nonce-9");
         assertThat(c.getStringClaim("state")).isEqualTo("st-777");
         assertThat(c.getJWTID()).isNotBlank();

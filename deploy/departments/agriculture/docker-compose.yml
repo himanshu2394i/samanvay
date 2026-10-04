@@ -27,7 +27,9 @@ services:
       retries: 20
 
   agriculture:
-    build: ../../../departments/agriculture
+    build:
+      context: ../../../departments
+      dockerfile: agriculture/Dockerfile
     restart: unless-stopped
     env_file: ../../generated/agriculture/agriculture.env
     depends_on:

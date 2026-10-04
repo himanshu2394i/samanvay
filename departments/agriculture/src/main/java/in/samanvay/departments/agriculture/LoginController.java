@@ -2,6 +2,10 @@ package in.samanvay.departments.agriculture;
 
 import in.samanvay.departments.agriculture.LoginPages.Brand;
 import in.samanvay.departments.agriculture.LoginPages.Request;
+import in.samanvay.departments.kit.Person;
+import in.samanvay.departments.kit.PortalProperties;
+import in.samanvay.departments.kit.SignInThrottle;
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -24,30 +28,36 @@ import org.springframework.web.bind.annotation.RestController;
  * issues. Contract: docs/contracts/login-assertion.md. {@code return_to} must start with an allow-listed Samanvay address,
  * otherwise nothing is ever redirected (no open redirect).
  *
- * <p>ponytail: the one-time code is one fixed demo value ({@code agriculture.login.code}); a real department sends a fresh code to
- * the mobile and expires it. No lockout or captcha either.
+ * <p>Both steps are throttled ({@link SignInThrottle}, shared with the portal): five wrong passwords lock a mobile, five wrong codes kill
+ * a ticket, an address gets a larger allowance, and a ticket opens one login at most.
+ *
+ * <p>ponytail: the one-time code is one fixed value ({@code portal.otp-code}, never the default outside demo mode); a real department sends
+ * a fresh code to the mobile and expires it. No captcha.
  */
 @RestController
 class LoginController {
 
     private static final Brand BRAND = new Brand("Department of Agriculture", "the Agriculture Department", "A", "#2f6b2a", "#8fd18a", "#08170a");
     private static final Duration TICKET_TTL = Duration.ofMinutes(5);
+    private static final String TOO_MANY = "Too many attempts. Please wait a few minutes and try again.";
 
     private final AssertionSigner signer;
     private final CitizenStore citizens;
     private final LoginPages pages;
     private final LoginTicket tickets = new LoginTicket(TICKET_TTL);
     private final byte[] code;
+    private final SignInThrottle throttle;
     private final List<String> allowedReturnUris;
 
     LoginController(AssertionSigner signer, CitizenStore citizens,
             @Value("${agriculture.login.allowed-return-uris}") List<String> allowedReturnUris,
-            @Value("${agriculture.login.code}") String code,
+            PortalProperties portal, SignInThrottle throttle,
             @Value("${agriculture.login.demo-hint:}") String demoHint) {
         this.signer = signer;
         this.citizens = citizens;
         this.pages = new LoginPages(BRAND, demoHint);
-        this.code = code.getBytes(StandardCharsets.UTF_8);
+        this.code = portal.otpCode().getBytes(StandardCharsets.UTF_8);
+        this.throttle = throttle;
         this.allowedReturnUris = allowedReturnUris.stream().map(String::trim).filter(u -> !u.isEmpty()).toList();
     }
 
@@ -60,12 +70,16 @@ class LoginController {
     ResponseEntity<String> page(@RequestParam(name = "return_to", required = false) String returnTo,
             @RequestParam(name = "state", required = false) String state,
             @RequestParam(name = "nonce", required = false) String nonce) {
+        if (returnTo == null && state == null && nonce == null) {
+            // Opened directly (not from another department): this is the department's own portal sign in.
+            return ResponseEntity.status(HttpStatus.FOUND).header(HttpHeaders.LOCATION, "/portal/#/sign-in").build();
+        }
         return invalidRequest(returnTo, state, nonce) ? badRequest() : ResponseEntity.ok(pages.passwordPage(new Request(returnTo, state, nonce), null));
     }
 
     /** Step one: mobile and password. A correct pair earns a ticket and the code page, never the assertion itself. */
     @PostMapping(path = "/login", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.TEXT_HTML_VALUE)
-    ResponseEntity<String> login(@RequestParam String mobile, @RequestParam String password,
+    ResponseEntity<String> login(HttpServletRequest http, @RequestParam String mobile, @RequestParam String password,
             @RequestParam(name = "return_to", required = false) String returnTo,
             @RequestParam(name = "state", required = false) String state,
             @RequestParam(name = "nonce", required = false) String nonce) {
@@ -73,17 +87,24 @@ class LoginController {
             return badRequest();
         }
         Request req = new Request(returnTo, state, nonce);
-        Optional<String> personId = citizens.authenticate(mobile.trim(), password);
+        String who = mobile.trim();
+        String ip = http.getRemoteAddr();
+        if (throttle.credentialsBlocked(who, ip)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(pages.passwordPage(req, TOO_MANY));
+        }
+        Optional<String> personId = who.length() > 40 || password.length() > 200 ? Optional.empty() : citizens.authenticate(who, password);
         if (personId.isEmpty()) {
+            throttle.credentialsFailed(who, ip);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(pages.passwordPage(req, "The mobile number or password is not correct."));
         }
+        throttle.credentialsOk(who);
         String ticket = tickets.issue(personId.get(), state, nonce, Instant.now());
         return ResponseEntity.ok(pages.codePage(req, ticket, "ending " + lastFour(mobile), null));
     }
 
     /** Step two: the one-time code. Only a genuine ticket for THIS login plus the right code earns the signed assertion. */
     @PostMapping(path = "/login/verify", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.TEXT_HTML_VALUE)
-    ResponseEntity<String> verify(@RequestParam String ticket, @RequestParam String code,
+    ResponseEntity<String> verify(HttpServletRequest http, @RequestParam String ticket, @RequestParam String code,
             @RequestParam(name = "masked", required = false) String masked,
             @RequestParam(name = "return_to", required = false) String returnTo,
             @RequestParam(name = "state", required = false) String state,
@@ -92,17 +113,26 @@ class LoginController {
             return badRequest();
         }
         Request req = new Request(returnTo, state, nonce);
+        String ip = http.getRemoteAddr();
+        if (throttle.codeBlocked(ticket, ip)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(pages.passwordPage(req, TOO_MANY));
+        }
         Optional<String> personId = tickets.verify(ticket, state, nonce, Instant.now());
         if (personId.isEmpty()) {
+            throttle.codeFailed(ticket, ip);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(pages.passwordPage(req, "Your sign in took too long or could not be checked. Please start again."));
         }
         if (!MessageDigest.isEqual(this.code, code.trim().getBytes(StandardCharsets.UTF_8))) {
+            throttle.codeFailed(ticket, ip);
             String shownMask = masked != null && masked.matches("ending [0-9]{4}") ? masked : "registered with " + BRAND.shortName();
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(pages.codePage(req, ticket, shownMask, "That code is not correct. Check it and try again."));
         }
-        String assertion = signer.sign(personId.get(), state, nonce);
+        if (!throttle.useTicket(ticket)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(pages.passwordPage(req, "This sign in was already used. Please start again."));
+        }
+        String assertion = signer.sign(citizens.person(personId.get()).orElse(new Person(personId.get(), null, null)), state, nonce);
         String sep = returnTo.contains("?") ? "&" : "?";
         String location = returnTo + sep + "assertion=" + enc(assertion) + "&state=" + enc(state);
         return ResponseEntity.status(HttpStatus.SEE_OTHER).header(HttpHeaders.LOCATION, location).build();

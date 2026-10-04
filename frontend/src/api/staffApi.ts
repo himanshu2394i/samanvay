@@ -12,15 +12,15 @@ import type {
   DataSourceDraft,
   DataSourceHealth,
   DepartmentDraft,
-  DepartmentManifest,
   IdentityCandidate,
   ImportPreview,
-  JourneyDraft,
   JourneyException,
+  JourneyStatus,
   JourneyState,
   MappingDraft,
   OpenApiImportRequest,
   OpsMetrics,
+  OpsOverview,
   Page,
   SchemaDraft,
   SchemaSummary,
@@ -59,8 +59,8 @@ export function createStaffApi(client: ApiClient) {
       client.post<void>(`/api/officer/bank-reviews/${enc(reviewId)}/reject`, { reason }),
 
     // --- officer: application review (TrackingController, IssuedRecordsWeb; OFFICER) ---
-    /** Recent applications across citizens (no citizenId), newest first. */
-    listApplications: (size = 50) => client.get<ApplicationSummary[]>('/api/applications', { size }),
+    /** Recent applications across citizens, newest first; with `citizenId`, only that citizen's (filtered by the server). */
+    listApplications: (size = 50, citizenId?: string) => client.get<ApplicationSummary[]>('/api/applications', { size, citizenId }),
     getApplication: (referenceNo: string) => client.get<ApplicationView>(`/api/applications/${enc(referenceNo)}`),
     getApplicationSteps: (referenceNo: string) => client.get<StepView[]>(`/api/applications/${enc(referenceNo)}/steps`),
     getIssuedRecords: (referenceNo: string) =>
@@ -78,6 +78,10 @@ export function createStaffApi(client: ApiClient) {
 
     // --- officer + admin: ops dashboards (OpsMetricsController; OFFICER, ADMIN) ---
     getMetrics: () => client.get<OpsMetrics>('/api/ops/metrics'),
+    /** Onboarded departments with their documents, central-schema mappings and journeys. */
+    getOverview: () => client.get<OpsOverview>('/api/ops/overview'),
+    /** One journey: is each document source connected and working, its applications and its middle-layer log. */
+    getJourneyStatus: (code: string) => client.get<JourneyStatus>(`/api/ops/journeys/${enc(code)}`),
 
     // --- officer + admin: audit ledger, read only (AuditController; OFFICER, ADMIN) ---
     auditHead: () => client.get<{ seq: number }>('/api/audit/head'),
@@ -87,10 +91,6 @@ export function createStaffApi(client: ApiClient) {
       client.get<AuditRecord[]>('/api/audit/entries', { action: opts.action, page: opts.page, size: opts.size ?? 40 }),
 
     // --- admin: catalog view (CatalogController) ---
-    listDepartments: () => client.get<Department[]>('/api/catalog/departments'),
-    listJourneys: () => client.get<JourneyDefinition[]>('/api/catalog/journeys'),
-    /** OFFICER, ADMIN */
-    listConnectors: () => client.get<ConnectorDefinition[]>('/api/catalog/connectors'),
     /** OFFICER, ADMIN: the target schema refs the importer can map onto. */
     listSchemas: () => client.get<string[]>('/api/catalog/schemas'),
     /** OFFICER, ADMIN: the central schema with each field's type and whether it is required. */
@@ -104,8 +104,6 @@ export function createStaffApi(client: ApiClient) {
     createConnectorDraft: (draft: ConnectorDraft) => client.post<ConnectorDefinition>('/api/catalog/connectors', draft),
     /** Preview only: suggests lexical matches and never saves or publishes anything. */
     importOpenApi: (body: OpenApiImportRequest) => client.post<ImportPreview>('/api/catalog/import/openapi', body),
-    /** Fetch a department's published capability manifest so it can be onboarded from just a base URL. */
-    discover: (baseUrl: string) => client.post<DepartmentManifest>('/api/catalog/discover', { baseUrl }),
     /** Review what onboarding a department from its manifest would do. Changes nothing. ADMIN. */
     onboardPlan: (baseUrl: string) => client.post<OnboardingPlan>('/api/catalog/onboard/plan', { baseUrl }),
     /** Onboard what was reviewed and ticked (all drafts, one transaction); refused if the manifest changed. ADMIN. */
@@ -113,12 +111,8 @@ export function createStaffApi(client: ApiClient) {
     /** Trial fetch of a connector for the department's fake sample person (or a named one). ADMIN. */
     trialConnector: (ref: string, personId?: string) =>
       client.post<TrialResult>(`/api/connector/trial/${enc(ref)}`, personId ? { personId } : {}),
-    /** Registered data sources with last-known connectivity health. OFFICER, ADMIN. */
-    listDataSources: () => client.get<DataSourceHealth[]>('/api/catalog/data-sources'),
     /** Live connectivity check for one data source; records and returns GREEN/RED/UNKNOWN. ADMIN. */
     probeDataSource: (code: string) => client.post<DataSourceHealth>(`/api/catalog/data-sources/${enc(code)}/probe`),
-    /** Create a journey (service) onboarded from a manifest, as a DRAFT. ADMIN. */
-    createJourney: (draft: JourneyDraft) => client.post<JourneyDefinition>('/api/catalog/journeys', draft),
     /** Publish a ready DRAFT journey (make it live to citizens); 400 if a required connector is missing. ADMIN. */
     publishJourney: (code: string) => client.post<JourneyDefinition>(`/api/catalog/journeys/${enc(code)}/publish`),
     saveMapping: (draft: MappingDraft) => client.post<MappingDraft>('/api/catalog/mappings', draft),

@@ -13,7 +13,7 @@ import {
   REVIEW_ID,
   steps,
 } from '../../test/staffFixtures'
-import { mockFetch, renderStaff, staffAuth } from '../../test/utils'
+import { mockFetch, renderStaff, staffAuth, type Route } from '../../test/utils'
 
 const officer = () => staffAuth(['officer'])
 
@@ -249,6 +249,7 @@ describe('officer: application review', () => {
     ])
     renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
     await userEvent.click(await screen.findByRole('button', { name: 'Approve application' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Confirm approve' }))
     expect(await screen.findByText('Application approved.')).toBeInTheDocument()
     expect(m.find('POST', `/api/journeys/instances/${INSTANCE_ID}/approve`)).toHaveLength(1)
     // After the reload the case is APPROVED, so the button is no longer offered.
@@ -279,6 +280,8 @@ describe('officer: application review', () => {
     // With a reason it posts and reloads to REJECTED.
     await userEvent.type(screen.getByLabelText('Reason (required to reject)'), 'documents forged')
     await userEvent.click(screen.getByRole('button', { name: 'Reject application' }))
+    expect(m.find('POST', /reject/)).toHaveLength(0) // still waiting for the second click
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm reject' }))
     expect(await screen.findByText('Application rejected.')).toBeInTheDocument()
     expect(m.find('POST', `/api/journeys/instances/${INSTANCE_ID}/reject`)[0]?.body).toEqual({ reason: 'documents forged' })
     // Now terminal, so reject is no longer offered.
@@ -299,7 +302,77 @@ describe('officer: application review', () => {
     ])
     renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
     await userEvent.click(await screen.findByRole('button', { name: 'Approve application' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Confirm approve' }))
     expect(await screen.findByRole('alert')).toHaveTextContent("This application can't be approved yet — a department record is still pending.")
+  })
+
+  const verifiedRoutes = (extra: Route[] = []): Route[] => [
+    { method: 'GET', path: '/api/applications/SCH-2026-0001', reply: { body: { ...applicationView, status: 'VERIFIED' } } },
+    { method: 'GET', path: '/api/applications/SCH-2026-0001/steps', reply: { body: steps } },
+    { method: 'GET', path: '/api/applications/SCH-2026-0001/issued-records', reply: { body: issuedRecords } },
+    { method: 'GET', path: '/api/journeys/exceptions', reply: { body: [exception] } },
+    { method: 'POST', path: `/api/journeys/instances/${INSTANCE_ID}/approve`, reply: { body: { instanceId: INSTANCE_ID, status: 'APPROVED' } } },
+    ...extra,
+  ]
+
+  it('needs a second click to approve, and Cancel backs out without calling the API', async () => {
+    const m = mockFetch(verifiedRoutes())
+    renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve application' }))
+    expect(m.find('POST', /approve/)).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'Approve application' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Approve application' })).toBeInTheDocument()
+    expect(m.find('POST', /approve/)).toHaveLength(0)
+  })
+
+  it('needs a second click to reject, and editing the reason or Cancel drops the confirmation', async () => {
+    const m = mockFetch(verifiedRoutes())
+    renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
+    await userEvent.type(await screen.findByLabelText('Reason (required to reject)'), 'dup')
+    await userEvent.click(screen.getByRole('button', { name: 'Reject application' }))
+    expect(screen.getByRole('button', { name: 'Confirm reject' })).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Reason (required to reject)'), 'licate')
+    expect(screen.queryByRole('button', { name: 'Confirm reject' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Reject application' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Reject application' })).toBeInTheDocument()
+    expect(m.find('POST', /reject/)).toHaveLength(0)
+  })
+
+  it('locks every action while the case is refreshing, and Retry does not make Approve look busy', async () => {
+    const base = mockFetch(verifiedRoutes([{ method: 'POST', path: `/api/journeys/instances/${INSTANCE_ID}/retry`, reply: { status: 200 } }]))
+    let caseLoads = 0
+    let releaseCase: () => void = () => {}
+    let releaseRetry: () => void = () => {}
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (method === 'GET' && url === '/api/applications/SCH-2026-0001' && ++caseLoads === 2) await new Promise<void>((r) => (releaseCase = r))
+      if (method === 'POST' && url.endsWith('/retry')) await new Promise<void>((r) => (releaseRetry = r))
+      return base.fetchImpl(input, init)
+    }) as typeof fetch
+    renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl, auth: officer() })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    // The retry is in flight: only its own button says so.
+    expect(await screen.findByRole('button', { name: 'Retrying…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Approve application' })).toBeDisabled()
+    releaseRetry()
+    // The reload is in flight (second GET held): everything stays locked.
+    await waitFor(() => expect(caseLoads).toBe(2))
+    expect(screen.getByRole('button', { name: 'Approve application' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Reject application' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
+    releaseCase()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Approve application' })).toBeEnabled())
+  })
+
+  it('shows a small notice, not a hidden panel, when the exception queue cannot be read', async () => {
+    const m = mockFetch(detailRoutes().map((r) => (r.path === '/api/journeys/exceptions' ? { ...r, reply: { status: 503, body: { status: 503 } } } : r)))
+    renderStaff({ route: '/staff/officer/applications/SCH-2026-0001', fetchImpl: m.fetchImpl, auth: officer() })
+    expect(await screen.findByRole('heading', { name: 'Application SCH-2026-0001' })).toBeInTheDocument()
+    expect(await screen.findByText(/exception queue could not be checked/i)).toBeInTheDocument()
   })
 
   it('opens an application by its number from the list page', async () => {
@@ -464,7 +537,7 @@ describe('officer: find a citizen from the staff home', () => {
       ...homeNoise,
       { method: 'GET', path: '/api/identity/citizens/search?q=ramesh', reply: { body: [match] } },
       // The file itself, assembled on CitizenViewPage once we navigate there.
-      { method: 'GET', path: '/api/applications?size=200', reply: { body: [] } },
+      { method: 'GET', path: `/api/applications?size=200&citizenId=${CZ}`, reply: { body: [] } },
       { method: 'GET', path: '/api/audit/entries?size=200', reply: { body: [] } },
     ])
     renderStaff({ route: '/staff', fetchImpl: m.fetchImpl, auth: officer() })
@@ -490,6 +563,51 @@ describe('officer: find a citizen from the staff home', () => {
     await userEvent.type(await screen.findByRole('searchbox', { name: /citizen name or id/i }), 'zzz')
     await userEvent.click(screen.getByRole('button', { name: 'Search' }))
     expect(await screen.findByText(/No citizens match/)).toBeInTheDocument()
+  })
+
+  it('ignores a slow answer for an older search once a newer one has been shown', async () => {
+    const other = { ...match, citizenId: '44444444-4444-4444-8444-444444444444', nameLatin: 'Ramesh Old' }
+    const m = mockFetch([
+      ...homeNoise,
+      { method: 'GET', path: '/api/identity/citizens/search?q=ra', reply: { body: [other] } },
+      { method: 'GET', path: '/api/identity/citizens/search?q=ramesh', reply: { body: [match] } },
+    ])
+    let releaseOld: () => void = () => {}
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('search?q=ra')) await new Promise<void>((r) => (releaseOld = r))
+      return m.fetchImpl(input, init)
+    }) as typeof fetch
+    renderStaff({ route: '/staff', fetchImpl, auth: officer() })
+    const box = await screen.findByRole('searchbox', { name: /citizen name or id/i })
+    await userEvent.type(box, 'ra')
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+    await userEvent.type(box, 'mesh')
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(await screen.findByRole('link', { name: /Ramesh Kumar/ })).toBeInTheDocument()
+    releaseOld() // the first, slower answer arrives last
+    await waitFor(() => expect(m.find('GET', '/api/identity/citizens/search?q=ra')).toHaveLength(1))
+    expect(screen.getByRole('link', { name: /Ramesh Kumar/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Ramesh Old/ })).not.toBeInTheDocument()
+  })
+
+  it('retries the term that failed, not whatever is typed in the box now', async () => {
+    let fail = true
+    const m = mockFetch([
+      ...homeNoise,
+      { method: 'GET', path: '/api/identity/citizens/search?q=ramesh', reply: () => (fail ? { status: 503, body: { status: 503 } } : { body: [match] }) },
+    ])
+    renderStaff({ route: '/staff', fetchImpl: m.fetchImpl, auth: officer() })
+    const box = await screen.findByRole('searchbox', { name: /citizen name or id/i })
+    await userEvent.type(box, 'ramesh')
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+    await screen.findByRole('alert')
+    await userEvent.clear(box)
+    await userEvent.type(box, 'someone else')
+    fail = false
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('link', { name: /Ramesh Kumar/ })).toBeInTheDocument()
+    expect(m.find('GET', '/api/identity/citizens/search?q=ramesh')).toHaveLength(2)
+    expect(m.find('GET', /search\?q=someone/)).toHaveLength(0)
   })
 
   it('does not query the server for a one-character term', async () => {

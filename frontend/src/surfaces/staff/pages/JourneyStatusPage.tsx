@@ -1,0 +1,327 @@
+import { useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { useStaffApi } from '../../../api/apiContext'
+import type { JourneyStatus, JourneyStatusCategory } from '../../../api/staffTypes'
+import { Badge } from '../../../ui/Badge'
+import { ErrorNotice } from '../../../ui/ErrorNotice'
+import { formatDateTime, humanize, safeHttpUrl, shortId } from '../../../ui/format'
+import { Loading } from '../../../ui/Loading'
+import { Tile } from '../../../ui/Tile'
+import { useAction } from '../../../ui/useAction'
+import { useAsync } from '../../../ui/useAsync'
+import { appStatus, healthTone, isUnchecked, publishTone, SOURCE_STATE_BADGE, sourceState, stepTone } from '../lib/status'
+import { ADMIN, OFFICER } from '../nav'
+import { useStaffSession } from '../StaffContext'
+
+/** Why a category is not working, in plain words; null when it is. */
+function whyNot(c: JourneyStatusCategory): string | null {
+  const state = sourceState(c.working, c.sourceHealth)
+  if (state === 'working') return null
+  if (state === 'unchecked') return 'The data source has not been checked yet. Use Check source to see whether it is reachable'
+  if (!c.connectorRef) return 'No published connector for this document yet'
+  return 'The data source is not reachable, so fetches for this document will fail'
+}
+
+/**
+ * One journey for staff: is each document source connected and working, how its applications are going, and the
+ * middle-layer log of the steps those applications ran (GET /api/ops/journeys/{code}; OFFICER, ADMIN).
+ */
+export function JourneyStatusPage() {
+  const { code = '' } = useParams()
+  const api = useStaffApi()
+  const status = useAsync(() => api.getJourneyStatus(code), `journey-status:${code}`)
+
+  return (
+    <section aria-labelledby="js-h">
+      {status.status === 'success' ? (
+        <Header s={status.data} />
+      ) : (
+        <h1 id="js-h">
+          Journey <span className="mono">{code}</span>
+        </h1>
+      )}
+      <div className="actions">
+        <button type="button" className="btn" onClick={status.reload} disabled={status.refreshing}>
+          {status.refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+        <Link to="/staff/admin/journeys">Back to the journeys</Link>
+      </div>
+      {status.status === 'loading' ? <Loading variant="table" label="Loading the journey" rows={5} /> : null}
+      {status.status === 'error' ? <ErrorNotice error={status.error} onRetry={status.reload} /> : null}
+      {status.status === 'success' ? <Body s={status.data} reload={status.reload} /> : null}
+    </section>
+  )
+}
+
+function Header({ s }: { s: JourneyStatus }) {
+  return (
+    <>
+      <h1 id="js-h">{s.name}</h1>
+      <p className="lede">
+        <span className="mono">{s.code}</span> <Badge tone={publishTone(s.status)}>{humanize(s.status)}</Badge>
+        {s.requester ? <span className="hint"> run by {s.requester}</span> : null}
+      </p>
+      {safeHttpUrl(s.portalUrl) ? (
+        <p>
+          <a href={safeHttpUrl(s.portalUrl) as string} target="_blank" rel="noreferrer">
+            Open the department portal for this service
+          </a>
+        </p>
+      ) : null}
+    </>
+  )
+}
+
+function Body({ s, reload }: { s: JourneyStatus; reload: () => void }) {
+  return (
+    <>
+      <Connected categories={s.categories} reload={reload} />
+      <Counts counts={s.counts} />
+      <Recent recent={s.recent} />
+      <Log log={s.log} />
+    </>
+  )
+}
+
+function Connected({ categories, reload }: { categories: JourneyStatusCategory[]; reload: () => void }) {
+  const api = useStaffApi()
+  const { can } = useStaffSession()
+  const canAct = can(ADMIN) // the probe and the trial are admin-only calls
+  const action = useAction()
+  const [result, setResult] = useState<string | null>(null)
+
+  async function check(c: JourneyStatusCategory) {
+    const code = c.dataSourceCode as string
+    setResult(null)
+    const ok = await action.run(`probe:${c.category}`, async () => {
+      const health = await api.probeDataSource(code)
+      setResult(`Source ${code} is ${humanize(health.healthStatus)}${health.detail ? `: ${health.detail}` : ''}.`)
+    }, '')
+    if (ok) reload()
+  }
+
+  async function trial(c: JourneyStatusCategory) {
+    const ref = c.connectorRef as string
+    setResult(null)
+    const ok = await action.run(`trial:${c.category}`, async () => {
+      const t = await api.trialConnector(ref)
+      setResult(`Trial for ${humanize(c.category)}: ${t.ok ? 'worked' : `did not work (${humanize(t.outcome)})`}${t.detail ? `. ${t.detail}` : ''}`)
+    }, '')
+    if (ok) reload()
+  }
+
+  const states = categories.map((c) => sourceState(c.working, c.sourceHealth))
+  const overall =
+    states.length > 0 && states.every((s) => s === 'working')
+      ? { tone: 'ok' as const, label: 'Every document source is working' }
+      : states.length === 0 || states.includes('blocked')
+        ? { tone: 'warn' as const, label: 'Some document sources are not working' }
+        : { tone: 'neutral' as const, label: 'Some document sources have not been checked yet' }
+  return (
+    <section aria-labelledby="js-conn-h">
+      <h2 id="js-conn-h">Connected and working</h2>
+      <p>
+        <Badge tone={overall.tone}>{overall.label}</Badge>
+      </p>
+      {result ? (
+        <p role="status" className="notice">
+          {result}
+        </p>
+      ) : null}
+      {action.error ? <ErrorNotice error={action.error} /> : null}
+      <div className="table-wrap">
+        <table>
+          <caption className="sr-only">Connected and working</caption>
+          <thead>
+            <tr>
+              <th scope="col">Document</th>
+              <th scope="col">Department</th>
+              <th scope="col">Connector</th>
+              <th scope="col">Source health</th>
+              <th scope="col">Last trial</th>
+              <th scope="col">Working</th>
+              {canAct ? <th scope="col">Check</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {categories.map((c) => {
+              const reason = whyNot(c)
+              return (
+                <tr key={c.category}>
+                  <td>{humanize(c.category)}</td>
+                  <td className="mono">{c.department ?? 'unassigned'}</td>
+                  <td>
+                    {c.connectorRef ? (
+                      <span className="mono">{c.connectorRef}</span>
+                    ) : (
+                      <Badge tone="warn">Not connected</Badge>
+                    )}
+                  </td>
+                  <td>
+                    {isUnchecked(c.sourceHealth) ? <Badge tone="neutral">Not checked yet</Badge> : <Badge tone={healthTone(c.sourceHealth)}>{humanize(c.sourceHealth)}</Badge>}
+                  </td>
+                  <td>
+                    {c.lastTrial ? (
+                      <>
+                        <Badge tone={c.lastTrial.outcome === 'SUCCESS' ? 'ok' : 'warn'}>
+                          {c.lastTrial.outcome === 'SUCCESS' ? 'Worked' : `Did not work (${humanize(c.lastTrial.outcome)})`}
+                        </Badge>{' '}
+                        <span className="hint">{formatDateTime(c.lastTrial.at)}</span>
+                      </>
+                    ) : (
+                      <span className="hint">Not run yet</span>
+                    )}
+                  </td>
+                  <td>
+                    <Badge tone={SOURCE_STATE_BADGE[sourceState(c.working, c.sourceHealth)].tone}>{SOURCE_STATE_BADGE[sourceState(c.working, c.sourceHealth)].label}</Badge>
+                    {reason ? (
+                      <p className="hint">
+                        <span>{reason}</span>
+                        {!c.connectorRef ? (
+                          <>
+                            . <Link to="/staff/admin/onboarding">Go to onboarding</Link>
+                          </>
+                        ) : null}
+                      </p>
+                    ) : null}
+                  </td>
+                  {canAct ? (
+                    <td>
+                      <div className="actions">
+                        {c.dataSourceCode ? (
+                          <button type="button" className="btn" disabled={action.busy !== null} onClick={() => void check(c)}>
+                            {action.busy === `probe:${c.category}` ? 'Checking…' : 'Check source'}
+                          </button>
+                        ) : null}
+                        {c.connectorRef ? (
+                          <button type="button" className="btn" disabled={action.busy !== null} onClick={() => void trial(c)}>
+                            {action.busy === `trial:${c.category}` ? 'Running…' : 'Run trial'}
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+function Counts({ counts }: { counts: JourneyStatus['counts'] }) {
+  return (
+    <section aria-labelledby="js-counts-h">
+      <h2 id="js-counts-h">Applications</h2>
+      <div className="tiles">
+        <Tile label="Running" value={counts.running} />
+        {/* The backend counts APPROVED as completed and REJECTED as failed (field names kept). */}
+        <Tile label="Approved" value={counts.completed} tone={counts.completed > 0 ? 'ok' : undefined} />
+        <Tile label="Rejected" value={counts.failed} tone={counts.failed > 0 ? 'bad' : undefined} />
+        <Tile label="Started in the last 7 days" value={counts.last7Days} />
+      </div>
+    </section>
+  )
+}
+
+function Recent({ recent }: { recent: JourneyStatus['recent'] }) {
+  const { can } = useStaffSession()
+  return (
+    <section aria-labelledby="js-recent-h">
+      <h2 id="js-recent-h">Recent applications</h2>
+      {recent.length === 0 ? (
+        <p>No applications have run through this journey yet.</p>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <caption className="sr-only">Recent applications</caption>
+            <thead>
+              <tr>
+                <th scope="col">Application</th>
+                <th scope="col">State</th>
+                <th scope="col">Started</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((r) => {
+                const st = appStatus(r.state)
+                return (
+                  <tr key={r.instanceId}>
+                    <td>
+                      {r.referenceNo ? (
+                        can(OFFICER) ? (
+                          <Link to={`/staff/officer/applications/${encodeURIComponent(r.referenceNo)}`}>{r.referenceNo}</Link>
+                        ) : (
+                          r.referenceNo
+                        )
+                      ) : (
+                        <span className="mono" title={r.instanceId}>
+                          {shortId(r.instanceId)}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <Badge tone={st.tone}>{st.label}</Badge>
+                    </td>
+                    <td>{formatDateTime(r.startedAt)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function Log({ log }: { log: JourneyStatus['log'] }) {
+  return (
+    <section aria-labelledby="js-log-h">
+      <h2 id="js-log-h">Middle-layer log</h2>
+      <p className="hint">The steps of the recent applications above, newest first. It shows what Samanvay asked for and how it went, never the citizen&apos;s data.</p>
+      {log.length === 0 ? (
+        <p>Nothing in the log yet.</p>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <caption className="sr-only">Middle-layer log</caption>
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Application</th>
+                <th scope="col">Document</th>
+                <th scope="col">Department</th>
+                <th scope="col">Connector</th>
+                <th scope="col">Outcome</th>
+                <th scope="col">Latency</th>
+                <th scope="col">Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {log.map((r, i) => {
+                const st = stepTone(r.outcome)
+                return (
+                  <tr key={`${r.referenceNo}-${r.category}-${i}`}>
+                    <td>{formatDateTime(r.at) || 'n/a'}</td>
+                    <td className="mono">{r.referenceNo}</td>
+                    <td>{humanize(r.category)}</td>
+                    <td className="mono">{r.department ?? 'n/a'}</td>
+                    <td className="mono">{r.connector ?? 'n/a'}</td>
+                    <td>
+                      <Badge tone={st.tone}>{st.label}</Badge>
+                    </td>
+                    <td>{r.latencyMs === null ? 'n/a' : `${r.latencyMs} ms`}</td>
+                    <td className="mono">{r.error ?? ''}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}

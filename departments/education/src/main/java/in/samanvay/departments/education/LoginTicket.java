@@ -14,7 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Carries "this person passed the password step" from the password page to the one-time-code page without storing anything.
- * The ticket is {@code base64url("personId|expiry|sha256(state|nonce)") + "." + base64url(HMAC-SHA256)}: it names the person,
+ * The ticket is {@code base64url("personId|expiry|sha256(state|nonce)|random") + "." + base64url(HMAC-SHA256)}: it names the person,
  * expires, and is tied to the exact state and nonce of the login it was issued for, so it cannot be replayed into another login.
  *
  * <p>ponytail: the HMAC key is random per process, so a restart ends pending logins (the citizen just signs in again); one key
@@ -31,7 +31,10 @@ final class LoginTicket {
     }
 
     String issue(String personId, String state, String nonce, Instant now) {
-        String payload = personId + "|" + now.plus(ttl).getEpochSecond() + "|" + binding(state, nonce);
+        byte[] unique = new byte[12];
+        new SecureRandom().nextBytes(unique);
+        // The random part makes every ticket different, even for the same person and login in the same second, so "one ticket, one use" holds.
+        String payload = personId + "|" + now.plus(ttl).getEpochSecond() + "|" + binding(state, nonce) + "|" + HexFormat.of().formatHex(unique);
         String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
         return encoded + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(mac(encoded));
     }
@@ -51,7 +54,7 @@ final class LoginTicket {
                 return Optional.empty();
             }
             String[] payload = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8).split("\\|", -1);
-            if (payload.length != 3 || now.getEpochSecond() >= Long.parseLong(payload[1])) {
+            if (payload.length != 4 || now.getEpochSecond() >= Long.parseLong(payload[1])) {
                 return Optional.empty();
             }
             boolean sameLogin = MessageDigest.isEqual(payload[2].getBytes(StandardCharsets.UTF_8), binding(state, nonce).getBytes(StandardCharsets.UTF_8));

@@ -214,7 +214,7 @@ def sql_agriculture(cs, passwords, sec):
         pid = f"AG-{1000 + c['i']}"
         land, crops, note = farm(c)
         village, taluka = c["place"][2], c["place"][1]
-        lines.append(f"INSERT INTO farmer VALUES ({q(pid)}, {q(c['name'])}, {q(village)}, {q(taluka)}, {land:.2f}, {q(note)});")
+        lines.append(f"INSERT INTO farmer VALUES ({q(pid)}, {q(c['name'])}, {q(village)}, {q(taluka)}, {land:.2f}, {q(note)}, {q(c['dob'])});")
         for season, crop, area in crops:
             lines.append(f"INSERT INTO crop_sowing VALUES ({q(pid)}, {q(season)}, {q(crop)}, {area:.2f});")
         lines.append(f"INSERT INTO citizen_login VALUES ({q(c['mobile'])}, crypt({q(passwords[c['mobile']])}, gen_salt('bf')), {q(pid)});")
@@ -223,6 +223,8 @@ def sql_agriculture(cs, passwords, sec):
         f"CREATE ROLE agriculture_app LOGIN PASSWORD {q(sec['app_password'])};",
         "GRANT CONNECT ON DATABASE agridb TO agriculture_app;", "GRANT USAGE ON SCHEMA public TO agriculture_app;",
         "GRANT SELECT ON citizen_login TO agriculture_app;",
+        "-- Name and date of birth only (for the login assertion), never the internal notes.",
+        "GRANT SELECT (agri_person_id, farmer_name, date_of_birth) ON farmer TO agriculture_app;",
         "-- The read-only login Samanvay uses over JDBC: the VIEW only (no base table, no internal notes, no logins).",
         f"CREATE ROLE agri_ro LOGIN PASSWORD {q(sec['ro_password'])};",
         "GRANT CONNECT ON DATABASE agridb TO agri_ro;", "GRANT USAGE ON SCHEMA public TO agri_ro;",
@@ -286,7 +288,8 @@ def env_file(title, pairs):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--app-url", default="https://app.example.com", help="the middle layer's public address (where citizens use Samanvay)")
+    ap.add_argument("--app-url", default="https://app.example.com", help="the middle layer's public address (staff use it; department portals call its API)")
+    ap.add_argument("--auth-url", help="Keycloak's public address (default: --app-url with the first label 'app' replaced by 'auth')")
     for d in DEPTS:
         ap.add_argument(f"--{d}-url", default=f"https://{d}.example.com", help=f"{d}'s public base URL (what you enter when onboarding)")
         ap.add_argument(f"--{d}-host", help=f"{d} server's public host name or IP for its SFTP/database ports (default: the host of --{d}-url)")
@@ -311,6 +314,8 @@ def main():
         s = sec.setdefault(d, {})
         s.setdefault("db_password", token(""))
         s.setdefault("discovery_key", token("dk_"))
+        s.setdefault("client_secret", token("dc_"))   # the secret of this department's caller client (dept-<code>) in the staff realm
+        s.setdefault("session_secret", token("ss_"))  # signs this department portal's sign-in tickets and session cookie
     sec["revenue"].setdefault("api_key", token("rv_"))
     sec["revenue"].setdefault("sftp_password", token(""))
     sec["dbt"].setdefault("client_id", "samanvay")
@@ -325,6 +330,8 @@ def main():
     urls = {d: getattr(a, f"{d}_url").rstrip("/") for d in DEPTS}
     hosts = {d: getattr(a, f"{d}_host") or urllib.parse.urlparse(urls[d]).hostname for d in DEPTS}
     app = a.app_url.rstrip("/")
+    auth = (a.auth_url or re.sub(r"^(https?://)app\.", r"\1auth.", app)).rstrip("/")
+    token_url = auth + "/realms/samanvay-staff/protocol/openid-connect/token"
     discovery = not a.no_discovery_key
 
     pins = {d: sftp_host_key(out / d, a.rotate) for d in ("revenue", "agriculture")}
@@ -340,9 +347,17 @@ def main():
 
     def common(d, port, db_password):
         return [("PUBLIC_HOST", urllib.parse.urlparse(urls[d]).hostname), (f"{d.upper()}_PUBLIC_URL", urls[d]), (f"{d.upper()}_PORT", str(port)),
-                (f"{d.upper()}_ALLOWED_RETURN_URIS", app + "/"),
+                # A citizen is only ever sent back to a department PORTAL: the other departments' callbacks, never its own, never Samanvay.
+                (f"{d.upper()}_ALLOWED_RETURN_URIS", ",".join(urls[o] + "/portal/callback" for o in DEPTS if o != d)),
+                (f"{d.upper()}_SESSION_SECRET", sec[d]["session_secret"]),
+                # How this department's server reaches Samanvay's department API: its own client, never sent to a browser.
+                ("SAMANVAY_URL", app), ("SAMANVAY_TOKEN_URL", token_url), ("SAMANVAY_CLIENT_ID", f"dept-{d}"),
+                ("SAMANVAY_CLIENT_SECRET", sec[d]["client_secret"]),
                 (f"{d.upper()}_LOGIN_HINT", ""),  # empty hides the demo hint box: citizens are given their own credentials
                 (f"{d.upper()}_LOGIN_CODE", CODE),
+                # This is a DEMO deployment (one fixed code, 123456, and possibly plain http). A department refuses to start with those
+                # unless it is told, on purpose, that it is a demo. A real deployment must NOT set this: it needs its own code and https.
+                ("DEPARTMENT_DEMO_MODE", "true"),
                 (f"{d.upper()}_DB_URL", f"jdbc:postgresql://db:5432/{'agridb' if d == 'agriculture' else d}"), (f"{d.upper()}_DB_USER", f"{d}_app"),
                 (f"{d.upper()}_DB_PASSWORD", db_password),
                 (f"{d.upper()}_MANIFEST_KEY_FILE", "/data/manifest-signing-key.jwk"),
@@ -381,9 +396,14 @@ def main():
            ("SAMANVAY_AGRICULTURE_SFTP_HOST", hosts["agriculture"]), ("SAMANVAY_AGRICULTURE_SFTP_PORT", "2224"),
            ("SAMANVAY_AGRICULTURE_SFTP_HOSTKEY", pins["agriculture"] or todo),
            ("SAMANVAY_AGRICULTURE_JDBC_URL", f"jdbc:postgresql://{hosts['agriculture']}:5434/agridb"),
-           ("SAMANVAY_DEPARTMENT_RETURN_PREFIXES", app + "/")]
+           ("SAMANVAY_DEPARTMENT_RETURN_PREFIXES", app + "/"),
+           # Samanvay has no citizen sign in: the citizen realm is switched off (empty = not configured).
+           ("SAMANVAY_CITIZEN_ISSUER_URI", "")]
     write(out / "middle-layer/departments.env", env_file("Middle layer: add to the app's environment file (systemd EnvironmentFile or compose env_file)",
                                                          lines + cfg))
+
+    # The secrets of the department caller clients; scripts/provision-department-clients.py sets them in Keycloak (run on the middle layer).
+    write(out / "middle-layer/department-clients.json", json.dumps({f"dept-{d}": sec[d]["client_secret"] for d in DEPTS}, indent=2) + "\n")
 
     # ---- credentials for people -----------------------------------------------------------------------------------------------
     rows = [["name", "mobile"] + [f"{d}_person_id" for d in DEPTS] + [f"{d}_password" for d in DEPTS] + ["one_time_code"]]
@@ -397,8 +417,11 @@ def main():
         md.append(f"| {c['name']} | {c['mobile']} | " + " | ".join(f"`{pws[d][c['mobile']]}`" for d in DEPTS) + " |")
     md += ["", "Person IDs: Revenue RV-10NN, DBT DBT-10NN, Education EDU-10NN, Agriculture AG-10NN (NN = the citizen's row, 01 to 20).",
            "Citizens 1 and 2 (Asha Patil, Ravi Deshmukh) carry the records the built-in demo always had; Ravi has no caste certificate on purpose.",
-           "", "## Samanvay itself", "",
-           "- Citizens sign up on the middle layer with their name, email and a password (no pre-made citizen accounts).",
+           "", "## Where a citizen goes", "",
+           "Citizens never use Samanvay. Each department has its own portal; sign in there with that department's mobile number, password and code:", ""]
+    md += [f"- {d.capitalize()}: {urls[d]}/portal/" for d in DEPTS]
+    md += ["", "A citizen starts a service at the department that offers it, and the portal sends them to the other departments' own logins when the service needs "
+           "their records.", "", "## Samanvay itself (staff only)", "",
            "- Staff: `dev-officer`, `dev-reviewer`, `dev-admin`. Temporary password `<user>-change-me`, changed at first sign in.",
            "  The authenticator code is 000000 when the server runs with `SAMANVAY_DEMO_FIXED_OTP=000000` (see deploy/README.md).", ""]
     write(out / "CREDENTIALS.md", "\n".join(md))
@@ -406,6 +429,9 @@ def main():
     # ---- onboarding sheet ---------------------------------------------------------------------------------------------------------
     sheet = ["# Onboarding sheet (generated; contains secrets)", "", f"Middle layer: **{app}**", "",
              "Add `middle-layer/departments.env` to the middle layer's environment and restart it BEFORE onboarding.",
+             "Each department's portal calls Samanvay with its own Keycloak client. After Keycloak is up on the middle layer, copy "
+             "`middle-layer/department-clients.json` there and run `python3 scripts/provision-department-clients.py department-clients.json` "
+             "(it sets the four client secrets and proves each works). Do it again after any realm re-import.",
              "Then, for each department below: start its server, capture the two fingerprints, onboard, publish.", ""]
     for d in DEPTS:
         sheet += [f"## {d.capitalize()}", "", f"- **Base URL to onboard from:** `{urls[d]}`",

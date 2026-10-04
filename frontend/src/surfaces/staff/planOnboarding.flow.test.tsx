@@ -199,6 +199,23 @@ describe('admin: review a plan, then onboard a department in one go', () => {
       expect(screen.getByRole('button', { name: /Onboard 1 document$/ })).toBeEnabled()
     })
 
+    it('needs an explicit acknowledgement when the manifest would replace an existing department identity, and sends it', async () => {
+      const identityChange = { warning: 'The login address would change.', changes: ['login address: https://old.example to https://new.example'] }
+      const m = mockFetch([
+        { method: 'POST', path: '/api/catalog/onboard/plan', reply: { body: signed({ pinnedKeyThumbprint: KEY, identityChange }) } },
+        { method: 'POST', path: '/api/catalog/onboard', reply: { body: result } },
+      ])
+      const table = await review(m)
+      expect(screen.getByRole('alert')).toHaveTextContent(/changes an existing department/i)
+      expect(screen.getByText(/login address: https:\/\/old\.example/)).toBeInTheDocument()
+      await tickAndApproveMatches(table)
+      expect(screen.getByRole('button', { name: /Onboard 1 document$/ })).toBeDisabled()
+      await userEvent.click(screen.getByRole('checkbox', { name: /I understand and accept this change/ }))
+      await userEvent.click(screen.getByRole('button', { name: /Onboard 1 document$/ }))
+      await waitFor(() => expect(m.find('POST', '/api/catalog/onboard')).toHaveLength(1))
+      expect(m.find('POST', '/api/catalog/onboard')[0]?.body).toMatchObject({ acknowledgeIdentityChange: true })
+    })
+
     it('says plainly when the manifest is not signed', async () => {
       const m = mockFetch([{ method: 'POST', path: '/api/catalog/onboard/plan', reply: { body: plan } }])
       await review(m)

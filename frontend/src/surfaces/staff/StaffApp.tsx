@@ -1,5 +1,4 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { Loading } from '../../ui/Loading'
 import { RequireRole, RequireStaff } from './guards'
 import { ADMIN, OFFICER, OPS, REVIEWER } from './nav'
 import { StaffLayout } from './StaffLayout'
@@ -10,8 +9,10 @@ import { ApplicationsReviewPage } from './pages/ApplicationsReviewPage'
 import { ApplicationReviewPage } from './pages/ApplicationReviewPage'
 import { CitizenViewPage } from './pages/CitizenViewPage'
 import { MetricsPage } from './pages/MetricsPage'
+import { JourneyStatusPage } from './pages/JourneyStatusPage'
 import { AuditPage } from './pages/AuditPage'
-import { CatalogPage } from './pages/CatalogPage'
+import { DepartmentsPage } from './pages/DepartmentsPage'
+import { JourneysPage } from './pages/JourneysPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { SchemasPage } from './pages/SchemasPage'
 import { ReviewerQueuePage } from './pages/ReviewerQueuePage'
@@ -22,12 +23,11 @@ import { StaffNotFoundPage } from './pages/StaffNotFoundPage'
  * Keycloak realm. Access is by the roles in the token:
  *
  *   OFFICER          exceptions, bank reviews, applications
- *   OFFICER, ADMIN   metrics, audit ledger
- *   ADMIN            catalog, onboarding
+ *   OFFICER, ADMIN   metrics, audit ledger, departments, journeys and a journey's status and log
+ *   ADMIN            central schema, onboarding
  *   REVIEWER         identity review
  *
- * These mirror SecurityConfig's route rules. The citizen surface (CitizenApp) shares
- * nothing with this folder except src/auth, src/api and src/ui.
+ * These mirror SecurityConfig's route rules.
  */
 export function StaffApp() {
   return (
@@ -47,9 +47,11 @@ export function StaffApp() {
           <Route element={<RequireRole allow={OPS} />}>
             <Route path="ops/metrics" element={<MetricsPage />} />
             <Route path="ops/audit" element={<AuditPage />} />
+            <Route path="admin/departments" element={<DepartmentsPage />} />
+            <Route path="admin/journeys" element={<JourneysPage />} />
+            <Route path="admin/journeys/:code" element={<JourneyStatusPage />} />
           </Route>
           <Route element={<RequireRole allow={ADMIN} />}>
-            <Route path="admin/catalog" element={<CatalogPage />} />
             <Route path="admin/onboarding" element={<OnboardingPage />} />
             <Route path="admin/schemas" element={<SchemasPage />} />
           </Route>
@@ -59,8 +61,7 @@ export function StaffApp() {
           <Route path="*" element={<StaffNotFoundPage />} />
         </Route>
       </Route>
-      {/* A hash outside /staff means the user is moving to the citizen area: main.tsx reloads. */}
-      <Route path="*" element={<Loading label="Switching" />} />
+      <Route path="*" element={<Navigate to="/staff" replace />} />
     </Routes>
   )
 }

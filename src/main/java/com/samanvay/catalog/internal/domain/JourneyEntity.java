@@ -23,6 +23,15 @@ public class JourneyEntity {
     private String status;
     @Column(name = "academic_year_start_month")
     private Integer academicYearStartMonth;
+    private boolean onboarded;
+
+    public boolean isOnboarded() {
+        return onboarded;
+    }
+
+    public void setOnboarded(boolean onboarded) {
+        this.onboarded = onboarded;
+    }
 
     public String getCode() {
         return code;

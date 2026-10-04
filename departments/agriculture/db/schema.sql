@@ -4,7 +4,8 @@
 -- tables with the demo farmers and creates the database roles with generated passwords. Idempotent.
 --
 -- Two accounts use this database, with very different rights (created and granted by the generated seed):
---   agriculture_app  this department's own service: reads citizen_login to sign a farmer in.
+--   agriculture_app  this department's own service: reads citizen_login to sign a farmer in, and the farmer's name and date of
+--                    birth (column grant) for the login assertion.
 --   agri_ro          the read-only login Samanvay uses over JDBC: SELECT on the VIEW v_farmer_record only. It cannot see the
 --                    base table or internal_notes.
 -- (db/init.sql is the older all-in-one script with fixed dev passwords, kept for the local docker compose.)
@@ -27,8 +28,12 @@ CREATE TABLE IF NOT EXISTS farmer (
     village         VARCHAR(80)   NOT NULL,
     taluka          VARCHAR(80)   NOT NULL,
     land_hectares   NUMERIC(6, 2) NOT NULL,
-    internal_notes  TEXT
+    internal_notes  TEXT,
+    date_of_birth   DATE
 );
+
+-- Databases created before the portal change have no date of birth column yet.
+ALTER TABLE farmer ADD COLUMN IF NOT EXISTS date_of_birth DATE;
 
 -- Crop sowing reports. Also exported as a CSV for Samanvay to pick up over SFTP (outbound/crop.csv).
 CREATE TABLE IF NOT EXISTS crop_sowing (

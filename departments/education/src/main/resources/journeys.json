@@ -1,0 +1,14 @@
+{"journeys":[
+  {"code":"EDUCATION_SCHOLARSHIP","name":"Post-matric scholarship",
+   "description":"Scholarship for students after matriculation; needs income, caste, marks and a bank account.",
+   "referencePrefix":"PMS","slaHours":240,"consentPurpose":"EDU_SCHOLARSHIP_ELIGIBILITY",
+   "requiredCategories":[
+     {"category":"INCOME_CERTIFICATE","department":"REVENUE"},
+     {"category":"CASTE_CERTIFICATE","department":"REVENUE"},
+     {"category":"MARKS","department":"EDUCATION"},
+     {"category":"BANK_ACCOUNT","department":"DBT"}],
+   "form":[
+     {"name":"course","label":"Course you are joining","type":"text","required":true,"options":[]},
+     {"name":"institution","label":"College or institution","type":"text","required":true,"options":[]},
+     {"name":"yearOfStudy","label":"Year of study","type":"select","required":true,"options":["FIRST","SECOND","THIRD","FOURTH"]}]}
+]}

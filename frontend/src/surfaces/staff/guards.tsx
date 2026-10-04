@@ -36,9 +36,6 @@ function StaffRoles() {
           <button type="button" className="btn" onClick={() => void signOut()}>
             Sign out
           </button>
-          <a className="btn" href="#/">
-            Citizen services
-          </a>
         </div>
       </section>
     )

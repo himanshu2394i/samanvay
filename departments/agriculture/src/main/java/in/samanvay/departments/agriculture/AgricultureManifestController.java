@@ -1,6 +1,8 @@
 package in.samanvay.departments.agriculture;
 
+import in.samanvay.departments.kit.JourneyCatalog;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +23,7 @@ class AgricultureManifestController {
     private final int sftpPort;
     private final String sftpHostKey;
     private final String publicBaseUrl;
+    private final JourneyCatalog journeys;
 
     AgricultureManifestController(
             @Value("${agriculture.public-base-url}") String publicBaseUrl,
@@ -29,8 +32,10 @@ class AgricultureManifestController {
             @Value("${agriculture.db.name}") String dbName,
             @Value("${agriculture.sftp.host}") String sftpHost,
             @Value("${agriculture.sftp.port}") int sftpPort,
-            @Value("${agriculture.sftp.host-key-sha256:}") String sftpHostKey) {
+            @Value("${agriculture.sftp.host-key-sha256:}") String sftpHostKey,
+            JourneyCatalog journeys) {
         this.publicBaseUrl = publicBaseUrl;
+        this.journeys = journeys;
         this.dbHost = dbHost;
         this.dbPort = dbPort;
         this.dbName = dbName;
@@ -46,12 +51,7 @@ class AgricultureManifestController {
                 new Identity(AssertionSigner.PERSON_ID_TYPE, publicBaseUrl + "/login", publicBaseUrl + "/.well-known/jwks.json", AssertionSigner.ISSUER),
                 new Sample("AG-1001"),
                 List.of(farmerRecord(), cropSowing()),
-                List.of(new Journey("FARMER_SUBSIDY", "Farmer subsidy",
-                        "Input subsidy for registered farmers; needs the 7/12 land parcel, the crop record and a bank account.", "FAR", 96,
-                        "FARMER_SUBSIDY", "AGRICULTURE",
-                        List.of(new RequiredCategory("LAND_PARCEL", "REVENUE"),
-                                new RequiredCategory("CROP_RECORD", "AGRICULTURE"),
-                                new RequiredCategory("BANK_ACCOUNT", "DBT")))));
+                journeys.manifestJourneys(publicBaseUrl));
     }
 
     private Document farmerRecord() {
@@ -77,7 +77,7 @@ class AgricultureManifestController {
                 new Access(null, sftp));
     }
 
-    record Manifest(int manifestVersion, Dept department, Identity identity, Sample sample, List<Document> documents, List<Journey> journeys) {}
+    record Manifest(int manifestVersion, Dept department, Identity identity, Sample sample, List<Document> documents, List<Map<String, Object>> journeys) {}
 
     /** A FAKE person this department can answer for, so an admin can run a trial fetch at onboarding. Never a real person. */
     record Sample(String personId) {}
@@ -105,9 +105,4 @@ class AgricultureManifestController {
     record Auth(String scheme, List<AuthParam> parameters, String docs) {}
 
     record AuthParam(String name, String in, boolean secret) {}
-
-    record Journey(String code, String name, String description, String referencePrefix, int slaHours,
-                   String consentPurpose, String requester, List<RequiredCategory> requiredCategories) {}
-
-    record RequiredCategory(String category, String department) {}
 }

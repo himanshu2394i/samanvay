@@ -40,10 +40,10 @@ afterEach(() => {
 })
 
 // The whole path a real browser takes: token -> AuthProvider (roles) -> realm-specific app -> route guard.
-describe('App realm wiring', () => {
+describe('App wiring', () => {
   it('serves the staff consoles on the staff realm, from the roles in the token', async () => {
     window.history.replaceState(null, '', '/#/staff')
-    render(<App manager={manager(userWith(['officer']))} realm="staff" />)
+    render(<App manager={manager(userWith(['officer']))} />)
     expect(await screen.findByRole('heading', { name: 'Staff consoles' })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Exceptions' }).length).toBeGreaterThan(0) // nav + home card
     expect(screen.queryByRole('link', { name: 'Catalog' })).not.toBeInTheDocument()
@@ -51,25 +51,22 @@ describe('App realm wiring', () => {
 
   it('lands on the staff home when the IdP returns to the bare page', async () => {
     window.history.replaceState(null, '', '/')
-    render(<App manager={manager(userWith(['admin']))} realm="staff" />)
+    render(<App manager={manager(userWith(['admin']))} />)
     expect(await screen.findByRole('heading', { name: 'Staff consoles' })).toBeInTheDocument()
     expect(window.location.hash).toBe('#/staff')
   })
 
   it('never shows staff consoles to a citizen-role token, even if it reached the staff app', async () => {
     window.history.replaceState(null, '', '/#/staff/admin/catalog')
-    render(<App manager={manager(userWith(['citizen']))} realm="staff" />)
+    render(<App manager={manager(userWith(['citizen']))} />)
     expect(await screen.findByRole('heading', { name: 'No staff access' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catalog' })).not.toBeInTheDocument()
   })
 
-  it('serves the citizen surface, with no staff navigation, on the citizen realm', async () => {
-    window.history.replaceState(null, '', '/#/')
-    render(<App manager={manager(null)} />)
-    expect(await screen.findByText('Citizen services')).toBeInTheDocument()
-    // no staff navigation or staff page; only the footer pointer to the separate staff sign-in
-    expect(screen.queryByRole('navigation', { name: 'Staff' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Staff consoles' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Staff consoles' })).toHaveAttribute('href', '#/staff')
+  it('sends a hash outside the staff area back to the staff home (there is no citizen area)', async () => {
+    window.history.replaceState(null, '', '/#/services')
+    render(<App manager={manager(userWith(['officer']))} />)
+    expect(await screen.findByRole('heading', { name: 'Staff consoles' })).toBeInTheDocument()
+    expect(window.location.hash).toBe('#/staff')
   })
 })

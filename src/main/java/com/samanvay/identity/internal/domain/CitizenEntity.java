@@ -17,6 +17,19 @@ public class CitizenEntity {
     private Instant createdAt;
     @Column(name = "auth_subject")
     private String authSubject;
+    private String origin;
+
+    public String getStatus() {
+        return status;
+    }
+
+    public String getOrigin() {
+        return origin;
+    }
+
+    public void setOrigin(String origin) {
+        this.origin = origin;
+    }
 
     public String getAuthSubject() {
         return authSubject;

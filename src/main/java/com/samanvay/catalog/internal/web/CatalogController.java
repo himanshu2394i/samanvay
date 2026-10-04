@@ -7,10 +7,11 @@ import com.samanvay.catalog.api.CatalogDiscovery;
 import com.samanvay.catalog.api.CatalogOnboarding;
 import com.samanvay.catalog.api.ConnectorCatalog;
 import com.samanvay.catalog.api.DataSourceHealth;
-import com.samanvay.catalog.api.DepartmentManifest;
 import com.samanvay.catalog.api.ConnectorDefinition;
 import com.samanvay.catalog.api.ConnectorDraft;
+import com.samanvay.catalog.api.ConnectorNotReadyException;
 import com.samanvay.catalog.api.ConnectorTestReport;
+import com.samanvay.catalog.api.TrialGate;
 import com.samanvay.catalog.api.DataSourceDefinition;
 import com.samanvay.catalog.api.DataSourceDraft;
 import com.samanvay.catalog.api.Department;
@@ -54,6 +55,7 @@ class CatalogController {
     private final SchemaCatalog schemas;
     private final SchemaAdmin schemaAdmin;
     private final ManifestOnboarding manifestOnboarding;
+    private final TrialGate trialGate;
 
     CatalogController(
             DepartmentCatalog departments,
@@ -65,8 +67,10 @@ class CatalogController {
             SpecImport importer,
             SchemaCatalog schemas,
             SchemaAdmin schemaAdmin,
-            ManifestOnboarding manifestOnboarding) {
+            ManifestOnboarding manifestOnboarding,
+            TrialGate trialGate) {
         this.manifestOnboarding = manifestOnboarding;
+        this.trialGate = trialGate;
         this.departments = departments;
         this.journeys = journeys;
         this.journeyWrite = journeyWrite;
@@ -139,13 +143,34 @@ class CatalogController {
         return onboarding.saveMapping(draft);
     }
 
+    /**
+     * The configuration check, and then a REAL trial against the department with the connector's own sample person (recorded
+     * durably): a connector that passes here has fetched something from the department. No sample declared: the configuration check
+     * alone, and a trial must be run by naming a person (POST /api/connector/trial/{ref}) before it can be published.
+     */
     @PostMapping("/connectors/{ref}/test")
     ConnectorTestReport test(@PathVariable String ref) {
-        return onboarding.test(ref);
+        ConnectorTestReport config = onboarding.test(ref);
+        if (!config.passed()) {
+            return config;
+        }
+        return trialGate.runSample(ref)
+                .filter(t -> !t.ok())
+                .map(t -> new ConnectorTestReport(false, List.of("The trial fetch for the department's sample person did not succeed: " + t.outcome()
+                        + (t.detail() == null || t.detail().isBlank() ? "" : " (" + t.detail() + ")"))))
+                .orElse(config);
     }
 
+    /** What the client sends in the body is ignored: the decision rests on the server's own configuration check and recorded trial. */
+    static final java.time.Duration TRIAL_VALID_FOR = java.time.Duration.ofHours(24);
+
     @PostMapping("/connectors/{ref}/publish")
-    ConnectorDefinition publish(@PathVariable String ref, @RequestBody ConnectorTestReport report) {
+    ConnectorDefinition publish(@PathVariable String ref, @RequestBody(required = false) ConnectorTestReport ignoredClientReport) {
+        ConnectorTestReport report = onboarding.test(ref);
+        if (report.passed() && !trialGate.succeededWithin(ref, TRIAL_VALID_FOR)) {
+            throw new ConnectorNotReadyException(ref, "no successful trial against the department in the last " + TRIAL_VALID_FOR.toHours()
+                    + " hours; run the connector's trial (the test step does it when a sample person is declared) and try again");
+        }
         return onboarding.publish(ref, report);
     }
 
@@ -164,12 +189,6 @@ class CatalogController {
     @PostMapping("/schemas")
     SchemaSummary addSchema(@RequestBody SchemaDraft draft) {
         return schemaAdmin.create(draft);
-    }
-
-    @PostMapping("/discover")
-    DepartmentManifest discover(@RequestBody DiscoverBody body) {
-        requireText(body.baseUrl(), "baseUrl");
-        return discovery.discover(body.baseUrl());
     }
 
     record DiscoverBody(String baseUrl) {}

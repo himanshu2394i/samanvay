@@ -3,7 +3,7 @@ services:
     image: postgres:16
     environment:
       # samanvay_migrate owns every schema/table and runs migrations. The
-      # running application never connects as this role - see
+      # application's runtime connection never uses this role (Flyway does, in-process, unless split out) - see
       # docs/architecture/lld/01-audit.md #1 for why: a role that owns a
       # table implicitly has every privilege on it regardless of REVOKE,
       # which would silently defeat audit's tamper-evidence guarantee.
@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: samanvay_migrate
       POSTGRES_PASSWORD: samanvay_migrate
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - samanvay-postgres-data:/var/lib/postgresql/data
 
@@ -28,7 +28,7 @@ services:
   # The app finds it via samanvay.security.{staff,citizen}.issuer-uri
   # (dev/demo profiles default to http://localhost:8180).
   keycloak:
-    image: quay.io/keycloak/keycloak:26.4
+    image: quay.io/keycloak/keycloak:26.4.7
     command: ["start-dev", "--import-realm", "--http-port=8180", "--hostname=http://localhost:8180"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_DEV_ADMIN_USER:-admin}
@@ -37,7 +37,7 @@ services:
       # authenticator-app enrolment. Unset (the default) means only real authenticator-app codes work. Never set it in production.
       SAMANVAY_DEMO_FIXED_OTP: ${SAMANVAY_DEMO_FIXED_OTP:-}
     ports:
-      - "8180:8180"
+      - "127.0.0.1:8180:8180"
     volumes:
       - ./keycloak/realms:/opt/keycloak/data/import:ro
       - ./target/keycloak-providers:/opt/keycloak/providers:ro
@@ -49,9 +49,9 @@ services:
   mailpit:
     image: axllent/mailpit:v1.27
     ports:
-      - "8025:8025"
+      - "127.0.0.1:8025:8025"
       # SMTP for the app running on the host (dev profile: spring.mail.host=localhost).
-      - "1025:1025"
+      - "127.0.0.1:1025:1025"
 
   # DEV/DEMO-ONLY bank-check simulator: a separate Spring Boot app (simulators/, built by simulators/Dockerfile) on
   # http://localhost:8090 that implements our bank-check contract v1 (docs/contracts/bank-check-v1.yaml) with FAKE data.
@@ -118,6 +118,7 @@ services:
       - "8091:8091"
     environment:
       REVENUE_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+      DEPARTMENT_DEMO_MODE: "true"
     volumes:
       - dept-revenue-data:/data
   dept-dbt:
@@ -126,6 +127,7 @@ services:
       - "8092:8092"
     environment:
       DBT_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+      DEPARTMENT_DEMO_MODE: "true"
     volumes:
       - dept-dbt-data:/data
   dept-education:
@@ -134,6 +136,7 @@ services:
       - "8093:8093"
     environment:
       EDUCATION_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+      DEPARTMENT_DEMO_MODE: "true"
     volumes:
       - dept-education-data:/data
   dept-agriculture:
@@ -142,6 +145,7 @@ services:
       - "8094:8094"
     environment:
       AGRICULTURE_MANIFEST_KEY_FILE: /data/manifest-signing-key.jwk
+      DEPARTMENT_DEMO_MODE: "true"
     volumes:
       - dept-agriculture-data:/data
 

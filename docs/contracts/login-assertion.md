@@ -32,9 +32,20 @@ A compact JWS (JWT), algorithm **ES256**, header `{"alg":"ES256","kid":"<key id>
 | `jti` | unique ID of this assertion (for audit; replay protection is the one-time `state`, below) |
 | `nonce` | echo of the request `nonce` |
 | `state` | echo of the request `state` |
+| `name` | optional: the person's name as the department holds it |
+| `dob` | optional: date of birth, `YYYY-MM-DD`; a malformed value is ignored |
 
-No raw Aadhaar number, password or other secret is ever in an assertion. Name/date-of-birth claims are optional and
-not part of v1.
+No raw Aadhaar number, password or other secret is ever in an assertion. `name` and `dob` are what Samanvay uses to make
+its record of a person the first time they sign in at a department's own portal (see "Home sign in" below); when `dob` is
+absent the record is made with year-only precision and a placeholder year.
+
+## Home sign in (the citizen signs in at the department's own portal)
+
+Citizens never sign in to Samanvay. A citizen signs in on a department's own portal; the portal's server then sends the same
+kind of assertion to Samanvay (`POST /api/department/citizens/resolve`, docs/contracts/department-api.md), with a fresh random
+`state` and `nonce` that Samanvay did not issue. Everything above is checked the same way, except there is no issued state to
+match: replay is stopped by remembering each assertion's `jti` (a second use is refused). The `dept_code` must be the department
+that is calling.
 
 ## Keys
 

@@ -103,7 +103,8 @@ public record DepartmentManifest(
             int slaHours,
             String consentPurpose,
             String requester,
-            List<RequiredCategory> requiredCategories) {}
+            List<RequiredCategory> requiredCategories,
+            String portalUrl) {}
 
     /** A document category a journey needs, and the department that provides it. */
     public record RequiredCategory(String category, String department) {}

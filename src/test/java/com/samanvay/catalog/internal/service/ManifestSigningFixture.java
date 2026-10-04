@@ -35,16 +35,17 @@ final class ManifestSigningFixture {
         }
     }
 
-    static String sign(String body, ECKey key, Instant iat) {
-        return sign(body.getBytes(StandardCharsets.UTF_8), key, iat);
+    /** @param aud the origin the department says this manifest is for ({@code scheme://host[:port]}); null leaves the claim out */
+    static String sign(String body, ECKey key, Instant iat, String aud) {
+        return sign(body.getBytes(StandardCharsets.UTF_8), key, iat, aud);
     }
 
-    static String sign(byte[] body, ECKey key, Instant iat) {
+    static String sign(byte[] body, ECKey key, Instant iat, String aud) {
         try {
             String digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(body));
             JWSObject jws = new JWSObject(
                     new JWSHeader.Builder(JWSAlgorithm.ES256).type(new com.nimbusds.jose.JOSEObjectType("samanvay-manifest")).jwk(key.toPublicJWK()).build(),
-                    new Payload("{\"sha256\":\"" + digest + "\",\"iat\":" + iat.getEpochSecond() + "}"));
+                    new Payload("{\"sha256\":\"" + digest + "\",\"iat\":" + iat.getEpochSecond() + (aud == null ? "" : ",\"aud\":\"" + aud + "\"") + "}"));
             jws.sign(new ECDSASigner(key));
             return jws.serialize();
         } catch (Exception e) {

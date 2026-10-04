@@ -1,0 +1,4 @@
+# Local development: run with --spring.profiles.active=dev (mvn spring-boot:run -Dspring-boot.run.profiles=dev).
+# Demo mode lets the dev defaults stand (the *-change-me keys, the code 123456, plain http); it must NEVER be used for real citizens.
+department:
+  demo-mode: true

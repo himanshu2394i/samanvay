@@ -180,6 +180,66 @@ class ManifestOnboardingPlannerTest {
         assertThat(connector(p, "CROP_RECORD").capabilities().get("FETCH").get("key_column").asString()).isEqualTo("agriPersonId");
     }
 
+    // --- endpoint paths from a manifest must stay on the registered host -----------------------------------------
+
+    static final List<String> RETARGETING = List.of(".evil.com/x", "@169.254.169.254/", "//evil.com", "https://evil.com", "/a/../b", "/a b", "/a\\b", "/a?x=1", "/a#frag");
+
+    private static String resource(String name) throws IOException {
+        return new String(ManifestOnboardingPlannerTest.class.getResourceAsStream("/manifests/" + name + ".json").readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    private static String jsonEscape(String s) {
+        return s.replace("\\", "\\\\");
+    }
+
+    @Test
+    void a_document_path_that_could_retarget_the_call_is_a_plan_problem_and_not_ready() throws IOException {
+        for (String bad : RETARGETING) {
+            String json = resource("revenue").replace("\"path\":\"/v1/caste/{key}\"", "\"path\":\"" + jsonEscape(bad) + "\"");
+            var doc = new ManifestOnboardingPlanner().plan(CatalogServices.parseManifest(json), "https://revenue.example.gov", null, env())
+                    .plan().documents().stream().filter(d -> d.category().equals("CASTE_CERTIFICATE")).findFirst().orElseThrow();
+            assertThat(doc.ready()).as(bad).isFalse();
+            assertThat(doc.problems()).as(bad).anyMatch(p -> p.contains("path"));
+        }
+    }
+
+    @Test
+    void a_resolve_path_that_could_retarget_the_call_is_a_plan_problem() throws IOException {
+        for (String bad : RETARGETING) {
+            String json = resource("revenue").replace("\"path\":\"/v1/persons/{personId}/documents\"", "\"path\":\"" + jsonEscape(bad) + "\"");
+            var doc = new ManifestOnboardingPlanner().plan(CatalogServices.parseManifest(json), "https://revenue.example.gov", null, env())
+                    .plan().documents().stream().filter(d -> d.category().equals("INCOME_CERTIFICATE")).findFirst().orElseThrow();
+            assertThat(doc.ready()).as(bad).isFalse();
+            assertThat(doc.problems()).as(bad).anyMatch(p -> p.contains("resolve"));
+        }
+    }
+
+    @Test
+    void a_soap_endpoint_that_could_retarget_the_call_is_a_plan_problem() throws IOException {
+        for (String bad : RETARGETING) {
+            String json = resource("education").replace("\"endpoint\":\"/marks/service\"", "\"endpoint\":\"" + jsonEscape(bad) + "\"");
+            var doc = new ManifestOnboardingPlanner().plan(CatalogServices.parseManifest(json), "https://education.example.gov", null, env())
+                    .plan().documents().get(0);
+            assertThat(doc.ready()).as(bad).isFalse();
+            assertThat(doc.problems()).as(bad).anyMatch(p -> p.contains("endpoint"));
+        }
+    }
+
+    @Test
+    void an_oauth_token_url_that_could_retarget_the_call_is_a_plan_problem() throws IOException {
+        String json = resource("dbt").replace("\"tokenUrl\":\"/oauth/token\"", "\"tokenUrl\":\"//evil.com/token\"");
+        var doc = new ManifestOnboardingPlanner().plan(CatalogServices.parseManifest(json), "https://dbt.example.gov", null, env()).plan().documents().get(0);
+        assertThat(doc.ready()).isFalse();
+        assertThat(doc.problems()).anyMatch(p -> p.contains("tokenUrl"));
+    }
+
+    @Test
+    void a_base_url_with_a_user_name_cannot_hide_the_real_host_in_the_registered_one() throws IOException {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new ManifestOnboardingPlanner()
+                .plan(manifest("dbt"), "https://dept.example.gov@169.254.169.254", null, env()))
+                .isInstanceOf(com.samanvay.shared.InvalidRequestException.class).hasMessageContaining("user name");
+    }
+
     // --- readiness and mapping -----------------------------------------------------------------------------
 
     @Test
@@ -374,6 +434,39 @@ class ManifestOnboardingPlannerTest {
     void a_department_without_an_identity_block_has_nothing_to_check() {
         String json = "{\"manifestVersion\":2,\"department\":{\"code\":\"X\",\"name\":\"X\",\"description\":\"d\"},\"documents\":[],\"journeys\":[]}";
         assertThat(ManifestOnboardingPlanner.identityHostProblem(CatalogServices.parseManifest(json), "https://x.example.gov")).isEmpty();
+    }
+
+    // --- journeys carry the address of the department's own portal ---------------------------------------------
+
+    static String withPortal(String portalUrl) {
+        return "{\"manifestVersion\":2,\"department\":{\"code\":\"X\",\"name\":\"X\",\"description\":\"d\"},\"documents\":[],\"journeys\":["
+                + "{\"code\":\"J1\",\"name\":\"Journey\",\"description\":\"d\",\"referencePrefix\":\"JJ\",\"slaHours\":24,"
+                + "\"consentPurpose\":\"P\",\"requester\":\"X\",\"requiredCategories\":[],\"portalUrl\":" + (portalUrl == null ? "null" : "\"" + portalUrl + "\"") + "}]}";
+    }
+
+    @Test
+    void a_journeys_portal_address_on_the_manifests_own_host_is_kept_in_the_plan() {
+        var m = CatalogServices.parseManifest(withPortal("https://x.example.gov/portal/"));
+        assertThat(ManifestOnboardingPlanner.identityHostProblem(m, "https://x.example.gov")).isEmpty();
+        var plan = new ManifestOnboardingPlanner().plan(m, "https://x.example.gov", null, env()).plan();
+        assertThat(plan.journeys()).singleElement().satisfies(j -> assertThat(j.portalUrl()).isEqualTo("https://x.example.gov/portal/"));
+    }
+
+    @Test
+    void a_journeys_portal_address_on_another_host_is_refused() {
+        var problem = ManifestOnboardingPlanner.identityHostProblem(CatalogServices.parseManifest(withPortal("https://evil.example.net/portal/")), "https://x.example.gov");
+        assertThat(problem).isPresent();
+        assertThat(problem.get()).contains("evil.example.net");
+    }
+
+    @Test
+    void a_portal_address_that_is_not_http_or_https_is_refused() {
+        assertThat(ManifestOnboardingPlanner.identityHostProblem(CatalogServices.parseManifest(withPortal("javascript:alert(1)")), "https://x.example.gov")).isPresent();
+    }
+
+    @Test
+    void a_journey_without_a_portal_address_is_still_fine() {
+        assertThat(ManifestOnboardingPlanner.identityHostProblem(CatalogServices.parseManifest(withPortal(null)), "https://x.example.gov")).isEmpty();
     }
 
     // --- grouping -------------------------------------------------------------------------------------------

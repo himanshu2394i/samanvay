@@ -1,30 +1,22 @@
 import { HashRouter } from 'react-router-dom'
 import { ApiProvider } from './api/ApiProvider'
 import { AuthProvider, type OidcManager } from './auth/AuthProvider'
-import type { RealmKey } from './auth/config'
-import { CitizenApp } from './surfaces/citizen/CitizenApp'
 import { StaffApp } from './surfaces/staff/StaffApp'
 
 /**
- * Hash routing: the built files are served as plain static resources (Spring, no SPA
- * fallback), so deep links must not need server-side rewrites. It also keeps the OIDC
- * redirect URI a single fixed page.
+ * Samanvay is for the Samanvay team and officers: this app is the staff console and signs in on the staff realm only. Citizens never
+ * come here; they use their own department's portal.
  *
- * One page load serves ONE realm (see auth/realm.ts): the citizen surface on the citizen
- * realm, the staff surfaces (#/staff/...) on the staff realm. `manager` is the
- * UserManager of that realm.
+ * Hash routing: the built files are served as plain static resources (Spring, no SPA fallback), so deep links must not need
+ * server-side rewrites. It also keeps the OIDC redirect URI a single fixed page.
  */
-export function App({
-  manager,
-  realm = 'citizen',
-}: {
-  manager: OidcManager
-  realm?: RealmKey
-}) {
+export function App({ manager }: { manager: OidcManager }) {
   return (
-    <AuthProvider manager={manager} realm={realm}>
+    <AuthProvider manager={manager}>
       <ApiProvider>
-        <HashRouter>{realm === 'staff' ? <StaffApp /> : <CitizenApp />}</HashRouter>
+        <HashRouter>
+          <StaffApp />
+        </HashRouter>
       </ApiProvider>
     </AuthProvider>
   )

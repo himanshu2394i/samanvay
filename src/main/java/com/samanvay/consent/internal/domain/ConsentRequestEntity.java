@@ -25,6 +25,12 @@ public class ConsentRequestEntity {
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "data_categories", columnDefinition = "text[]")
     private String[] dataCategories;
+    /** What the citizen was asked about, as the catalog said then (V212); null for requests made before. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "data_types", columnDefinition = "text[]")
+    private String[] dataTypes;
+    @Column(name = "validity_days")
+    private Integer validityDays;
     private String status;
     @Column(name = "created_at")
     private Instant createdAt;
@@ -77,6 +83,22 @@ public class ConsentRequestEntity {
 
     public void setDataCategories(String[] dataCategories) {
         this.dataCategories = dataCategories;
+    }
+
+    public String[] getDataTypes() {
+        return dataTypes;
+    }
+
+    public void setDataTypes(String[] dataTypes) {
+        this.dataTypes = dataTypes;
+    }
+
+    public Integer getValidityDays() {
+        return validityDays;
+    }
+
+    public void setValidityDays(Integer validityDays) {
+        this.validityDays = validityDays;
     }
 
     public String getStatus() {

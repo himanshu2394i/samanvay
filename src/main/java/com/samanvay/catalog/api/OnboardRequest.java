@@ -9,6 +9,8 @@ import java.util.Map;
  * suggestions ({@code acceptSuggestedMappings}) or supplies their own per category in {@code mappings}.
  * {@code approvedManifestKey} is the thumbprint of the manifest signing key the admin confirmed with the department; it is
  * needed whenever the manifest is signed by a key that is not yet pinned (first onboarding, or a changed key).
+ * {@code acknowledgeIdentityChange} must be true when the plan shows an {@code identityChange}: the manifest would replace the
+ * identity (login, keys, issuer, person-ID type, signing key) of a department that already has one.
  */
 public record OnboardRequest(
         String baseUrl,
@@ -16,10 +18,20 @@ public record OnboardRequest(
         List<String> categories,
         boolean acceptSuggestedMappings,
         Map<String, List<FieldMapping>> mappings,
-        String approvedManifestKey) {
+        String approvedManifestKey,
+        Boolean acknowledgeIdentityChange) {
+
+    public OnboardRequest {
+        acknowledgeIdentityChange = acknowledgeIdentityChange != null && acknowledgeIdentityChange; // absent in the JSON means no
+    }
+
+    public OnboardRequest(String baseUrl, String manifestDigest, List<String> categories, boolean acceptSuggestedMappings,
+            Map<String, List<FieldMapping>> mappings, String approvedManifestKey) {
+        this(baseUrl, manifestDigest, categories, acceptSuggestedMappings, mappings, approvedManifestKey, false);
+    }
 
     public OnboardRequest(String baseUrl, String manifestDigest, List<String> categories, boolean acceptSuggestedMappings,
             Map<String, List<FieldMapping>> mappings) {
-        this(baseUrl, manifestDigest, categories, acceptSuggestedMappings, mappings, null);
+        this(baseUrl, manifestDigest, categories, acceptSuggestedMappings, mappings, null, false);
     }
 }

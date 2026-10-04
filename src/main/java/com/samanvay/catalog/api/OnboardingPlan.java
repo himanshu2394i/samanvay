@@ -19,7 +19,31 @@ public record OnboardingPlan(
         List<JourneyPlan> journeys,
         List<PendingStep> pendingSteps,
         String manifestKeyThumbprint,
-        String pinnedKeyThumbprint) {
+        String pinnedKeyThumbprint,
+        IdentityChange identityChange) {
+
+    /**
+     * Present when the manifest would CHANGE the identity of a department that already has one (login or key address, issuer,
+     * person-ID type, or the key that signs the manifest). {@code warning} is for the admin to read; {@code changes} lists each
+     * difference (current to proposed). Onboarding then needs {@code acknowledgeIdentityChange} (HTTP 409 without it).
+     */
+    public record IdentityChange(String warning, List<String> changes) {}
+
+    public OnboardingPlan(
+            String departmentCode,
+            String departmentName,
+            String manifestDigest,
+            boolean departmentExists,
+            boolean onboardedFromManifest,
+            boolean changedSinceOnboarding,
+            List<DocumentPlan> documents,
+            List<JourneyPlan> journeys,
+            List<PendingStep> pendingSteps,
+            String manifestKeyThumbprint,
+            String pinnedKeyThumbprint) {
+        this(departmentCode, departmentName, manifestDigest, departmentExists, onboardedFromManifest, changedSinceOnboarding, documents,
+                journeys, pendingSteps, manifestKeyThumbprint, pinnedKeyThumbprint, null);
+    }
 
     /**
      * {@code manifestKeyThumbprint} is the key that signed the manifest just fetched (null = unsigned); {@code pinnedKeyThumbprint}
@@ -36,12 +60,17 @@ public record OnboardingPlan(
             List<JourneyPlan> journeys,
             List<PendingStep> pendingSteps) {
         this(departmentCode, departmentName, manifestDigest, departmentExists, onboardedFromManifest, changedSinceOnboarding, documents,
-                journeys, pendingSteps, null, null);
+                journeys, pendingSteps, null, null, null);
     }
 
     public OnboardingPlan withManifestKey(String manifestKeyThumbprint, String pinnedKeyThumbprint) {
         return new OnboardingPlan(departmentCode, departmentName, manifestDigest, departmentExists, onboardedFromManifest,
-                changedSinceOnboarding, documents, journeys, pendingSteps, manifestKeyThumbprint, pinnedKeyThumbprint);
+                changedSinceOnboarding, documents, journeys, pendingSteps, manifestKeyThumbprint, pinnedKeyThumbprint, identityChange);
+    }
+
+    public OnboardingPlan withIdentityChange(IdentityChange identityChange) {
+        return new OnboardingPlan(departmentCode, departmentName, manifestDigest, departmentExists, onboardedFromManifest,
+                changedSinceOnboarding, documents, journeys, pendingSteps, manifestKeyThumbprint, pinnedKeyThumbprint, identityChange);
     }
 
     /**
@@ -62,5 +91,5 @@ public record OnboardingPlan(
             List<String> problems,
             boolean ready) {}
 
-    public record JourneyPlan(String code, String name, boolean exists, List<String> requiredCategories) {}
+    public record JourneyPlan(String code, String name, boolean exists, List<String> requiredCategories, String portalUrl) {}
 }

@@ -18,14 +18,35 @@ class RealmIssuerStartupCheckTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner().withUserConfiguration(Checked.class);
 
     @Test
-    void refusesToBootWithoutIssuers() {
+    void refusesToBootWithoutTheStaffIssuer() {
         runner.run(ctx -> {
             assertThat(ctx).hasFailed();
             assertThat(ctx.getStartupFailure())
                     .rootCause()
                     .hasMessageContaining("samanvay.security.staff.issuer-uri is not set")
-                    .hasMessageContaining("samanvay.security.citizen.issuer-uri is not set");
+                    .hasMessageNotContaining("citizen");
         });
+    }
+
+    @Test
+    void theCitizenRealmIsOptionalBecauseSamanvayHasNoCitizenSignIn() {
+        runner.withPropertyValues("samanvay.security.staff.issuer-uri=https://idp.example.gov/realms/samanvay-staff")
+                .run(ctx -> assertThat(ctx).hasNotFailed());
+        runner.withPropertyValues(
+                        "samanvay.security.staff.issuer-uri=https://idp.example.gov/realms/samanvay-staff",
+                        "samanvay.security.citizen.issuer-uri=")
+                .run(ctx -> assertThat(ctx).hasNotFailed());
+    }
+
+    @Test
+    void aCitizenIssuerThatIsConfiguredIsStillHeldToHttpsOutsideDevAndDemo() {
+        runner.withPropertyValues(
+                        "samanvay.security.staff.issuer-uri=https://idp.example.gov/realms/samanvay-staff",
+                        "samanvay.security.citizen.issuer-uri=http://idp.example.gov/realms/samanvay-citizen")
+                .run(ctx -> {
+                    assertThat(ctx).hasFailed();
+                    assertThat(ctx.getStartupFailure()).rootCause().hasMessageContaining("citizen.issuer-uri must be an https URL");
+                });
     }
 
     @Test

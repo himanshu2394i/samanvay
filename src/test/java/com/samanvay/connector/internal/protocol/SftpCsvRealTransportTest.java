@@ -123,10 +123,11 @@ class SftpCsvRealTransportTest {
     }
 
     @Test
-    void unknown_id_returns_the_same_unknown_shape_as_the_mock_path() {
+    void unknown_id_returns_an_empty_body_the_runtime_reads_as_not_found_not_a_fake_row() {
         AdapterResponse response = adapter(fingerprint, USER + ":" + PASSWORD).execute(request(SOURCE, "sftp.invalid", "PROP-404"));
 
-        assertThat(response.body().get("propertyRef").asString()).isEqualTo("UNKNOWN");
+        assertThat(response.body().isEmpty()).isTrue();
+        assertThat(response.body().has("propertyRef")).isFalse();
     }
 
     @Test

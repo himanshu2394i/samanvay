@@ -93,10 +93,10 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @SpringBootTest(
         classes = SamanvayApplication.class,
+        webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
         properties = {
             "samanvay.catalog.allowed-private-hosts=127.0.0.1,localhost",
-            "samanvay.identity.department-assertion.allow-private-hosts=true",
-            "samanvay.identity.department-assertion.allowed-return-prefixes=http://localhost:8080/"
+            "samanvay.identity.department-assertion.allow-private-hosts=true"
         })
 @Import(DepartmentsEndToEndIT.ProvisionedSecrets.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -105,7 +105,11 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
 
     static final JsonMapper JSON = JsonMapper.builder().build();
     static final HttpClient HTTP = HttpClient.newHttpClient(); // does not follow redirects
-    static final String RETURN_TO = "http://localhost:8080/shared/dept-callback.html";
+    /** The old Samanvay-side return address is gone; these tests now return to a department portal's callback (see start()). */
+    static String returnTo(String loginDept) {
+        return "http://127.0.0.1:" + PORT.get("revenue".equals(loginDept) ? "dbt" : "revenue") + "/portal/callback";
+    }
+
     static final Path ROOT = findRoot();
     static final String REVENUE_DISCOVERY_KEY = "revenue-discovery-key-for-samanvay";
 
@@ -136,6 +140,8 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
     static String agricultureFingerprint;
     static PostgreSQLContainer agriDb;
     static boolean jarsPresent;
+    static int samanvayPort;
+    static com.sun.net.httpserver.HttpServer tokenServer;
 
     static Path findRoot() {
         Path p = Path.of("").toAbsolutePath();
@@ -147,6 +153,16 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
 
     static Path jar(String dept) {
         return ROOT.resolve("departments/" + dept + "/target/samanvay-dept-" + dept + ".jar");
+    }
+
+    /** Locally a missing jar skips the run; in CI (the CI variable is set) it is a failure, so the end-to-end proof cannot silently vanish. */
+    static void requireJars() {
+        String msg = "build the department jars first: scripts/build-departments.sh";
+        if (System.getenv("CI") != null) {
+            assertThat(jarsPresent).as(msg).isTrue();
+        } else {
+            assumeTrue(jarsPresent, msg);
+        }
     }
 
     static int freePort() throws IOException {
@@ -186,7 +202,29 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
         return KeyUtils.getFingerPrint(k.getPublic());
     }
 
+    /**
+     * A stand-in for Keycloak's token endpoint: hands each department portal the staff-realm token Samanvay's test keys accept, with the
+     * department claim of its client (dept-<code>-it). The real Keycloak client credentials flow is checked by the Keycloak ITs.
+     */
+    static void startTokenServer() throws IOException {
+        tokenServer = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        tokenServer.createContext("/token", ex -> {
+            String form = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            String clientId = URLDecoder.decode(form.replaceAll(".*client_id=([^&]*).*", "$1"), StandardCharsets.UTF_8);
+            String dept = clientId.replace("dept-", "").replace("-it", "").toUpperCase();
+            byte[] out = ("{\"access_token\":\"" + com.samanvay.shared.test.TestTokens.departmentOf(clientId, dept) + "\",\"expires_in\":300}")
+                    .getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, out.length);
+            ex.getResponseBody().write(out);
+            ex.close();
+        });
+        tokenServer.start();
+    }
+
     static void startWorld() throws Exception {
+        samanvayPort = freePort();
+        startTokenServer();
         revenueSftp = sftp(ROOT.resolve("departments/revenue/sftp/712.csv"), "revenue-sftp", "rev-sftp-pass", "rev");
         agricultureSftp = sftp(ROOT.resolve("departments/agriculture/sftp/crop.csv"), "agri-sftp", "agri-sftp-pass", "agri");
         revenueFingerprint = fingerprint(revenueSftp);
@@ -226,12 +264,22 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
 
     static void start(String dept, String... args) throws IOException {
         List<String> cmd = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-jar",
-                jar(dept).toString(), "--server.port=" + PORT.get(dept), "--spring.main.banner-mode=off"));
+                jar(dept).toString(), "--server.port=" + PORT.get(dept), "--spring.main.banner-mode=off", "--department.demo-mode=true"));
         cmd.addAll(List.of(args));
         // Each department signs its manifest with a key kept in a file; keep the test's keys out of the source tree.
         Path keys = Path.of("target", "e2e-keys");
         Files.createDirectories(keys);
         cmd.add("--" + dept + ".manifest.key-file=" + keys.resolve(dept + ".jwk").toAbsolutePath());
+        // The portal backend: reaches Samanvay with this department's own client, and may send citizens to the OTHER portals' logins
+        // and receive them back at its own callback.
+        cmd.add("--portal.public-base-url=http://127.0.0.1:" + PORT.get(dept));
+        cmd.add("--portal.samanvay.base-url=http://127.0.0.1:" + samanvayPort);
+        cmd.add("--portal.samanvay.token-url=http://127.0.0.1:" + tokenServer.getAddress().getPort() + "/token");
+        cmd.add("--portal.samanvay.client-id=dept-" + dept + "-it");
+        cmd.add("--portal.samanvay.client-secret=not-checked-by-the-stand-in");
+        cmd.add("--portal.session-secret=e2e-session-secret-" + dept);
+        cmd.add("--" + dept + ".login.allowed-return-uris=" + PORT.keySet().stream().filter(o -> !o.equals(dept))
+                .map(o -> "http://127.0.0.1:" + PORT.get(o) + "/portal/callback").collect(java.util.stream.Collectors.joining(",")));
         PROCESSES.add(new ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start());
     }
 
@@ -261,6 +309,10 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
         if (!jarsPresent) {
             return;
         }
+        r.add("server.port", () -> samanvayPort);
+        // A return address must lie under an allow-listed prefix on the same scheme, host AND port: list each department portal's origin.
+        r.add("samanvay.identity.department-assertion.allowed-return-prefixes",
+                () -> PORT.values().stream().map(port -> "http://127.0.0.1:" + port + "/").collect(java.util.stream.Collectors.joining(",")));
         // REST/SOAP go over HTTPS in production; in a test runtime a source may be pointed at the plain-HTTP stand-in.
         r.add("samanvay.sources.department-service.urls.revenue-rest", () -> base("revenue"));
         r.add("samanvay.sources.department-service.urls.dbt-rest", () -> base("dbt"));
@@ -285,6 +337,9 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
     @AfterAll
     static void stopWorld() {
         PROCESSES.forEach(Process::destroyForcibly);
+        if (tokenServer != null) {
+            tokenServer.stop(0);
+        }
         for (SshServer s : new SshServer[] {revenueSftp, agricultureSftp}) {
             if (s != null) {
                 try {
@@ -319,6 +374,9 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
     @Autowired
     CitizenProfiles profiles;
 
+    @Autowired
+    com.samanvay.catalog.api.JourneyWrite journeyWrite;
+
     @MockitoBean
     AccessGrantVerifier grantVerifier; // the consent-grant check is not what this test is about
 
@@ -341,7 +399,7 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
 
     @BeforeAll
     void onboardEveryDepartment() {
-        assumeTrue(jarsPresent, "build the department jars first: scripts/build-departments.sh");
+        requireJars();
         for (String d : PORT.keySet()) {
             OnboardingPlan plan = onboarding.plan(base(d));
             assertThat(plan.documents()).as(d).allSatisfy(doc -> assertThat(doc.ready()).as(doc.category()).isTrue());
@@ -351,12 +409,14 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
                     plan.documents().stream().map(OnboardingPlan.DocumentPlan::category).toList(), true, Map.of(), plan.manifestKeyThumbprint())));
             assertThat(onboarding.plan(base(d)).pinnedKeyThumbprint()).as(d + " key pinned").isEqualTo(plan.manifestKeyThumbprint());
         }
+        // The manifests created Education's, Revenue's and DBT's journeys as drafts; everything they need is now onboarded.
+        ONBOARDED.values().forEach(r -> r.journeysCreated().forEach(journeyWrite::publishJourney));
         citizen = profiles.register(new ProfileDraft("Asha Patil", "आशा", "Asha", "Patil", "Ramesh", LocalDate.of(2007, 3, 14), "DAY", "F", "99****21"));
     }
 
     @Test
     void revenue_shows_its_signed_manifest_only_to_a_caller_with_its_discovery_credential() throws Exception {
-        assumeTrue(jarsPresent, "build the department jars first: scripts/build-departments.sh");
+        requireJars();
         URI manifest = URI.create(base("revenue") + "/.well-known/samanvay/manifest");
         assertThat(HTTP.send(HttpRequest.newBuilder(manifest).GET().build(), HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(401);
         var shown = HTTP.send(HttpRequest.newBuilder(manifest).header("X-Discovery-Key", REVENUE_DISCOVERY_KEY).GET().build(),
@@ -386,7 +446,7 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
 
     /** The citizen's browser journey: Samanvay sends them to the department, they log in there, and come back with the assertion. */
     String loginAtDepartment(String dept, UUID who) throws Exception {
-        String loginUrl = departmentLogin.startLogin(who, CODE.get(dept), RETURN_TO);
+        String loginUrl = departmentLogin.startLogin(who, CODE.get(dept), returnTo(dept));
         assertThat(loginUrl).startsWith(base(dept) + "/login?");
         Login l = LOGIN.get(dept);
         String carried = "return_to=" + enc(param(loginUrl, "return_to")) + "&state=" + enc(param(loginUrl, "state")) + "&nonce=" + enc(param(loginUrl, "nonce"));
@@ -405,7 +465,7 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
                 HttpResponse.BodyHandlers.ofString());
         assertThat(r.statusCode()).as(dept + " login").isEqualTo(303);
         String location = r.headers().firstValue("Location").orElseThrow();
-        assertThat(location).startsWith(RETURN_TO + "?");
+        assertThat(location).startsWith(returnTo(dept) + "?");
         return param(location, "assertion");
     }
 
@@ -548,6 +608,165 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
         assertThat(fetch.get("method").asString()).isEqualTo("POST");
         assertThat(fetch.get("body_inputs").asString()).isEqualTo("dbtId");
         assertThat(success("dbt", "BANK_ACCOUNT").get("accountRef").asString()).isEqualTo("XXXXXX1234");
+    }
+
+
+    // --- the four journeys, run from the departments' own portals ----------------------------------------------------------
+
+    record Reply(int status, String body, java.net.http.HttpHeaders headers) {
+        JsonNode json() {
+            return JSON.readTree(body);
+        }
+    }
+
+    Reply http(String method, String url, String cookie, String body) throws Exception {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url));
+        if (cookie != null) {
+            b.header("Cookie", "dept_session=" + cookie);
+        }
+        if (body != null) {
+            b.header("Content-Type", "application/json");
+        }
+        b.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
+        HttpResponse<String> r = HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        return new Reply(r.statusCode(), r.body(), r.headers());
+    }
+
+    Reply portal(String dept, String method, String path, String cookie, String body) throws Exception {
+        return http(method, base(dept) + path, cookie, body);
+    }
+
+    static String sessionCookie(Reply r) {
+        String set = r.headers().firstValue("Set-Cookie").orElseThrow();
+        return set.substring(set.indexOf('=') + 1, set.indexOf(';'));
+    }
+
+    /** Signs in on the department's own portal (password, then the one-time code) and returns the session cookie. */
+    String portalSignIn(String dept, Login l) throws Exception {
+        Reply step1 = portal(dept, "POST", "/portal-api/sign-in", null, "{\"mobile\":\"" + l.mobile() + "\",\"password\":\"" + l.password() + "\"}");
+        assertThat(step1.status()).as(dept + " portal sign in, password step").isEqualTo(200);
+        Reply step2 = portal(dept, "POST", "/portal-api/verify", null,
+                "{\"ticket\":\"" + step1.json().get("ticket").asString() + "\",\"code\":\"" + ONE_TIME_CODE + "\"}");
+        assertThat(step2.status()).as(dept + " portal sign in, code step").isEqualTo(200);
+        return sessionCookie(step2);
+    }
+
+    /** The citizen's browser: the other department's login page, then back to the portal's callback. Returns the callback's reply. */
+    Reply connect(String home, String cookie, String journey, String other, Login l) throws Exception {
+        Reply start = portal(home, "POST", "/portal-api/journeys/" + journey + "/links/" + CODE.get(other), cookie, "{}");
+        assertThat(start.status()).as(home + " starts linking " + other).isEqualTo(200);
+        String loginUrl = start.json().get("loginUrl").asString();
+        assertThat(loginUrl).startsWith(base(other) + "/login?");
+        String carried = "return_to=" + enc(param(loginUrl, "return_to")) + "&state=" + enc(param(loginUrl, "state")) + "&nonce=" + enc(param(loginUrl, "nonce"));
+        HttpResponse<String> pw = HTTP.send(HttpRequest.newBuilder(URI.create(base(other) + "/login"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("mobile=" + enc(l.mobile()) + "&password=" + enc(l.password()) + "&" + carried)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        java.util.regex.Matcher ticket = java.util.regex.Pattern.compile("name=\"ticket\" value=\"([^\"]+)\"").matcher(pw.body());
+        assertThat(ticket.find()).as(other + " code page").isTrue();
+        HttpResponse<String> done = HTTP.send(HttpRequest.newBuilder(URI.create(base(other) + "/login/verify"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("ticket=" + enc(ticket.group(1)) + "&code=" + ONE_TIME_CODE + "&" + carried)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(done.statusCode()).as(other + " login").isEqualTo(303);
+        String back = done.headers().firstValue("Location").orElseThrow();
+        assertThat(back).startsWith(base(home) + "/portal/callback?");
+        return http("GET", back, cookie, null);
+    }
+
+    static String submissionFor(JsonNode definition) {
+        StringBuilder sb = new StringBuilder("{\"submission\":{");
+        boolean first = true;
+        for (JsonNode f : definition.get("form")) {
+            if (!first) {
+                sb.append(',');
+            }
+            first = false;
+            String value = f.get("options").isEmpty() ? "Test value" : f.get("options").get(0).asString();
+            sb.append('"').append(f.get("name").asString()).append("\":\"").append(value).append('"');
+        }
+        return sb.append("}}").toString();
+    }
+
+    @Test
+    @Order(20)
+    void every_journey_runs_on_its_own_departments_portal_from_sign_in_to_tracking() throws Exception {
+        requireJars();
+        Login asha = new Login("9000000001", "asha-demo-pass", null);
+        for (String home : PORT.keySet()) {
+            String cookie = portalSignIn(home, asha);
+            assertThat(portal(home, "GET", "/portal-api/me", cookie, null).json().get("department").asString()).isEqualTo(CODE.get(home));
+
+            JsonNode journeys = portal(home, "GET", "/portal-api/journeys", cookie, null).json();
+            assertThat(journeys).as(home + " offers a journey").isNotEmpty();
+            String code = journeys.get(0).get("code").asString();
+
+            // the manifest promises exactly this journey, and the portal serves it
+            JsonNode manifestJourneys = JSON.readTree(HTTP.send(HttpRequest.newBuilder(URI.create(base(home) + "/.well-known/samanvay/manifest"))
+                    .header("X-Discovery-Key", REVENUE_DISCOVERY_KEY).GET().build(), HttpResponse.BodyHandlers.ofString()).body()).get("journeys");
+            assertThat(manifestJourneys).as(home + " manifest journeys").isNotNull();
+
+            // every other department the journey needs: log in there, come back, the link is saved
+            JsonNode before = portal(home, "GET", "/portal-api/journeys/" + code + "/readiness", cookie, null).json();
+            for (JsonNode need : before.get("departments")) {
+                String other = need.get("departmentCode").asString().toLowerCase();
+                if (!other.equals(home) && !need.get("linked").asBoolean()) {
+                    Reply back = connect(home, cookie, code, other, asha);
+                    assertThat(back.status()).as(home + " callback from " + other).isEqualTo(302);
+                    assertThat(back.headers().firstValue("Location").orElse("")).contains("linked=" + CODE.get(other));
+                }
+            }
+            JsonNode ready = portal(home, "GET", "/portal-api/journeys/" + code + "/readiness", cookie, null).json();
+            assertThat(ready.get("departments")).as(home + " all connected").allSatisfy(d -> assertThat(d.get("linked").asBoolean()).isTrue());
+
+            // consent: the exact wording, a wrong code refused, the right code grants a department-signed consent
+            Reply wording = portal(home, "GET", "/portal-api/journeys/" + code + "/consent", cookie, null);
+            assertThat(wording.status()).as(home + " consent wording").isEqualTo(200);
+            assertThat(wording.json().get("purposeText").asString()).isNotBlank();
+            String requestId = wording.json().get("requestId").asString();
+            assertThat(portal(home, "POST", "/portal-api/journeys/" + code + "/consent", cookie,
+                    "{\"requestId\":\"" + requestId + "\",\"code\":\"000000\"}").status()).isEqualTo(401);
+            assertThat(portal(home, "POST", "/portal-api/journeys/" + code + "/consent", cookie,
+                    "{\"requestId\":\"" + requestId + "\",\"code\":\"" + ONE_TIME_CODE + "\"}").status()).as(home + " consent").isEqualTo(200);
+            assertThat(portal(home, "GET", "/portal-api/journeys/" + code + "/readiness", cookie, null).json().get("consentActive").asBoolean()).isTrue();
+
+            // apply, then track
+            JsonNode definition = portal(home, "GET", "/portal-api/journeys/" + code, cookie, null).json();
+            Reply submitted = portal(home, "POST", "/portal-api/journeys/" + code + "/submit", cookie, submissionFor(definition));
+            assertThat(submitted.status()).as(home + " submit: " + submitted.body()).isEqualTo(200);
+            String reference = null;
+            for (int i = 0; i < 100 && reference == null; i++) {
+                for (JsonNode app : portal(home, "GET", "/portal-api/applications", cookie, null).json()) {
+                    if (code.equals(app.get("journeyCode").asString())) {
+                        reference = app.get("referenceNo").asString();
+                    }
+                }
+                if (reference == null) {
+                    Thread.sleep(100);
+                }
+            }
+            assertThat(reference).as(home + " application appears").isNotNull();
+            assertThat(portal(home, "GET", "/portal-api/applications/" + reference, cookie, null).status()).isEqualTo(200);
+            assertThat(portal(home, "GET", "/portal-api/applications/" + reference + "/steps", cookie, null).status()).isEqualTo(200);
+            assertThat(portal(home, "GET", "/portal-api/applications/" + reference + "/records", cookie, null).status()).isEqualTo(200);
+        }
+    }
+
+    @Test
+    @Order(21)
+    void a_person_who_starts_at_two_departments_is_one_citizen_after_linking_them() throws Exception {
+        requireJars();
+        Login ravi = new Login("9000000002", "ravi-demo-pass", null);
+        String atEducation = portalSignIn("education", ravi); // makes the citizen "Ravi at Education"
+        String atDbt = portalSignIn("dbt", ravi); // makes a second, empty record "Ravi at DBT"
+        // DBT now links Education: the same person proved both in one session, so the two records become one
+        Reply back = connect("dbt", atDbt, "DBT_ACCOUNT_SEEDING", "education", ravi);
+        assertThat(back.status()).isEqualTo(302);
+        assertThat(back.headers().firstValue("Set-Cookie")).as("a new session for the surviving record").isPresent();
+        String merged = sessionCookie(back);
+        assertThat(portal("dbt", "GET", "/portal-api/journeys/DBT_ACCOUNT_SEEDING/readiness", merged, null).status()).isEqualTo(200);
+        // signing in again at either department finds the same citizen
+        assertThat(portal("education", "GET", "/portal-api/me", atEducation, null).status()).isEqualTo(200);
     }
 
     // --- housekeeping: leave the shared database as we found it --------------------------------------------------------

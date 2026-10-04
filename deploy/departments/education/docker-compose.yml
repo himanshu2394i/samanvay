@@ -25,7 +25,9 @@ services:
       retries: 20
 
   education:
-    build: ../../../departments/education
+    build:
+      context: ../../../departments
+      dockerfile: education/Dockerfile
     restart: unless-stopped
     env_file: ../../generated/education/education.env
     depends_on:

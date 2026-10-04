@@ -7,7 +7,9 @@ spring:
     # so its privileges are exactly what's explicitly granted, no more.
     url: jdbc:postgresql://localhost:5432/samanvay
     username: samanvay_app
-    password: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
+    # No default: outside dev/demo/test the app refuses to start unless SAMANVAY_APP_DB_PASSWORD is set to a real
+    # secret (DbCredentialsStartupCheck). The local default is in application-dev.yml/-demo.yml.
+    password: ${SAMANVAY_APP_DB_PASSWORD:}
     hikari:
       # samanvay_app is created by V1; the pool must not fail the context
       # before Flyway has run against samanvay_migrate.
@@ -22,9 +24,9 @@ spring:
     # app's own runtime connection above.
     url: jdbc:postgresql://localhost:5432/samanvay
     user: samanvay_migrate
-    password: ${SAMANVAY_MIGRATE_DB_PASSWORD:samanvay_migrate}
+    password: ${SAMANVAY_MIGRATE_DB_PASSWORD:}
     placeholders:
-      appRolePassword: ${SAMANVAY_APP_DB_PASSWORD:samanvay_app_dev_password}
+      appRolePassword: ${SAMANVAY_APP_DB_PASSWORD:}
   modulith:
     events:
       # Spring Modulith's own internal event_publication table (the

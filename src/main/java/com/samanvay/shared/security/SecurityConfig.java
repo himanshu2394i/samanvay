@@ -114,7 +114,7 @@ class SecurityConfig {
                                 "/api/officer/bank-reviews/*/approve",
                                 "/api/officer/bank-reviews/*/reject").hasRole(OFFICER)
                         // tracking
-                        .requestMatchers(GET, "/api/applications", "/api/applications/**").hasAnyRole(CITIZEN, OFFICER)
+                        .requestMatchers(GET, "/api/applications", "/api/applications/**").hasAnyRole(CITIZEN, OFFICER, DEPARTMENT)
                         // connector
                         // onboarding trial fetch for the department's fake sample person: admin only
                         .requestMatchers(POST, "/api/connector/trial/*").hasRole(ADMIN)
@@ -126,6 +126,8 @@ class SecurityConfig {
                         // The only route that exposes metrics; no actuator/Prometheus endpoint is served.
                         .requestMatchers(GET, "/api/ops/**").hasAnyRole(OFFICER, ADMIN)
                         // fail closed for anything new under /api
+                        // A department portal acting for a citizen who signed in with it (see DepartmentIdentityController).
+                        .requestMatchers("/api/department/**").hasRole(DEPARTMENT)
                         .requestMatchers("/api", "/api/**").denyAll()
                         // static pages, citizen portal skins, error page
                         .anyRequest().permitAll());
@@ -138,7 +140,9 @@ class SecurityConfig {
             RealmIssuerStartupCheck issuersChecked) {
         Map<String, AuthenticationManager> managers = new LinkedHashMap<>();
         register(managers, realms.audience(), realms.staff(), KeycloakJwtConverter.RealmKind.STAFF);
-        register(managers, realms.audience(), realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);
+        if (realms.citizen() != null && realms.citizen().issuerUri() != null && !realms.citizen().issuerUri().isBlank()) {
+            register(managers, realms.audience(), realms.citizen(), KeycloakJwtConverter.RealmKind.CITIZEN);
+        }
         // Unknown issuer -> null manager -> InvalidBearerTokenException -> 401.
         return new JwtIssuerAuthenticationManagerResolver(managers::get);
     }

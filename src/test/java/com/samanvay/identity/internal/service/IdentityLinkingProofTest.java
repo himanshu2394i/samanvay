@@ -80,11 +80,24 @@ class IdentityLinkingProofTest {
     void secondCitizenSameLocalIdRejected() {
         LinkRepository links = mock(LinkRepository.class);
         when(links.findByCitizenIdAndDepartmentCodeAndStatus(any(), any(), any())).thenReturn(Optional.empty());
-        when(links.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("dup"));
+        when(links.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("dup", new java.sql.SQLException("duplicate key", "23505")));
         IdentityServices svc = service(links);
         assertThatThrownBy(() ->
                         svc.assertLink(UUID.randomUUID(), "REVENUE", "RATION", "RC-1", AuthProof.localIdOtpDemo()))
                 .isInstanceOf(com.samanvay.identity.api.DuplicateLocalIdException.class);
+    }
+
+    @Test
+    void anOtherIntegrityErrorIsNotReportedAsADuplicate() {
+        LinkRepository links = mock(LinkRepository.class);
+        when(links.findByCitizenIdAndDepartmentCodeAndStatus(any(), any(), any())).thenReturn(Optional.empty());
+        when(links.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("fk", new java.sql.SQLException("foreign key", "23503")));
+        IdentityServices svc = service(links);
+        assertThatThrownBy(() ->
+                        svc.assertLink(UUID.randomUUID(), "REVENUE", "RATION", "RC-1", AuthProof.localIdOtpDemo()))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

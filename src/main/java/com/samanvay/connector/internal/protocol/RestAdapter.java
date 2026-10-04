@@ -77,6 +77,7 @@ class RestAdapter implements ProtocolAdapter {
         }
         String origin = overrides.baseUrl(request.dataSourceCode()).orElse(scheme + "://" + request.host());
         boolean post = isPost(request);
+        EndpointCheck.requireSafe(request.dataSourceCode(), request.endpoint());
         RestAuth.Applied applied = auth.apply(request, origin);
         Map<String, String> query = new LinkedHashMap<>(request.boundInputs() == null ? Map.of() : request.boundInputs());
         ObjectNode bodyJson = json.createObjectNode();
@@ -90,7 +91,7 @@ class RestAdapter implements ProtocolAdapter {
             }
         }
         String url = origin + encodePath(request.endpoint(), query, applied.query());
-        URI uri = URI.create(url);
+        URI uri = EndpointCheck.assertSameOrigin(URI.create(url), origin);
         Map<String, String> headers = new LinkedHashMap<>(applied.headers());
         if (applied.signer() != null) {
             String pathAndQuery = uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());

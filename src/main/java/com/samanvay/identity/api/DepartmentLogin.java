@@ -11,4 +11,10 @@ public interface DepartmentLogin {
      * no login or {@code returnTo} is not an allow-listed Samanvay address.
      */
     String startLogin(UUID citizenId, String departmentCode, String returnTo);
+
+    /**
+     * Like {@link #startLogin}, for a department portal that is sending its own citizen to another department's login:
+     * {@code returnTo} must be an address on the REQUESTING department's own host, so the assertion can only come back to it.
+     */
+    String startLoginFor(String requesterDepartment, UUID citizenId, String departmentCode, String returnTo);
 }

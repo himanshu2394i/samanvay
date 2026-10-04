@@ -32,10 +32,11 @@ class AgricultureJdbcStoresTest {
         try (Connection c = DriverManager.getConnection(pg.getJdbcUrl(), pg.getUsername(), pg.getPassword()); Statement s = c.createStatement()) {
             s.execute(Files.readString(Path.of("db", "schema.sql"), StandardCharsets.UTF_8));
             s.execute("""
-                    INSERT INTO farmer VALUES ('AG-9001', 'Meera Kulkarni', 'Loni', 'Haveli', 1.50, 'internal: audit pending');
+                    INSERT INTO farmer VALUES ('AG-9001', 'Meera Kulkarni', 'Loni', 'Haveli', 1.50, 'internal: audit pending', '1990-05-17');
                     INSERT INTO citizen_login VALUES ('9100000001', crypt('right-password', gen_salt('bf')), 'AG-9001');
                     CREATE ROLE agriculture_app LOGIN PASSWORD 'app-pw';
                     GRANT SELECT ON citizen_login TO agriculture_app;
+                    GRANT SELECT (agri_person_id, farmer_name, date_of_birth) ON farmer TO agriculture_app;
                     CREATE ROLE agri_ro LOGIN PASSWORD 'ro-pw';
                     GRANT SELECT ON v_farmer_record TO agri_ro;
                     """);
@@ -51,6 +52,13 @@ class AgricultureJdbcStoresTest {
     @Test
     void login_accepts_the_right_password_for_a_registered_mobile_and_returns_that_farmers_id() {
         assertThat(new JdbcCitizens(jdbc).authenticate("9100000001", "right-password")).contains("AG-9001");
+    }
+
+    @Test
+    void the_person_behind_an_id_has_a_name_and_date_of_birth_for_the_login_assertion() {
+        JdbcCitizens citizens = new JdbcCitizens(jdbc);
+        assertThat(citizens.person("AG-9001")).contains(new in.samanvay.departments.kit.Person("AG-9001", "Meera Kulkarni", java.time.LocalDate.of(1990, 5, 17)));
+        assertThat(citizens.person("AG-0000")).isEmpty();
     }
 
     @Test
@@ -83,5 +91,21 @@ class AgricultureJdbcStoresTest {
             assertThatThrownBy(() -> s.executeQuery("SELECT password_hash FROM citizen_login")).hasMessageContaining("permission denied");
             assertThatThrownBy(() -> s.executeUpdate("DELETE FROM v_farmer_record")).hasMessageContaining("permission denied");
         }
+    }
+
+    @Test
+    void an_unregistered_mobile_costs_one_bcrypt_check_like_a_wrong_password_so_timing_does_not_reveal_registered_mobiles() {
+        JdbcClient spy = org.mockito.Mockito.spy(jdbc);
+        JdbcCitizens citizens = new JdbcCitizens(spy);
+        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
+
+        assertThat(citizens.authenticate("9100000001", "wrong")).isEmpty();
+        org.mockito.Mockito.verify(spy, org.mockito.Mockito.times(1)).sql(sql.capture());
+        assertThat(sql.getAllValues().getFirst()).contains("crypt(");
+
+        org.mockito.Mockito.clearInvocations(spy);
+        assertThat(citizens.authenticate("9199999999", "wrong")).isEmpty();
+        org.mockito.Mockito.verify(spy, org.mockito.Mockito.times(2)).sql(sql.capture());
+        assertThat(sql.getAllValues().getLast()).contains("crypt(");
     }
 }

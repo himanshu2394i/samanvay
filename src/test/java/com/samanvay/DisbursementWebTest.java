@@ -24,7 +24,7 @@ class DisbursementWebTest {
     private final ApplicationTracking tracking = mock(ApplicationTracking.class);
     private final DisbursementService disbursements = mock(DisbursementService.class);
     private final CitizenAccess citizenAccess = mock(CitizenAccess.class);
-    private final DisbursementWeb web = new DisbursementWeb(tracking, disbursements, citizenAccess);
+    private final DisbursementWeb web = new DisbursementWeb(tracking, disbursements, citizenAccess, mock(com.samanvay.shared.security.DepartmentScope.class));
 
     private static final UUID CITIZEN = UUID.randomUUID();
     private static final UUID INSTANCE = UUID.randomUUID();

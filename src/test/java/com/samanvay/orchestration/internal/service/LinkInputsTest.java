@@ -22,4 +22,16 @@ class LinkInputsTest {
     void no_link_means_no_link_inputs() {
         assertThat(DefaultJourneyService.linkInputs(null)).isEmpty();
     }
+
+    @Test
+    void the_discovery_candidate_is_built_as_json_so_odd_characters_cannot_break_it() {
+        assertThat(DefaultJourneyService.candidate("RC-\"1\"\\x").get("localId").asString()).isEqualTo("RC-\"1\"\\x");
+    }
+
+    @Test
+    void a_zero_or_negative_sla_means_no_due_time_never_a_born_breached_one() {
+        assertThat(DefaultJourneyService.slaDueAt(0)).isNull();
+        assertThat(DefaultJourneyService.slaDueAt(-5)).isNull();
+        assertThat(DefaultJourneyService.slaDueAt(72)).isAfter(java.time.Instant.now().plusSeconds(71 * 3600L));
+    }
 }

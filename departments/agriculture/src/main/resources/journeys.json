@@ -1,0 +1,13 @@
+{"journeys":[
+  {"code":"FARMER_SUBSIDY","name":"Farmer subsidy",
+   "description":"Input subsidy for registered farmers; needs the 7/12 land parcel, the crop record and a bank account.",
+   "referencePrefix":"FAR","slaHours":96,"consentPurpose":"FARMER_SUBSIDY",
+   "requiredCategories":[
+     {"category":"LAND_PARCEL","department":"REVENUE"},
+     {"category":"CROP_RECORD","department":"AGRICULTURE"},
+     {"category":"BANK_ACCOUNT","department":"DBT"}],
+   "form":[
+     {"name":"season","label":"Season","type":"select","required":true,"options":["KHARIF","RABI"]},
+     {"name":"cropApplied","label":"Crop you are applying for","type":"text","required":true,"options":[]},
+     {"name":"subsidyType","label":"Type of subsidy","type":"select","required":true,"options":["SEEDS","FERTILISER","IRRIGATION"]}]}
+]}

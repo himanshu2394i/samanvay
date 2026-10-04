@@ -3,8 +3,10 @@ package com.samanvay.identity.internal.proof;
 import com.nimbusds.jose.jwk.JWKSet;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -19,10 +21,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Fetches a department's published public keys (JWKS) over HTTP(S), safely: http/https only, no redirects, a hard size
- * cap, a timeout, and private/loopback hosts refused unless {@code samanvay.identity.department-assertion.allow-private-hosts}
- * is set (dev/demo only). Results are cached; a forced refresh (an unknown key ID, i.e. rotation) is allowed at most once
- * per minimum interval per URL so unknown-kid tokens cannot be used to hammer a department. Only public keys are kept.
+ * Fetches a department's published public keys (JWKS) over HTTPS, safely: no redirects, a hard size cap, a timeout, and
+ * private hosts refused (loopback, link-local, site-local, IPv6 unique-local, CGNAT 100.64/10, benchmarking, multicast and
+ * reserved ranges; EVERY address the host resolves to is checked). Plain http and private hosts are allowed only when
+ * {@code samanvay.identity.department-assertion.allow-private-hosts} is set (the dev/demo profiles). Results are cached; a
+ * cached answer is served without touching DNS again, so a transient DNS failure does not stop logins. A forced refresh (an
+ * unknown key ID, i.e. rotation) is allowed at most once per minimum interval per URL so unknown-kid tokens cannot be used to
+ * hammer a department. Only public keys are kept.
+ *
+ * <p>ponytail: the host is checked, then the HTTP client resolves it again to connect, so a DNS answer that changes in between
+ * is not caught here; close that with an egress firewall or a pinned-address connector if department hosts are not trusted.
  */
 @Component
 public class HttpJwksSource implements JwksSource {
@@ -58,23 +66,23 @@ public class HttpJwksSource implements JwksSource {
 
     @Override
     public JWKSet keys(String jwksUrl, boolean forceRefresh) {
-        URI uri = validate(jwksUrl);
         Instant now = clock.instant();
-        Cached cached = cache.get(jwksUrl);
+        Cached cached = jwksUrl == null ? null : cache.get(jwksUrl);
         if (cached != null) {
             Duration age = Duration.between(cached.fetchedAt(), now);
             boolean fresh = age.compareTo(cacheTtl) < 0;
             boolean mayForce = age.compareTo(minRefresh) >= 0;
             if ((fresh && !forceRefresh) || (forceRefresh && !mayForce)) {
-                return cached.keys();
+                return cached.keys(); // checked when it was fetched; no DNS lookup here
             }
         }
+        URI uri = validate(jwksUrl);
         JWKSet fetched = fetch(uri);
         cache.put(jwksUrl, new Cached(fetched, now));
         return fetched;
     }
 
-    private URI validate(String jwksUrl) {
+    URI validate(String jwksUrl) {
         URI uri;
         try {
             uri = URI.create(jwksUrl == null ? "" : jwksUrl.trim());
@@ -83,28 +91,56 @@ public class HttpJwksSource implements JwksSource {
         }
         String scheme = uri.getScheme();
         if (uri.getHost() == null || !("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))) {
-            throw new IllegalArgumentException("the department's key URL must be http(s) with a host");
+            throw new IllegalArgumentException("the department's key URL must be https with a host");
         }
-        if (!allowPrivateHosts && isPrivate(uri.getHost())) {
-            throw new IllegalArgumentException("the department's key URL points at a private or loopback address");
+        if (!allowPrivateHosts) {
+            if (!"https".equalsIgnoreCase(scheme)) {
+                throw new IllegalArgumentException("the department's key URL must be https");
+            }
+            if (isPrivate(uri.getHost())) {
+                throw new IllegalArgumentException("the department's key URL points at a private or loopback address");
+            }
         }
         return uri;
     }
 
-    private static boolean isPrivate(String host) {
+    /** Every address the host resolves to; overridable so tests need no DNS. */
+    InetAddress[] resolve(String host) throws UnknownHostException {
+        return InetAddress.getAllByName(host);
+    }
+
+    private boolean isPrivate(String host) {
         if ("localhost".equalsIgnoreCase(host)) {
             return true;
         }
         try {
-            for (InetAddress a : InetAddress.getAllByName(host)) {
-                if (a.isLoopbackAddress() || a.isLinkLocalAddress() || a.isSiteLocalAddress() || a.isAnyLocalAddress()) {
+            for (InetAddress a : resolve(host)) {
+                if (isPrivate(a)) {
                     return true;
                 }
             }
             return false;
-        } catch (IOException e) {
+        } catch (UnknownHostException e) {
             return true; // cannot resolve: do not call it
         }
+    }
+
+    static boolean isPrivate(InetAddress a) {
+        if (a.isLoopbackAddress() || a.isLinkLocalAddress() || a.isSiteLocalAddress() || a.isAnyLocalAddress() || a.isMulticastAddress()) {
+            return true;
+        }
+        byte[] b = a.getAddress();
+        if (a instanceof Inet4Address) {
+            int b0 = b[0] & 0xFF;
+            int b1 = b[1] & 0xFF;
+            return b0 == 0 // "this network"
+                    || (b0 == 100 && (b1 & 0xC0) == 64) // CGNAT 100.64.0.0/10
+                    || (b0 == 198 && (b1 & 0xFE) == 18) // benchmarking 198.18.0.0/15
+                    || b0 >= 240; // reserved and broadcast
+        }
+        int b0 = b[0] & 0xFF;
+        return (b0 & 0xFE) == 0xFC // unique local fc00::/7
+                || (b0 == 0x00 && b[1] == 0x64 && (b[2] & 0xFF) == 0xFF && (b[3] & 0xFF) == 0x9B); // NAT64 64:ff9b::/96 can reach internal IPv4
     }
 
     private JWKSet fetch(URI uri) {

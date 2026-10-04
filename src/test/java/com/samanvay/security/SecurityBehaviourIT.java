@@ -242,14 +242,15 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void departmentClientNeedsAScopeForEveryDataSourceOfTheJourney() {
+    void departmentClientMayOnlyStartJourneysItsDepartmentRuns() {
         UUID citizen = profiles.register(draft());
+        // POST_MATRIC_SCHOLARSHIP is run by SCHOLARSHIP; an EDUCATION client is refused, whatever data-source scopes it holds.
         int status = post(
-                TestHttp.as(TestTokens.department("dept-narrow", "revenue-rest-mock")),
+                TestHttp.as(TestTokens.departmentOf("dept-education-it", "EDUCATION", "revenue-rest-mock", "education-soap-mock", "dbt-rest-mock")),
                 "/api/journeys/POST_MATRIC_SCHOLARSHIP/start",
                 Map.of("citizenId", citizen, "submission", Map.of()));
         assertThat(status).isEqualTo(403);
-        assertRefusalAudited("API_FORBIDDEN", "DEPARTMENT", "dept-narrow", "POST /api/journeys/{code}/start");
+        assertRefusalAudited("API_FORBIDDEN", "DEPARTMENT", "dept-education-it", "POST /api/journeys/{code}/start");
     }
 
     @Test
@@ -270,7 +271,7 @@ class SecurityBehaviourIT extends PostgresIntegrationTest {
 
     @Test
     void staticPagesStayPublic() {
-        for (String page : List.of("/", "/index.html", "/audit.html", "/scholarship/", "/console.js", "/shared/auth.js")) {
+        for (String page : List.of("/", "/index.html", "/audit.html", "/demo.html", "/console.js", "/shared/auth.js")) {
             assertThat(get(TestHttp.anonymous(), page)).as(page).isEqualTo(200);
         }
     }

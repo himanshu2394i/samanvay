@@ -25,7 +25,9 @@ class AuthConfigController {
     ResponseEntity<Map<String, Object>> config() {
         Map<String, Object> realmMap = new LinkedHashMap<>();
         realmMap.put("staff", realm(realms.staff()));
-        realmMap.put("citizen", realm(realms.citizen()));
+        if (realms.citizen() != null && realms.citizen().issuerUri() != null && !realms.citizen().issuerUri().isBlank()) {
+            realmMap.put("citizen", realm(realms.citizen()));
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("realms", realmMap);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);

@@ -94,7 +94,7 @@ class ConnectorExchangeMetricsTest {
 
     @Test
     void successful_exchange_is_timed_and_counted_per_data_source() {
-        var runtime = runtime(() -> new AdapterResponse(JsonMapper.builder().build().readTree("{}"), 2));
+        var runtime = runtime(() -> new AdapterResponse(JsonMapper.builder().build().readTree("{\"accountRef\":\"X\"}"), 2));
 
         assertThat(runtime.execute(grant(), Capability.FETCH, inputs())).isInstanceOf(ConnectorResult.Success.class);
 

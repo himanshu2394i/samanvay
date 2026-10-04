@@ -12,18 +12,23 @@ const PAGES: { route: string; heading: string; roles: string[] }[] = [
   { route: '/staff/officer/applications', heading: 'Applications', roles: ['officer'] },
   { route: '/staff/ops/metrics', heading: 'Metrics', roles: ['officer', 'admin'] },
   { route: '/staff/ops/audit', heading: 'Audit ledger', roles: ['officer', 'admin'] },
-  { route: '/staff/admin/catalog', heading: 'Catalog', roles: ['admin'] },
+  { route: '/staff/admin/departments', heading: 'Departments', roles: ['officer', 'admin'] },
+  { route: '/staff/admin/journeys', heading: 'Journeys', roles: ['officer', 'admin'] },
   { route: '/staff/admin/onboarding', heading: 'Onboarding', roles: ['admin'] },
   { route: '/staff/admin/schemas', heading: 'Central schema', roles: ['admin'] },
   { route: '/staff/reviewer/queue', heading: 'Identity review', roles: ['reviewer'] },
+  // routes with a parameter: the same guard has to hold on the deep links, not just the list pages
+  { route: '/staff/officer/applications/SCH-2026-0001', heading: 'Application SCH-2026-0001', roles: ['officer'] },
+  { route: '/staff/officer/citizens/11111111-1111-4111-8111-111111111111', heading: 'Citizen file', roles: ['officer'] },
+  { route: '/staff/admin/journeys/FARMER_SUBSIDY', heading: 'Journey FARMER_SUBSIDY', roles: ['officer', 'admin'] },
 ]
 
 describe('staff route guards', () => {
   it('asks a signed-out visitor to sign in and shows no staff page', async () => {
-    renderStaff({ route: '/staff/admin/catalog', fetchImpl: EMPTY, auth: signedOutAuth() })
+    renderStaff({ route: '/staff/admin/departments', fetchImpl: EMPTY, auth: signedOutAuth() })
     expect(await screen.findByRole('heading', { name: 'Sign in to continue' })).toBeInTheDocument()
     expect(screen.getByText(/passkey, or with a password and an authenticator code/)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Catalog' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Departments' })).not.toBeInTheDocument()
   })
 
   it('starts the staff sign-in from the prompt, returning to the page that was asked for', async () => {
@@ -34,7 +39,7 @@ describe('staff route guards', () => {
   })
 
   it('keeps a citizen token out of every staff surface', async () => {
-    for (const p of [PAGES[0]!, PAGES[3]!, PAGES[5]!, PAGES[7]!]) {
+    for (const p of [PAGES[0]!, PAGES[3]!, PAGES[5]!, PAGES[8]!]) {
       const fetchImpl = mockFetch([])
       const { unmount } = renderStaff({ route: p.route, fetchImpl: fetchImpl.fetchImpl, auth: signedInAuth() })
       expect(await screen.findByRole('heading', { name: 'No staff access' })).toBeInTheDocument()
@@ -69,12 +74,12 @@ describe('staff route guards', () => {
   it('shows each role only its own navigation and home cards', async () => {
     const { unmount } = renderStaff({ route: '/staff', fetchImpl: EMPTY, auth: staffAuth(['officer']) })
     const nav = await screen.findByRole('navigation', { name: 'Staff' })
-    expect(within(nav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Exceptions', 'Bank reviews', 'Applications', 'Metrics', 'Audit ledger'])
+    expect(within(nav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Exceptions', 'Bank reviews', 'Applications', 'Metrics', 'Audit ledger', 'Departments', 'Journeys'])
     unmount()
 
     const admin = renderStaff({ route: '/staff', fetchImpl: EMPTY, auth: staffAuth(['admin']) })
     const adminNav = await screen.findByRole('navigation', { name: 'Staff' })
-    expect(within(adminNav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Metrics', 'Audit ledger', 'Catalog', 'Central schema', 'Onboarding'])
+    expect(within(adminNav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Metrics', 'Audit ledger', 'Departments', 'Journeys', 'Central schema', 'Onboarding'])
     admin.unmount()
 
     renderStaff({ route: '/staff', fetchImpl: EMPTY, auth: staffAuth(['reviewer']) })
@@ -85,7 +90,7 @@ describe('staff route guards', () => {
   it('an account with several roles gets the union', async () => {
     renderStaff({ route: '/staff', fetchImpl: EMPTY, auth: staffAuth(['officer', 'admin']) })
     const nav = await screen.findByRole('navigation', { name: 'Staff' })
-    expect(within(nav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Exceptions', 'Bank reviews', 'Applications', 'Metrics', 'Audit ledger', 'Catalog', 'Central schema', 'Onboarding'])
+    expect(within(nav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Exceptions', 'Bank reviews', 'Applications', 'Metrics', 'Audit ledger', 'Departments', 'Journeys', 'Central schema', 'Onboarding'])
   })
 
   it('shows who is signed in, with roles and department, and signs out', async () => {

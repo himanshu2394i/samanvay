@@ -71,3 +71,37 @@ export function bankReviewTone(status: string): Tone {
       return 'warn'
   }
 }
+
+/** Data source health (GREEN, AMBER, RED, UNKNOWN) as a badge tone. */
+export function healthTone(health: string): Tone {
+  return health === 'GREEN' ? 'ok' : health === 'RED' ? 'bad' : health === 'AMBER' ? 'warn' : 'neutral'
+}
+
+/** A source never probed has health UNKNOWN (or none): nobody has checked it yet. */
+export function isUnchecked(health: string | null | undefined): boolean {
+  return !health || health === 'UNKNOWN'
+}
+
+export type SourceState = 'working' | 'blocked' | 'unchecked'
+
+/**
+ * Whether a document's source can be called working. The backend sets `working` for a published connector whose
+ * source is not RED, which includes a source that was never probed; that is "not checked yet", not "working".
+ * A RED source is blocked whatever the flag says.
+ */
+export function sourceState(working: boolean, health: string | null | undefined): SourceState {
+  if (!working || health === 'RED') return 'blocked'
+  return isUnchecked(health) ? 'unchecked' : 'working'
+}
+
+/** The one badge a document or category shows for its source state. */
+export const SOURCE_STATE_BADGE: Record<SourceState, { tone: Tone; label: string }> = {
+  working: { tone: 'ok', label: 'Yes' },
+  blocked: { tone: 'bad', label: 'No' },
+  unchecked: { tone: 'neutral', label: 'Not checked yet' },
+}
+
+/** Journey or connector status: PUBLISHED is live, DRAFT is waiting for a person. */
+export function publishTone(status: string): Tone {
+  return status === 'PUBLISHED' ? 'ok' : status === 'DRAFT' ? 'warn' : 'neutral'
+}

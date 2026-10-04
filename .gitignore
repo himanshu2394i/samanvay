@@ -11,6 +11,14 @@ dist/
 
 # Department manifest signing keys (private; created on first start of a department service)
 manifest-signing-key.jwk
+portal-session.secret
 
 # Generated demo data, passwords and secrets for a multi-server deployment (scripts/gen-demo-data.py)
 deploy/generated/
+
+# Citizen portal: built from frontend/ (npm run build:portal) and copied into each department by scripts/build-portal.sh
+frontend/dist-portal/
+departments/revenue/src/main/resources/static/portal/
+departments/dbt/src/main/resources/static/portal/
+departments/education/src/main/resources/static/portal/
+departments/agriculture/src/main/resources/static/portal/

@@ -14,7 +14,7 @@ export function ExceptionsPage() {
   const [open, setOpen] = useState<string | null>(null)
 
   async function retry(x: JourneyException) {
-    const ok = await action.run(x.id, () => api.retryInstance(x.instanceId), `Retry requested for instance ${shortId(x.instanceId)}. Refresh in a moment to see whether it cleared.`)
+    const ok = await action.run(`retry:${x.id}`, () => api.retryInstance(x.instanceId), `Retry requested for instance ${shortId(x.instanceId)}. Refresh in a moment to see whether it cleared.`)
     if (ok) queue.reload()
   }
 
@@ -61,8 +61,8 @@ export function ExceptionsPage() {
                     expanded={open === x.id}
                     onToggle={() => setOpen(open === x.id ? null : x.id)}
                     onRetry={() => void retry(x)}
-                    retrying={action.busy === x.id}
-                    disabled={action.busy !== null}
+                    retrying={action.busy === `retry:${x.id}`}
+                    disabled={action.busy !== null || queue.refreshing}
                   />
                 ))}
               </tbody>

@@ -1,4 +1,4 @@
-import type { OpsMetrics } from '../api/staffTypes'
+import type { OpsMetrics, OpsOverview } from '../api/staffTypes'
 
 export const INSTANCE_ID = '22222222-2222-4222-8222-222222222222'
 export const OTHER_INSTANCE_ID = '99999999-9999-4999-8999-999999999999'
@@ -104,4 +104,90 @@ export const connector = {
   inputsJson: '[]',
   slaMs: 3000,
   status: 'PUBLISHED',
+}
+
+// --- GET /api/ops/overview (docs/contracts/ops-overview.md) ---------------------------------
+
+export const overview: OpsOverview = {
+  generatedAt: '2026-10-04T10:00:00Z',
+  departments: [
+    {
+      code: 'EDUCATION',
+      name: 'State Board of Education',
+      pinnedKeyThumbprint: 'JHRVn3yLkey',
+      loginUrl: 'https://education.example/login',
+      dataSources: [{ code: 'education-soap', protocol: 'SOAP', host: 'education.example', health: 'GREEN', healthDetail: null }],
+      documents: [
+        {
+          category: 'MARKS',
+          title: 'Marks',
+          connectorRef: 'edu-marks@2',
+          connectorStatus: 'PUBLISHED',
+          dataSourceCode: 'education-soap',
+          sourceHealth: 'GREEN',
+          lastTrial: { at: '2026-10-04T09:30:00Z', outcome: 'SUCCESS' },
+          working: true,
+          centralSchemaRef: 'Credential/Marks@1',
+          mappings: [
+            { source: 'pct', target: 'percentage', required: true },
+            { source: 'board_name', target: 'board', required: false },
+          ],
+          unmappedRequired: [],
+        },
+      ],
+      journeys: [
+        {
+          code: 'EDUCATION_SCHOLARSHIP',
+          name: 'Post-matric scholarship',
+          status: 'DRAFT',
+          ready: true,
+          needs: [{ category: 'MARKS', department: 'EDUCATION', working: true }],
+          counts: { running: 0, completed: 0, failed: 0, last7Days: 0 },
+        },
+      ],
+    },
+    {
+      code: 'REVENUE',
+      name: 'Revenue Department',
+      pinnedKeyThumbprint: null,
+      loginUrl: null,
+      dataSources: [{ code: 'revenue-rest', protocol: 'REST', host: 'revenue.example', health: 'RED', healthDetail: 'connection refused' }],
+      documents: [
+        {
+          category: 'INCOME_CERTIFICATE',
+          title: 'Income certificate',
+          connectorRef: 'rev-income@1',
+          connectorStatus: 'DRAFT',
+          dataSourceCode: 'revenue-rest',
+          sourceHealth: 'RED',
+          lastTrial: null,
+          working: false,
+          centralSchemaRef: 'Credential/IncomeCertificate@1',
+          mappings: [{ source: 'income', target: 'annualIncome', required: true }],
+          unmappedRequired: ['holderName'],
+        },
+      ],
+      journeys: [
+        {
+          code: 'FARMER_SUBSIDY',
+          name: 'Farmer subsidy',
+          status: 'PUBLISHED',
+          ready: true,
+          needs: [{ category: 'INCOME_CERTIFICATE', department: 'REVENUE', working: false }],
+          counts: { running: 2, completed: 5, failed: 1, last7Days: 4 },
+        },
+        {
+          code: 'REVENUE_CERT',
+          name: 'Revenue certificate',
+          status: 'DRAFT',
+          ready: false,
+          needs: [
+            { category: 'INCOME_CERTIFICATE', department: 'REVENUE', working: false },
+            { category: 'DOMICILE_CERTIFICATE', department: 'REVENUE', working: false },
+          ],
+          counts: { running: 0, completed: 0, failed: 0, last7Days: 0 },
+        },
+      ],
+    },
+  ],
 }

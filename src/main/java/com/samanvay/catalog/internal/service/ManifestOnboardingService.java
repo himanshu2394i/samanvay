@@ -8,6 +8,7 @@ import com.samanvay.catalog.api.DepartmentDraft;
 import com.samanvay.catalog.api.DepartmentIdentity;
 import com.samanvay.catalog.api.DepartmentManifest;
 import com.samanvay.catalog.api.DiscoveredManifest;
+import com.samanvay.catalog.api.IdentityChangeNotAcknowledgedException;
 import com.samanvay.catalog.api.FieldMapping;
 import com.samanvay.catalog.api.JourneyWrite;
 import com.samanvay.catalog.api.ManifestOnboarding;
@@ -101,9 +102,13 @@ class ManifestOnboardingService implements ManifestOnboarding {
         ManifestOnboardingPlanner.identityHostProblem(m, baseUrl).ifPresent(p -> {
             throw new InvalidRequestException(p);
         });
+        journeyAdoptionProblem(m).ifPresent(p -> {
+            throw new InvalidRequestException(p);
+        });
         String pinned = pinnedKey(m);
         ManifestTrust.checkPlan(Optional.ofNullable(found.keyThumbprint()), pinned, allowUnsigned);
-        return planner.plan(m, baseUrl, null, env(m)).plan().withManifestKey(found.keyThumbprint(), pinned);
+        return planner.plan(m, baseUrl, null, env(m)).plan().withManifestKey(found.keyThumbprint(), pinned)
+                .withIdentityChange(identityChange(m, found.keyThumbprint()).orElse(null));
     }
 
     private String pinnedKey(DepartmentManifest m) {
@@ -121,9 +126,17 @@ class ManifestOnboardingService implements ManifestOnboarding {
         ManifestOnboardingPlanner.identityHostProblem(m, req.baseUrl()).ifPresent(p -> {
             throw new InvalidRequestException(p);
         });
+        journeyAdoptionProblem(m).ifPresent(p -> {
+            throw new InvalidRequestException(p);
+        });
         Optional<String> signedBy = Optional.ofNullable(found.keyThumbprint());
         ManifestTrust.checkPlan(signedBy, pinnedKey(m), allowUnsigned);
         ManifestTrust.checkOnboard(signedBy, pinnedKey(m), req.approvedManifestKey());
+        identityChange(m, found.keyThumbprint()).ifPresent(c -> {
+            if (!req.acknowledgeIdentityChange()) {
+                throw new IdentityChangeNotAcknowledgedException(c.warning() + " Nothing was changed. Confirm with the department, then onboard again with acknowledgeIdentityChange.");
+            }
+        });
         String digest = ManifestOnboardingPlanner.digest(m);
         if (!digest.equals(req.manifestDigest())) {
             throw new InvalidRequestException("The department's manifest has changed since you reviewed it. Review the new plan and try again.");
@@ -153,6 +166,14 @@ class ManifestOnboardingService implements ManifestOnboarding {
         }
 
         String dept = m.department().code();
+        for (SourceSpec s : planned.sources()) {
+            dataSources.findById(s.code()).ifPresent(e -> {
+                if (!dept.equals(e.getDepartmentCode())) {
+                    throw new InvalidRequestException("Data source " + s.code() + " already exists and belongs to department " + e.getDepartmentCode()
+                            + ", not " + dept + "; it is not adopted.");
+                }
+            });
+        }
         List<String> skipped = new ArrayList<>();
         saveDepartment(m, digest, found.keyThumbprint());
 
@@ -160,8 +181,17 @@ class ManifestOnboardingService implements ManifestOnboarding {
         for (SourceSpec s : planned.sources()) {
             if (dataSources.existsById(s.code())) {
                 skipped.add("data source " + s.code() + " already exists");
+                // same code, same department (checked above): the manifest adopts it, so the staff console shows it
+                dataSources.findById(s.code()).ifPresent(e -> {
+                    e.setOnboarded(true);
+                    dataSources.save(e);
+                });
             } else {
                 wizard.registerDataSource(new DataSourceDraft(s.code(), dept, s.protocol(), s.baseHost(), s.authType(), s.authConfigRef(), s.authSpecJson()));
+                dataSources.findById(s.code()).ifPresent(e -> {
+                    e.setOnboarded(true);
+                    dataSources.save(e);
+                });
                 createdSources.add(s.code());
             }
         }
@@ -175,6 +205,10 @@ class ManifestOnboardingService implements ManifestOnboarding {
             ((ObjectNode) caps.get("FETCH")).put("mapping_ref", mappingRef);
             var draft = wizard.createDraft(new ConnectorDraft(c.connectorId(), c.sourceCode(), DataCategory.of(c.category()), caps.toString(), c.inputsJson(), c.slaMs()));
             wizard.saveMapping(new MappingDraft(mappingRef, draft.ref(), rulesByCategory.get(c.category())));
+            connectors.findById(draft.ref()).ifPresent(e -> {
+                e.setOnboarded(true);
+                connectors.save(e);
+            });
             connectorRefs.add(draft.ref());
             mappingRefs.add(mappingRef);
         }
@@ -187,6 +221,11 @@ class ManifestOnboardingService implements ManifestOnboarding {
                 journeyWrite.createJourney(j.draft());
                 createdJourneys.add(j.draft().code());
             }
+            // created or already there: either way the manifest declares it, so the staff console shows it
+            journeys.findById(j.draft().code()).ifPresent(e -> {
+                e.setOnboarded(true);
+                journeys.save(e);
+            });
         }
         return new OnboardingResult(dept, List.copyOf(createdSources), List.copyOf(connectorRefs), List.copyOf(mappingRefs),
                 List.copyOf(createdJourneys), List.copyOf(skipped), planned.plan().pendingSteps());
@@ -196,6 +235,12 @@ class ManifestOnboardingService implements ManifestOnboarding {
     private static List<FieldMapping> rulesFor(ConnectorSpec c, OnboardRequest req) {
         List<FieldMapping> own = req.mappings() == null ? null : req.mappings().get(c.category());
         if (own != null && !own.isEmpty()) {
+            own.forEach(rule -> rule.transforms().forEach(t -> {
+                if (!com.samanvay.shared.MappingTransforms.NAMES.contains(t.fn())) {
+                    throw new InvalidRequestException("The mapping for " + c.category() + " uses the transform \"" + t.fn() + "\", which is not allowed (allowed: "
+                            + new java.util.TreeSet<>(com.samanvay.shared.MappingTransforms.NAMES) + ").");
+                }
+            }));
             return own;
         }
         if (req.acceptSuggestedMappings() && !c.suggestions().isEmpty()) {
@@ -225,6 +270,83 @@ class ManifestOnboardingService implements ManifestOnboarding {
         }
         departments.save(e);
     }
+
+    // --- an existing department is not silently taken over ---------------------------------------------------------
+
+    /**
+     * Present when this manifest would change the identity of a department that already has one: its person-ID type, login or key
+     * address, assertion issuer, or the key that signs its manifest. A department with no identity yet may gain one; one that has an
+     * identity may not have it replaced without an explicit acknowledgement.
+     */
+    private Optional<OnboardingPlan.IdentityChange> identityChange(DepartmentManifest m, String signedKey) {
+        Optional<DepartmentEntity> existing = departments.findById(m.department().code());
+        if (existing.isEmpty()) {
+            return Optional.empty();
+        }
+        List<String> changes = new ArrayList<>();
+        DepartmentIdentity current = currentIdentity(existing.get());
+        DepartmentManifest.Identity next = m.identity();
+        if (current != null && next != null && next.personIdType() != null) {
+            diff(changes, "personIdType", current.personIdType(), next.personIdType());
+            diff(changes, "loginUrl", current.loginUrl(), next.loginUrl());
+            diff(changes, "jwksUrl", current.jwksUrl(), next.jwksUrl());
+            diff(changes, "assertionIssuer", current.assertionIssuer(), next.assertionIssuer());
+        }
+        String pinned = existing.get().getManifestKeyThumbprint();
+        if (pinned != null && !pinned.isBlank() && signedKey != null && !pinned.equals(signedKey)) {
+            changes.add("manifest signing key: " + pinned + " -> " + signedKey);
+        }
+        if (changes.isEmpty()) {
+            return Optional.empty();
+        }
+        String warning = "IDENTITY CHANGE: department " + m.department().code() + " already exists and this manifest would change who Samanvay trusts "
+                + "to say a person is who they claim to be. " + String.join("; ", changes) + ".";
+        return Optional.of(new OnboardingPlan.IdentityChange(warning, List.copyOf(changes)));
+    }
+
+    private static void diff(List<String> changes, String field, String current, String proposed) {
+        if (!java.util.Objects.equals(current, proposed)) {
+            changes.add(field + ": " + current + " -> " + proposed);
+        }
+    }
+
+    private static DepartmentIdentity currentIdentity(DepartmentEntity e) {
+        if (e.getIdentitySpec() == null || e.getIdentitySpec().isBlank()) {
+            return null;
+        }
+        DepartmentIdentity id = JSON.readValue(e.getIdentitySpec(), DepartmentIdentity.class);
+        return id == null || id.personIdType() == null ? null : id;
+    }
+
+    /**
+     * A journey code the manifest declares that already exists is adopted only when it already belongs to this department (its
+     * requester is the manifest's department) or is a hand-made row with no requester; never another department's journey.
+     */
+    private Optional<String> journeyAdoptionProblem(DepartmentManifest m) {
+        String dept = m.department().code();
+        for (DepartmentManifest.Journey j : m.journeys() == null ? List.<DepartmentManifest.Journey>of() : m.journeys()) {
+            Optional<com.samanvay.catalog.internal.domain.JourneyEntity> existing = journeys.findById(j.code());
+            if (existing.isEmpty()) {
+                continue;
+            }
+            String requester = requesterOf(existing.get());
+            boolean noRequester = requester == null || requester.isBlank() || "UNKNOWN".equals(requester);
+            if (!dept.equals(requester) && !(noRequester && !existing.get().isOnboarded())) {
+                return Optional.of("Journey " + j.code() + " already exists with requester " + requester + "; a manifest from " + dept
+                        + " cannot adopt another department's journey.");
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static String requesterOf(com.samanvay.catalog.internal.domain.JourneyEntity e) {
+        if (e.getPolicy() == null || e.getPolicy().isBlank()) {
+            return null;
+        }
+        JsonNode requester = JSON.readTree(e.getPolicy()).get("requester");
+        return requester == null || requester.isNull() ? null : requester.asString();
+    }
+
 
     // --- current catalog state the plan depends on --------------------------------------------------------------
 

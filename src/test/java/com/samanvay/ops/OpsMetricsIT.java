@@ -109,7 +109,7 @@ class OpsMetricsIT extends PostgresIntegrationTest {
                 """
                 INSERT INTO tracking_application
                   (id, reference_no, citizen_id, journey_code, process_instance_id, status, submitted_at, sla_due_at)
-                VALUES (?, ?, ?, ?, ?, ?, now(), ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 UUID.randomUUID(),
                 "OBS-" + UUID.randomUUID().toString().substring(0, 30),
@@ -117,6 +117,8 @@ class OpsMetricsIT extends PostgresIntegrationTest {
                 journey,
                 "proc-" + UUID.randomUUID(),
                 status,
+                // submitted well before the due time: a due time at or before submission means "no SLA" (see TrackingSlaOverview)
+                Timestamp.from(slaDueAt.minusSeconds(30L * 86_400)),
                 Timestamp.from(slaDueAt));
     }
 

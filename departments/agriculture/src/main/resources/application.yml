@@ -10,19 +10,40 @@ server:
   # 8080 = samanvay-core, 8090 = simulators, 8091 = revenue, 8092 = dbt, 8093 = education, 8094 = agriculture.
   port: ${AGRICULTURE_PORT:8094}
 
+department:
+  # DEMO MODE is off unless DEPARTMENT_DEMO_MODE=true (or the dev profile: --spring.profiles.active=dev). Off, the service REFUSES to start
+  # with a change-me default, a session secret under 32 bytes, the code 123456, a missing Samanvay client secret or a non-https public address.
+  demo-mode: ${DEPARTMENT_DEMO_MODE:false}
+
+portal:
+  # The citizen portal served at /portal/ (shared kit). Never sent to a browser: the samanvay block.
+  dept-code: AGRICULTURE
+  name: Department of Agriculture
+  initial: A
+  accent: "#2f6b2a"
+  accent-dark: "#8fd18a"
+  on-accent-dark: "#08170a"
+  public-base-url: ${AGRICULTURE_PUBLIC_URL:http://localhost:8094}
+  otp-code: ${AGRICULTURE_LOGIN_CODE:123456}
+  session-secret: ${AGRICULTURE_SESSION_SECRET:}
+  manifest-key-file: ${agriculture.manifest.key-file:manifest-signing-key.jwk}
+  samanvay:
+    base-url: ${SAMANVAY_URL:http://localhost:8080}
+    token-url: ${SAMANVAY_TOKEN_URL:http://localhost:8180/realms/samanvay-staff/protocol/openid-connect/token}
+    client-id: ${SAMANVAY_CLIENT_ID:dept-agriculture}
+    client-secret: ${SAMANVAY_CLIENT_SECRET:}
+
 agriculture:
   # The address Samanvay uses to reach this service; published in the manifest identity block.
   public-base-url: ${AGRICULTURE_PUBLIC_URL:http://localhost:8094}
   login:
     assertion-ttl: PT5M
     # Samanvay addresses a login may redirect back to (prefix match). Anything else gets a 400, never a redirect.
-    allowed-return-uris: ${AGRICULTURE_ALLOWED_RETURN_URIS:http://localhost:8080/,https://app.3.109.201.126.nip.io/}
+    allowed-return-uris: ${AGRICULTURE_ALLOWED_RETURN_URIS:http://localhost:8091/portal/callback,http://localhost:8092/portal/callback,http://localhost:8093/portal/callback}
     # Shown on the login page so a demo user knows which FAKE account to use. Empty hides it.
     demo-hint: "${AGRICULTURE_LOGIN_HINT:Demo account (fake data): mobile 9000000001, password asha-demo-pass, one-time code 123456}"
-    # The one-time code. FIXED for the demo (a real department sends a fresh code to the mobile).
-    code: ${AGRICULTURE_LOGIN_CODE:123456}
-    # Built-in demo citizens, used only when no database is configured: mobile|password|personId. FAKE dev accounts only.
-    users: ${AGRICULTURE_LOGIN_USERS:9000000001|asha-demo-pass|AG-1001,9000000002|ravi-demo-pass|AG-1002}
+    # Built-in demo citizens, used only when no database is configured: mobile|password|personId[|name|dateOfBirth]. FAKE dev accounts only.
+    users: ${AGRICULTURE_LOGIN_USERS:9000000001|asha-demo-pass|AG-1001|Asha Patil|2004-03-09,9000000002|ravi-demo-pass|AG-1002|Ravi Deshmukh|2003-11-21}
   db:
     # This service's OWN connection to its Postgres, for the citizen login. Empty url = use the built-in fake seed above
     # (tests, bare local run). A deployment sets all three.

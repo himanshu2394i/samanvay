@@ -17,6 +17,9 @@ function outcomeTone(outcome: string): Tone {
   return 'neutral'
 }
 
+/** How many of the newest ledger entries the trail is read from (the audit API has no subject filter). */
+const AUDIT_WINDOW = 200
+
 /**
  * The officer's 360° view of one citizen: every application they have filed across services,
  * and their consent / data-access trail from the audit ledger. Composed from endpoints the
@@ -29,13 +32,13 @@ export function CitizenViewPage() {
 
   const data = useAsync(async () => {
     const [apps, trail] = await Promise.all([
-      api.listApplications(200),
-      api.auditEntries({ size: 200 }).then(
+      api.listApplications(200, citizenId),
+      api.auditEntries({ size: AUDIT_WINDOW }).then(
         (list) => list.filter((e) => e.subjectId === citizenId),
         () => null as AuditRecord[] | null,
       ),
     ])
-    return { loadedAt: Date.now(), apps: apps.filter((a) => a.citizenId === citizenId), trail }
+    return { loadedAt: Date.now(), apps, trail }
   }, citizenId)
 
   if (data.status === 'loading') return <Loading label="Loading the citizen file" />
@@ -123,8 +126,9 @@ export function CitizenViewPage() {
 
       <h2>Consent &amp; data access</h2>
       <p className="hint">
-        From the tamper-evident audit ledger: what this citizen agreed to, and every access made on
-        their behalf.
+        From the tamper-evident audit ledger: what this citizen agreed to, and accesses made on
+        their behalf. Only the last {AUDIT_WINDOW} ledger entries are searched, so older activity
+        may not appear here.
       </p>
       {departments.length > 0 ? (
         <ul className="plain chips" aria-label="Departments involved">
@@ -140,7 +144,7 @@ export function CitizenViewPage() {
           The audit trail could not be loaded. The applications above are unaffected.
         </p>
       ) : trail.length === 0 ? (
-        <p>No consent or data-access entries for this citizen yet.</p>
+        <p>None in the last {AUDIT_WINDOW} ledger entries.</p>
       ) : (
         <div className="table-wrap">
           <table>

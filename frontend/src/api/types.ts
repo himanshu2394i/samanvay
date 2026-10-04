@@ -47,65 +47,7 @@ export interface JourneyDefinition {
   academicYearStartMonth: number | null
 }
 
-// --- identity (/api/identity/...) -------------------------------------------------------
-
-export type DobPrecision = 'DAY' | 'MONTH' | 'YEAR'
-
-export interface ProfileDraft {
-  nameLatin: string
-  nameDevanagari?: string
-  givenName?: string
-  familyName?: string
-  fatherName?: string
-  /** yyyy-MM-dd */
-  dob: string
-  dobPrecision: DobPrecision
-  gender?: string
-  contactMasked?: string
-}
-
-export interface Profile {
-  citizenId: Uuid
-  nameLatin: string
-  nameDevanagari: string | null
-  familyName: string | null
-  fatherName: string | null
-  dob: string
-  dobPrecision: DobPrecision
-}
-
-export type LinkProofKind = 'LOCAL_ID_OTP' | 'DEPT_IDP' | 'DEPT_ASSERTION'
-
-export interface LinkProofProviderInfo {
-  kind: LinkProofKind
-  label: string
-}
-
-export interface DepartmentLinkNeed {
-  departmentCode: string
-  departmentName: string
-  categories: string[]
-  linked: boolean
-  localIdType: string | null
-  localIdToken: string | null
-  /** The department publishes its own login, so the citizen links by logging in there. */
-  departmentLoginAvailable?: boolean
-}
-
-export interface ConnectAccounts {
-  journeyCode: string
-  departments: DepartmentLinkNeed[]
-  providers: LinkProofProviderInfo[]
-}
-
-export interface LinkRequest {
-  citizenId: Uuid
-  departmentCode: string
-  localIdType: string
-  localId: string
-  provider: LinkProofKind
-  proof: string
-}
+// --- identity review (/api/identity/...): the link a reviewer confirms ---------------------
 
 export interface Link {
   id: Uuid
@@ -117,48 +59,7 @@ export interface Link {
   status: string
 }
 
-// --- consent (/api/consent/...) ---------------------------------------------------------
-
-export interface ConsentRequest {
-  id: Uuid
-  citizenId: Uuid
-  requesterId: string
-  purposeCode: string
-  purposeText: string
-  categories: string[]
-  status: string
-}
-
-export interface ConsentArtifact {
-  id: Uuid
-  citizenId: Uuid
-  requesterId: string
-  purposeCode: string
-  categories: string[]
-  granularity: string
-  validFrom: IsoInstant
-  validUntil: IsoInstant
-  frequencyLimit: number | null
-  /** ACTIVE | EXPIRED | REVOKED (computed at read time) */
-  status: string
-  version: number
-  dataTypes: string[]
-  createdAt: IsoInstant
-  revokedAt: IsoInstant | null
-  revokedBy: string | null
-  /** Citizen-facing label: "Active", "Ended", "Withdrawn by you" */
-  statusLabel: string
-  frequency: string | null
-}
-
-// --- orchestration (/api/journeys/...) and tracking (/api/applications/...) ------------
-
-export interface JourneyInstance {
-  id: Uuid
-  processInstanceId: string
-  journeyCode: string
-  citizenId: Uuid
-}
+// --- tracking (/api/applications/...) --------------------------------------------------
 
 export interface ApplicationSummary {
   referenceNo: string
@@ -195,23 +96,6 @@ export interface StepView {
 export interface IssuedField {
   label: string
   value: string
-}
-
-/** One instalment of a disbursement schedule. */
-export interface DisbursementInstalment {
-  sequence: number
-  status: string
-}
-
-/**
- * A sanctioned application's disbursement (GET /api/applications/{ref}/disbursement). Absent
- * (204) until the application is disbursed. Carries no money amount: the mock DBT holds none.
- */
-export interface Disbursement {
-  status: string
-  createdAt: string
-  instalmentCount: number
-  instalments: DisbursementInstalment[]
 }
 
 /** A department record as it looks right now (GET /api/applications/{ref}/issued-records). Never stored by Samanvay. */

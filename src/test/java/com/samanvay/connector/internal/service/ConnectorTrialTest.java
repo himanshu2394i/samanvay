@@ -133,4 +133,64 @@ class ConnectorTrialTest {
         assertThat(calls).isEmpty();
         verify(audit, never()).record(any());
     }
+
+    // --- who the trial really fetched ---------------------------------------------------------------------------
+
+    static final String CAPS_WITH_SAMPLE = "{\"FETCH\":{\"endpoint\":\"/v1/bank\",\"sample_person_id\":\"DBT-1001\"}}";
+
+    private AuditEntry theAuditRow() {
+        ArgumentCaptor<AuditEntry> rows = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit, times(1)).record(rows.capture());
+        return rows.getValue();
+    }
+
+    @Test
+    void the_audit_subject_of_the_departments_own_sample_person_names_it() {
+        runtime(CAPS_WITH_SAMPLE, r -> "{\"accountRef\":\"X\"}").trial(CONNECTOR, "DBT-1001", ADMIN);
+
+        assertThat(theAuditRow().subjectId()).isEqualTo("sample:DBT-1001");
+    }
+
+    @Test
+    void any_other_person_is_audited_by_a_hash_never_by_the_id_itself() {
+        // no sample declared, so a named person is allowed (as before) but the trail must not hold the raw id
+        runtime(CAPS, r -> "{\"accountRef\":\"X\"}").trial(CONNECTOR, "REAL-CITIZEN-4242", ADMIN);
+
+        AuditEntry row = theAuditRow();
+        assertThat(row.subjectId()).startsWith("person:").doesNotContain("REAL-CITIZEN-4242").hasSize("person:".length() + 16);
+        assertThat(row.meta().toString()).doesNotContain("REAL-CITIZEN-4242");
+    }
+
+    @Test
+    void when_the_manifest_declares_a_sample_a_person_of_another_shape_is_refused_before_anything_is_called() {
+        var rt = runtime(CAPS_WITH_SAMPLE, r -> "{}");
+
+        assertThatThrownBy(() -> rt.trial(CONNECTOR, "NOBODY", ADMIN)).isInstanceOf(InvalidRequestException.class).hasMessageContaining("sample");
+        assertThatThrownBy(() -> rt.trial(CONNECTOR, "4242", ADMIN)).isInstanceOf(InvalidRequestException.class);
+        assertThat(calls).isEmpty();
+        verify(audit, never()).record(any());
+    }
+
+    @Test
+    void a_person_that_looks_like_the_sample_is_allowed_and_audited_by_hash() {
+        runtime(CAPS_WITH_SAMPLE, r -> "{\"accountRef\":\"X\"}").trial(CONNECTOR, "DBT-9999", ADMIN);
+
+        assertThat(calls).hasSize(1);
+        assertThat(theAuditRow().subjectId()).startsWith("person:").doesNotContain("DBT-9999");
+    }
+
+    // --- a missing record is not a success ---------------------------------------------------------------------
+
+    @Test
+    void a_department_answer_with_no_record_in_it_is_not_found_not_a_success_with_nothing_in_it() {
+        // what an SFTP source (no matching row) or a JDBC source (no row) returns: an empty object
+        var rt = runtime(CAPS, r -> "{}");
+        assertThat(rt.trial(CONNECTOR, "DBT-1001", ADMIN)).isInstanceOf(ConnectorResult.NotFound.class);
+    }
+
+    @Test
+    void a_record_whose_every_field_is_null_is_not_a_success_either() {
+        var rt = runtime(CAPS, r -> "{\"accountRef\":null}");
+        assertThat(rt.trial(CONNECTOR, "DBT-1001", ADMIN)).isInstanceOf(ConnectorResult.NotFound.class);
+    }
 }

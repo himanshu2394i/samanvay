@@ -103,6 +103,7 @@ class RevenueDepartmentTest {
         assertThat(j.get(0).get("referencePrefix").asString()).isEqualTo("ICR");
         assertThat(j.get(0).get("slaHours").asInt()).isPositive();
         assertThat(j.get(0).get("consentPurpose").asString()).isEqualTo("INCOME_CERT_RENEWAL");
+        assertThat(j.get(0).get("portalUrl").asString()).startsWith("http://localhost:8091/portal/");
         assertThat(j.get(0).get("requester").asString()).isEqualTo("REVENUE");
         assertThat(j.get(0).get("requiredCategories")).hasSize(1);
         assertThat(j.get(0).get("requiredCategories").get(0).get("category").asString()).isEqualTo("INCOME_CERTIFICATE");

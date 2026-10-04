@@ -85,6 +85,16 @@ class RevenueJdbcStoresTest {
     }
 
     @Test
+    void a_person_is_looked_up_with_name_and_date_of_birth_for_the_login_assertion() {
+        JdbcCitizens citizens = new JdbcCitizens(jdbc);
+        assertThat(citizens.person("RV-9001")).get().satisfies(p -> {
+            assertThat(p.name()).isEqualTo("Meera Kulkarni");
+            assertThat(p.dob()).hasToString("1999-05-04");
+        });
+        assertThat(citizens.person("RV-0000")).isEmpty();
+    }
+
+    @Test
     void login_accepts_the_right_password_for_a_registered_mobile_and_returns_that_persons_id() {
         JdbcCitizens citizens = new JdbcCitizens(jdbc);
         assertThat(citizens.authenticate("9100000001", "right-password")).contains("RV-9001");
@@ -109,5 +119,21 @@ class RevenueJdbcStoresTest {
         JdbcCitizens citizens = new JdbcCitizens(jdbc);
         assertThat(citizens.authenticate("9100000001", "' OR '1'='1")).isEmpty();
         assertThat(citizens.authenticate("9100000001' OR '1'='1", "right-password")).isEmpty();
+    }
+
+    @Test
+    void an_unregistered_mobile_costs_one_bcrypt_check_like_a_wrong_password_so_timing_does_not_reveal_registered_mobiles() {
+        JdbcClient spy = org.mockito.Mockito.spy(jdbc);
+        JdbcCitizens citizens = new JdbcCitizens(spy);
+        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
+
+        assertThat(citizens.authenticate("9100000001", "wrong")).isEmpty();
+        org.mockito.Mockito.verify(spy, org.mockito.Mockito.times(1)).sql(sql.capture());
+        assertThat(sql.getAllValues().getFirst()).contains("crypt(");
+
+        org.mockito.Mockito.clearInvocations(spy);
+        assertThat(citizens.authenticate("9199999999", "wrong")).isEmpty();
+        org.mockito.Mockito.verify(spy, org.mockito.Mockito.times(2)).sql(sql.capture());
+        assertThat(sql.getAllValues().getLast()).contains("crypt(");
     }
 }

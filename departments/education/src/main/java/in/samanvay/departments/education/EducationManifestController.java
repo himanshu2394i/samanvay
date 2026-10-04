@@ -1,6 +1,8 @@
 package in.samanvay.departments.education;
 
+import in.samanvay.departments.kit.JourneyCatalog;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 class EducationManifestController {
 
     private final String publicBaseUrl;
+    private final JourneyCatalog journeys;
 
-    EducationManifestController(@Value("${education.public-base-url}") String publicBaseUrl) {
+    EducationManifestController(@Value("${education.public-base-url}") String publicBaseUrl, JourneyCatalog journeys) {
         this.publicBaseUrl = publicBaseUrl;
+        this.journeys = journeys;
     }
 
     /** Full request envelope minus the security header: Samanvay inserts the WS-Security header into soap:Header. */
@@ -36,16 +40,10 @@ class EducationManifestController {
                 new Dept("EDUCATION", "State Board of Education", "Holds board examination marks. Fake data only."),
                 new Identity(AssertionSigner.PERSON_ID_TYPE, publicBaseUrl + "/login", publicBaseUrl + "/.well-known/jwks.json", AssertionSigner.ISSUER), List.of(marks),
                 new Sample("EDU-1001"),
-                List.of(new Journey("POST_MATRIC_SCHOLARSHIP", "Post-matric scholarship",
-                        "Scholarship for students after matriculation; needs income, caste, marks and a bank account.", "PMS", 240,
-                        "SCHOLARSHIP_ELIGIBILITY", "EDUCATION",
-                        List.of(new RequiredCategory("INCOME_CERTIFICATE", "REVENUE"),
-                                new RequiredCategory("CASTE_CERTIFICATE", "REVENUE"),
-                                new RequiredCategory("MARKS", "EDUCATION"),
-                                new RequiredCategory("BANK_ACCOUNT", "DBT")))));
+                journeys.manifestJourneys(publicBaseUrl));
     }
 
-    record Manifest(int manifestVersion, Dept department, Identity identity, List<Document> documents, Sample sample, List<Journey> journeys) {}
+    record Manifest(int manifestVersion, Dept department, Identity identity, List<Document> documents, Sample sample, List<Map<String, Object>> journeys) {}
 
     /** A FAKE person this department can answer for, so an admin can run a trial fetch at onboarding. Never a real person. */
     record Sample(String personId) {}
@@ -70,8 +68,4 @@ class EducationManifestController {
 
     record AuthParam(String name, String in, boolean secret) {}
 
-    record Journey(String code, String name, String description, String referencePrefix, int slaHours,
-                   String consentPurpose, String requester, List<RequiredCategory> requiredCategories) {}
-
-    record RequiredCategory(String category, String department) {}
 }

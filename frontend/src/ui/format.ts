@@ -4,6 +4,20 @@ export function humanize(code: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : code
 }
 
+/**
+ * The address if it is an absolute http(s) URL, else null. For any link or redirect built from a value the server
+ * sent (a `javascript:` or `data:` address in an href runs script when clicked), so check before using it.
+ */
+export function safeHttpUrl(u: string | null | undefined): string | null {
+  if (!u) return null
+  try {
+    const url = new URL(u.trim())
+    return url.protocol === 'http:' || url.protocol === 'https:' ? u.trim() : null
+  } catch {
+    return null
+  }
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /**

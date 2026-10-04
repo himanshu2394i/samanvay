@@ -28,7 +28,7 @@ export function parseAuthConfig(body: unknown, realm: RealmKey): OidcConfig {
  * realm; VITE_STAFF_OIDC_AUTHORITY + VITE_STAFF_OIDC_CLIENT_ID override the staff realm.
  */
 export async function loadOidcConfig(
-  realm: RealmKey = 'citizen',
+  realm: RealmKey = 'staff',
   opts: { fetchImpl?: typeof fetch; env?: Record<string, string | undefined> } = {},
 ): Promise<OidcConfig> {
   const env = opts.env ?? (import.meta.env as Record<string, string | undefined>)
