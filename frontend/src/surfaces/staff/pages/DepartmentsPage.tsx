@@ -8,13 +8,15 @@ import { formatDateTime, humanize } from '../../../ui/format'
 import { Loading } from '../../../ui/Loading'
 import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
-import { healthTone, publishTone } from '../lib/status'
+import { healthTone, isUnchecked, publishTone, SOURCE_STATE_BADGE, sourceState } from '../lib/status'
 import { ADMIN } from '../nav'
 import { useStaffSession } from '../StaffContext'
 
 /** Why a document is not working, in plain words; null when it is. */
 function whyNot(d: OverviewDocument): string | null {
-  if (d.working) return null
+  const state = sourceState(d.working, d.sourceHealth)
+  if (state === 'working') return null
+  if (state === 'unchecked') return 'The data source has not been checked yet. Use Check source to see whether it is reachable'
   if (!d.connectorRef) return 'No connector for this document yet'
   if (d.connectorStatus !== 'PUBLISHED') return 'The connector is still a draft: it has to be mapped, tested and published'
   return 'The data source is not reachable, so fetches for this document will fail'
@@ -150,7 +152,7 @@ function Body({ departments, reload }: { departments: OverviewDepartment[]; relo
                         <td>{s.protocol}</td>
                         <td className="mono">{s.host}</td>
                         <td>
-                          <Badge tone={healthTone(s.health)}>{humanize(s.health)}</Badge>
+                          {isUnchecked(s.health) ? <Badge tone="neutral">Not checked yet</Badge> : <Badge tone={healthTone(s.health)}>{humanize(s.health)}</Badge>}
                           {s.healthDetail ? <span className="hint"> {s.healthDetail}</span> : null}
                         </td>
                         {canAct ? (
@@ -189,14 +191,20 @@ function Body({ departments, reload }: { departments: OverviewDepartment[]; relo
                       return (
                         <tr key={d.category}>
                           <td>
-                            {d.title} <span className="hint">{humanize(d.category)}</span>
+                            {d.title}
+                            {d.title.trim().toLowerCase() === humanize(d.category).toLowerCase() ? null : (
+                              <>
+                                {' '}
+                                <span className="hint">{humanize(d.category)}</span>
+                              </>
+                            )}
                           </td>
                           <td>
                             {d.connectorRef ? <span className="mono">{d.connectorRef}</span> : <Badge tone="warn">Not connected</Badge>}{' '}
                             {d.connectorRef ? <Badge tone={publishTone(d.connectorStatus)}>{humanize(d.connectorStatus)}</Badge> : null}
                           </td>
                           <td>
-                            <Badge tone={d.working ? 'ok' : 'bad'}>{d.working ? 'Yes' : 'No'}</Badge>
+                            <Badge tone={SOURCE_STATE_BADGE[sourceState(d.working, d.sourceHealth)].tone}>{SOURCE_STATE_BADGE[sourceState(d.working, d.sourceHealth)].label}</Badge>
                             {reason ? <p className="hint">{reason}</p> : null}
                             {d.connectorStatus === 'DRAFT' && canAct ? (
                               <p className="hint">

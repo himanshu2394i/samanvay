@@ -1,43 +1,27 @@
 import { ApiError, AuthRequiredError } from '../api/client'
-import { enT, type TFunction } from '../i18n'
 
 /**
- * Citizen-readable message for anything the API layer can throw. `t` localizes the copy for
- * the citizen surface; it defaults to English so the staff surfaces (no LanguageProvider) and
- * any non-UI caller keep working unchanged. Raw server messages (403/fallback) pass through
- * untranslated.
+ * Readable message for anything the API layer can throw. Raw server messages (403 and the fallback) pass
+ * through untouched when they are short enough to be useful.
  */
-export function describeError(e: unknown, t: TFunction = enT): string {
-  if (e instanceof AuthRequiredError) return t('errors.sessionEnded')
+export function describeError(e: unknown): string {
+  if (e instanceof AuthRequiredError) return 'Your session has ended. Sign in again to continue.'
   if (e instanceof ApiError) {
-    switch (e.reason) {
-      case 'MISSING_DEPARTMENT_LINKS': {
-        const missing = e.problem?.missingDepartments ?? []
-        const departments = missing.length ? missing.join(', ') : t('errors.departmentWord')
-        const accounts = missing.length === 1 ? t('errors.accountOne') : t('errors.accountMany')
-        return t('errors.missingDepartments', { departments, accounts })
-      }
-      case 'LINK_PROOF_INVALID':
-        return t('errors.linkProofInvalid')
-      case 'DUPLICATE_LOCAL_ID':
-        return t('errors.duplicateLocalId')
-      case 'NO_PRIOR_AWARD':
-        return t('errors.noPriorAward')
-      case 'APPLICATION_NOT_APPROVABLE':
-        return t('errors.notApprovable')
+    if (e.reason === 'APPLICATION_NOT_APPROVABLE') {
+      return "This application can't be approved yet — a department record is still pending."
     }
     switch (e.status) {
       case 0:
-        return t('errors.unreachable')
+        return 'The Samanvay service could not be reached. Check that the application is running and try again.'
       case 401:
-        return t('errors.sessionEnded')
+        return 'Your session has ended. Sign in again to continue.'
       case 403:
-        return e.message && e.message !== 'Forbidden' ? e.message : t('errors.forbidden')
+        return e.message && e.message !== 'Forbidden' ? e.message : 'You are not allowed to do that.'
       case 404:
-        return t('errors.notFound')
+        return 'Nothing was found for that request.'
     }
-    if (e.status >= 500) return t('errors.serverError')
-    return e.message.length > 200 ? t('errors.generic') : e.message
+    if (e.status >= 500) return 'The service could not complete that request. Try again in a moment.'
+    return e.message.length > 200 ? 'The request could not be completed. Try again.' : e.message
   }
-  return e instanceof Error && e.message ? e.message : t('errors.somethingWrong')
+  return e instanceof Error && e.message ? e.message : 'Something went wrong. Try again.'
 }

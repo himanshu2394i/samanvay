@@ -31,6 +31,19 @@ describe('journey page: connect departments', () => {
     expect(view.find('POST', `/portal-api${J}/links/REVENUE`)[0]?.body).toEqual({})
   })
 
+  it('refuses to send the browser to a login address that is not http(s)', async () => {
+    const user = userEvent.setup()
+    const goTo = vi.fn()
+    renderPortal({
+      route: J,
+      goTo,
+      routes: [get(`${J}/readiness`, readiness()), post(`${J}/links/REVENUE`, { loginUrl: 'javascript:alert(1)' })],
+    })
+    await user.click(await screen.findByRole('button', { name: 'Log in at Revenue' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/cannot be opened/i)
+    expect(goTo).not.toHaveBeenCalled()
+  })
+
   it('shows a plain error when the link cannot be started', async () => {
     const user = userEvent.setup()
     const goTo = vi.fn()

@@ -19,4 +19,24 @@ describe('StatusStepper', () => {
     expect(li.className).not.toContain('now')
     expect(li).toHaveAttribute('aria-current', 'step')
   })
+
+  it('ends a closed application on its own neutral Closed terminal, never as Approved', () => {
+    render(<StatusStepper status="CLOSED" />)
+    expect(screen.queryByText('Approved')).not.toBeInTheDocument()
+    const li = screen.getByText('Closed').closest('li')!
+    expect(li.className).toContain('closed')
+    expect(li.className).not.toContain('bad')
+    expect(li.className).not.toContain('now')
+    expect(li).toHaveAttribute('aria-current', 'step')
+  })
+
+  it('ends a failed application on a Failed error terminal, not on "In progress"', () => {
+    render(<StatusStepper status="FAILED" />)
+    expect(screen.queryByText('In progress')).not.toBeInTheDocument()
+    const li = screen.getByText('Failed').closest('li')!
+    expect(li.className).toContain('bad')
+    expect(li).toHaveAttribute('aria-current', 'step')
+    // the stage before it is done
+    expect(screen.getByText('Submitted').closest('li')!.className).toContain('done')
+  })
 })

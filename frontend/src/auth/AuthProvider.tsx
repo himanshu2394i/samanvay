@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { User } from 'oidc-client-ts'
 import { AuthContext, type AuthContextValue, type AuthStatus, type AuthUser } from './authContext'
-import type { RealmKey } from './config'
 import { isCallbackUrl } from './oidc'
-import { clearSigninRealm, rememberSigninRealm } from './realm'
 import { departmentFromToken, rolesFromToken } from './roles'
 import { Loading } from '../ui/Loading'
 
@@ -19,8 +17,6 @@ export interface OidcManager {
 
 interface Props {
   manager: OidcManager
-  /** Which realm this manager signs in to; remembered across the IdP redirect. Default staff. */
-  realm?: RealmKey
   children: ReactNode
 }
 
@@ -39,7 +35,7 @@ function toAuthUser(user: User): AuthUser {
   }
 }
 
-export function AuthProvider({ manager, realm = 'staff', children }: Props) {
+export function AuthProvider({ manager, children }: Props) {
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [user, setUser] = useState<AuthUser | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -63,7 +59,6 @@ export function AuthProvider({ manager, realm = 'staff', children }: Props) {
       try {
         if (isCallbackUrl(window.location.search)) {
           const signedIn = await manager.signinCallback()
-          clearSigninRealm()
           const returnTo = ((signedIn && (signedIn as User).state) as ReturnState | undefined)?.returnTo
           // Drop ?code=&state= and land on the page the citizen was heading to.
           const { origin, pathname } = window.location
@@ -77,7 +72,6 @@ export function AuthProvider({ manager, realm = 'staff', children }: Props) {
           setStatus('unauthenticated')
         }
       } catch {
-        clearSigninRealm()
         const { origin, pathname } = window.location
         window.history.replaceState(null, '', origin + pathname)
         setNotice('Sign-in could not be completed. Please try again.')
@@ -86,7 +80,7 @@ export function AuthProvider({ manager, realm = 'staff', children }: Props) {
     })()
   }, [manager])
 
-  // Access tokens are short-lived and there is no refresh token: when one expires, say so.
+  // Access tokens are short-lived and renewed in the background (see oidc.ts); if renewal fails and one expires, say so.
   useEffect(() => {
     return manager.events.addAccessTokenExpired(() => expireSession('Your session has expired. Sign in again to continue.'))
   }, [manager, expireSession])
@@ -94,10 +88,9 @@ export function AuthProvider({ manager, realm = 'staff', children }: Props) {
   const signIn = useCallback(
     async (returnTo?: string) => {
       setNotice(null)
-      rememberSigninRealm(realm)
       await manager.signinRedirect({ state: { returnTo } satisfies ReturnState })
     },
-    [manager, realm],
+    [manager],
   )
 
   const signOut = useCallback(async () => {
@@ -116,8 +109,8 @@ export function AuthProvider({ manager, realm = 'staff', children }: Props) {
   }, [manager])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, notice, signIn, signOut, getAccessToken, expireSession, realm }),
-    [status, user, notice, signIn, signOut, getAccessToken, expireSession, realm],
+    () => ({ status, user, notice, signIn, signOut, getAccessToken, expireSession }),
+    [status, user, notice, signIn, signOut, getAccessToken, expireSession],
   )
 
   if (status === 'loading') return <Loading label="Signing you in" />

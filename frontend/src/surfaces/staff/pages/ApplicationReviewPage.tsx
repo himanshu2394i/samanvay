@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStaffApi } from '../../../api/apiContext'
 import { ApiError } from '../../../api/client'
+import type { JourneyException } from '../../../api/staffTypes'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
 import { formatDateTime, humanize } from '../../../ui/format'
@@ -17,6 +18,8 @@ export function ApplicationReviewPage() {
   const action = useAction()
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState<string | null>(null)
+  // Approve and reject cannot be undone, so each takes a second click ("Confirm ...") first.
+  const [confirming, setConfirming] = useState<'approve' | 'reject' | null>(null)
 
   const data = useAsync(async () => {
     const app = await api.getApplication(ref)
@@ -27,9 +30,20 @@ export function ApplicationReviewPage() {
         (r) => ({ ok: true as const, records: r }),
         (e: unknown) => ({ ok: false as const, error: e }),
       ),
-      api.listExceptions().catch(() => []),
+      // Like the records, the exception queue is a side panel: say so when it cannot be read.
+      api.listExceptions().then(
+        (list) => ({ ok: true as const, list }),
+        () => ({ ok: false as const, list: [] as JourneyException[] }),
+      ),
     ])
-    return { loadedAt: Date.now(), app, steps, records, exceptions: exceptions.filter((x) => app.instanceId !== null && x.instanceId === app.instanceId) }
+    return {
+      loadedAt: Date.now(),
+      app,
+      steps,
+      records,
+      exceptionsOk: exceptions.ok,
+      exceptions: exceptions.list.filter((x) => app.instanceId !== null && x.instanceId === app.instanceId),
+    }
   }, ref)
 
   if (data.status === 'loading') return <Loading label="Loading the application" />
@@ -46,25 +60,33 @@ export function ApplicationReviewPage() {
     )
   }
 
-  const { app, steps, records, exceptions, loadedAt } = data.data
+  const { app, steps, records, exceptions, exceptionsOk, loadedAt } = data.data
+  // While the case reloads after a write, no write may start: the buttons would act on stale state.
+  const locked = action.busy !== null || data.refreshing
   const st = appStatus(app.status)
   const open = isOpenApplication(app.status)
   const sla = slaState(app.slaDueAt, open, loadedAt)
 
   async function retry(instanceId: string) {
-    if (await action.run(instanceId, () => api.retryInstance(instanceId), 'Retry requested. Refresh in a moment to see whether the step cleared.')) data.reload()
+    if (await action.run(`retry:${instanceId}`, () => api.retryInstance(instanceId), 'Retry requested. Refresh in a moment to see whether the step cleared.')) data.reload()
   }
 
   async function approve(instanceId: string) {
-    if (await action.run(instanceId, () => api.approveApplication(instanceId), 'Application approved.')) data.reload()
+    setConfirming(null)
+    if (await action.run(`approve:${instanceId}`, () => api.approveApplication(instanceId), 'Application approved.')) data.reload()
   }
 
-  async function reject(instanceId: string) {
+  function askReject() {
     if (!reason.trim()) {
       setReasonError('A reason is required to reject.')
       return
     }
     setReasonError(null)
+    setConfirming('reject')
+  }
+
+  async function reject(instanceId: string) {
+    setConfirming(null)
     if (await action.run(`reject:${instanceId}`, () => api.rejectApplication(instanceId, reason.trim()), 'Application rejected.')) {
       setReason('')
       data.reload()
@@ -117,6 +139,11 @@ export function ApplicationReviewPage() {
       ) : null}
       {action.error ? <ErrorNotice error={action.error} /> : null}
 
+      {!exceptionsOk ? (
+        <p className="notice warn" role="status">
+          The exception queue could not be checked, so open exceptions for this application may not be listed.
+        </p>
+      ) : null}
       {exceptions.length > 0 ? (
         <div className="notice warn" aria-label="Open exceptions">
           <h2>Needs an officer</h2>
@@ -124,8 +151,8 @@ export function ApplicationReviewPage() {
             {exceptions.map((x) => (
               <li key={x.id}>
                 <span className="mono">{x.stepCode}</span>: {x.reason} ({formatDateTime(x.createdAt)}){' '}
-                <button type="button" className="btn primary" onClick={() => void retry(x.instanceId)} disabled={action.busy !== null}>
-                  {action.busy === x.instanceId ? 'Retrying…' : 'Retry'}
+                <button type="button" className="btn primary" onClick={() => void retry(x.instanceId)} disabled={locked}>
+                  {action.busy === `retry:${x.instanceId}` ? 'Retrying…' : 'Retry'}
                 </button>
               </li>
             ))}
@@ -210,18 +237,30 @@ export function ApplicationReviewPage() {
         // once it is APPROVED/REJECTED/CLOSED), and always needs a reason (a blank one is a 400).
         const canReject = open && app.instanceId !== null
         const rejectKey = `reject:${app.instanceId}`
+        const approveKey = `approve:${app.instanceId}`
         return (
           <>
             <div className="actions">
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => app.instanceId !== null && void approve(app.instanceId)}
-                disabled={!canApprove || action.busy !== null}
-                aria-describedby={canApprove ? undefined : 'approve-why'}
-              >
-                {action.busy === app.instanceId ? 'Approving…' : 'Approve application'}
-              </button>
+              {confirming === 'approve' && canApprove ? (
+                <>
+                  <button type="button" className="btn primary" onClick={() => app.instanceId !== null && void approve(app.instanceId)} disabled={locked}>
+                    Confirm approve
+                  </button>
+                  <button type="button" className="btn" onClick={() => setConfirming(null)} disabled={locked}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => setConfirming('approve')}
+                  disabled={!canApprove || locked}
+                  aria-describedby={canApprove ? undefined : 'approve-why'}
+                >
+                  {action.busy === approveKey ? 'Approving…' : 'Approve application'}
+                </button>
+              )}
               {!canApprove ? (
                 <p id="approve-why" className="hint">
                   Available once every department record is verified
@@ -234,7 +273,10 @@ export function ApplicationReviewPage() {
                 <textarea
                   id="reject-reason"
                   value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  onChange={(e) => {
+                    setReason(e.target.value)
+                    if (confirming === 'reject') setConfirming(null)
+                  }}
                   rows={2}
                   aria-describedby={reasonError ? 'reject-why' : undefined}
                   aria-invalid={reasonError ? true : undefined}
@@ -244,14 +286,20 @@ export function ApplicationReviewPage() {
                     {reasonError}
                   </p>
                 ) : null}
-                <button
-                  type="button"
-                  className="btn danger"
-                  onClick={() => app.instanceId !== null && void reject(app.instanceId)}
-                  disabled={action.busy !== null}
-                >
-                  {action.busy === rejectKey ? 'Rejecting…' : 'Reject application'}
-                </button>
+                {confirming === 'reject' ? (
+                  <>
+                    <button type="button" className="btn danger" onClick={() => app.instanceId !== null && void reject(app.instanceId)} disabled={locked}>
+                      Confirm reject
+                    </button>
+                    <button type="button" className="btn" onClick={() => setConfirming(null)} disabled={locked}>
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="btn danger" onClick={askReject} disabled={locked}>
+                    {action.busy === rejectKey ? 'Rejecting…' : 'Reject application'}
+                  </button>
+                )}
               </div>
             ) : null}
           </>

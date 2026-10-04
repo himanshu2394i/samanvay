@@ -4,18 +4,20 @@ import { useStaffApi } from '../../../api/apiContext'
 import type { JourneyStatus, JourneyStatusCategory } from '../../../api/staffTypes'
 import { Badge } from '../../../ui/Badge'
 import { ErrorNotice } from '../../../ui/ErrorNotice'
-import { formatDateTime, humanize, shortId } from '../../../ui/format'
+import { formatDateTime, humanize, safeHttpUrl, shortId } from '../../../ui/format'
 import { Loading } from '../../../ui/Loading'
 import { Tile } from '../../../ui/Tile'
 import { useAction } from '../../../ui/useAction'
 import { useAsync } from '../../../ui/useAsync'
-import { appStatus, healthTone, publishTone, stepTone } from '../lib/status'
+import { appStatus, healthTone, isUnchecked, publishTone, SOURCE_STATE_BADGE, sourceState, stepTone } from '../lib/status'
 import { ADMIN, OFFICER } from '../nav'
 import { useStaffSession } from '../StaffContext'
 
 /** Why a category is not working, in plain words; null when it is. */
 function whyNot(c: JourneyStatusCategory): string | null {
-  if (c.working) return null
+  const state = sourceState(c.working, c.sourceHealth)
+  if (state === 'working') return null
+  if (state === 'unchecked') return 'The data source has not been checked yet. Use Check source to see whether it is reachable'
   if (!c.connectorRef) return 'No published connector for this document yet'
   return 'The data source is not reachable, so fetches for this document will fail'
 }
@@ -59,9 +61,9 @@ function Header({ s }: { s: JourneyStatus }) {
         <span className="mono">{s.code}</span> <Badge tone={publishTone(s.status)}>{humanize(s.status)}</Badge>
         {s.requester ? <span className="hint"> run by {s.requester}</span> : null}
       </p>
-      {s.portalUrl ? (
+      {safeHttpUrl(s.portalUrl) ? (
         <p>
-          <a href={s.portalUrl} target="_blank" rel="noreferrer">
+          <a href={safeHttpUrl(s.portalUrl) as string} target="_blank" rel="noreferrer">
             Open the department portal for this service
           </a>
         </p>
@@ -108,12 +110,18 @@ function Connected({ categories, reload }: { categories: JourneyStatusCategory[]
     if (ok) reload()
   }
 
-  const allWorking = categories.length > 0 && categories.every((c) => c.working)
+  const states = categories.map((c) => sourceState(c.working, c.sourceHealth))
+  const overall =
+    states.length > 0 && states.every((s) => s === 'working')
+      ? { tone: 'ok' as const, label: 'Every document source is working' }
+      : states.length === 0 || states.includes('blocked')
+        ? { tone: 'warn' as const, label: 'Some document sources are not working' }
+        : { tone: 'neutral' as const, label: 'Some document sources have not been checked yet' }
   return (
     <section aria-labelledby="js-conn-h">
       <h2 id="js-conn-h">Connected and working</h2>
       <p>
-        <Badge tone={allWorking ? 'ok' : 'warn'}>{allWorking ? 'Every document source is working' : 'Some document sources are not working'}</Badge>
+        <Badge tone={overall.tone}>{overall.label}</Badge>
       </p>
       {result ? (
         <p role="status" className="notice">
@@ -150,7 +158,7 @@ function Connected({ categories, reload }: { categories: JourneyStatusCategory[]
                     )}
                   </td>
                   <td>
-                    <Badge tone={healthTone(c.sourceHealth)}>{humanize(c.sourceHealth)}</Badge>
+                    {isUnchecked(c.sourceHealth) ? <Badge tone="neutral">Not checked yet</Badge> : <Badge tone={healthTone(c.sourceHealth)}>{humanize(c.sourceHealth)}</Badge>}
                   </td>
                   <td>
                     {c.lastTrial ? (
@@ -165,7 +173,7 @@ function Connected({ categories, reload }: { categories: JourneyStatusCategory[]
                     )}
                   </td>
                   <td>
-                    <Badge tone={c.working ? 'ok' : 'bad'}>{c.working ? 'Yes' : 'No'}</Badge>
+                    <Badge tone={SOURCE_STATE_BADGE[sourceState(c.working, c.sourceHealth)].tone}>{SOURCE_STATE_BADGE[sourceState(c.working, c.sourceHealth)].label}</Badge>
                     {reason ? (
                       <p className="hint">
                         <span>{reason}</span>
@@ -209,8 +217,9 @@ function Counts({ counts }: { counts: JourneyStatus['counts'] }) {
       <h2 id="js-counts-h">Applications</h2>
       <div className="tiles">
         <Tile label="Running" value={counts.running} />
-        <Tile label="Completed" value={counts.completed} tone={counts.completed > 0 ? 'ok' : undefined} />
-        <Tile label="Failed" value={counts.failed} tone={counts.failed > 0 ? 'bad' : undefined} />
+        {/* The backend counts APPROVED as completed and REJECTED as failed (field names kept). */}
+        <Tile label="Approved" value={counts.completed} tone={counts.completed > 0 ? 'ok' : undefined} />
+        <Tile label="Rejected" value={counts.failed} tone={counts.failed > 0 ? 'bad' : undefined} />
         <Tile label="Started in the last 7 days" value={counts.last7Days} />
       </div>
     </section>

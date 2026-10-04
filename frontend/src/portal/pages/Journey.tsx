@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { safeHttpUrl } from '../../ui/format'
 import { useAsync } from '../../ui/useAsync'
 import { PortalError, type Readiness } from '../api'
 import { usePortal } from '../context'
@@ -38,7 +39,9 @@ export function JourneyPage() {
     setLinkError(null)
     try {
       const { loginUrl } = await api.startLink(code, dept)
-      goTo(loginUrl)
+      const safe = safeHttpUrl(loginUrl)
+      if (!safe) throw new PortalError(400, 'The sign-in address for this department cannot be opened. Please tell the department.')
+      goTo(safe)
     } catch (e) {
       setLinkError(e)
       setLinking(null)

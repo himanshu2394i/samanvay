@@ -59,8 +59,8 @@ export function createStaffApi(client: ApiClient) {
       client.post<void>(`/api/officer/bank-reviews/${enc(reviewId)}/reject`, { reason }),
 
     // --- officer: application review (TrackingController, IssuedRecordsWeb; OFFICER) ---
-    /** Recent applications across citizens (no citizenId), newest first. */
-    listApplications: (size = 50) => client.get<ApplicationSummary[]>('/api/applications', { size }),
+    /** Recent applications across citizens, newest first; with `citizenId`, only that citizen's (filtered by the server). */
+    listApplications: (size = 50, citizenId?: string) => client.get<ApplicationSummary[]>('/api/applications', { size, citizenId }),
     getApplication: (referenceNo: string) => client.get<ApplicationView>(`/api/applications/${enc(referenceNo)}`),
     getApplicationSteps: (referenceNo: string) => client.get<StepView[]>(`/api/applications/${enc(referenceNo)}/steps`),
     getIssuedRecords: (referenceNo: string) =>
@@ -91,10 +91,6 @@ export function createStaffApi(client: ApiClient) {
       client.get<AuditRecord[]>('/api/audit/entries', { action: opts.action, page: opts.page, size: opts.size ?? 40 }),
 
     // --- admin: catalog view (CatalogController) ---
-    listDepartments: () => client.get<Department[]>('/api/catalog/departments'),
-    listJourneys: () => client.get<JourneyDefinition[]>('/api/catalog/journeys'),
-    /** OFFICER, ADMIN */
-    listConnectors: () => client.get<ConnectorDefinition[]>('/api/catalog/connectors'),
     /** OFFICER, ADMIN: the target schema refs the importer can map onto. */
     listSchemas: () => client.get<string[]>('/api/catalog/schemas'),
     /** OFFICER, ADMIN: the central schema with each field's type and whether it is required. */
@@ -115,8 +111,6 @@ export function createStaffApi(client: ApiClient) {
     /** Trial fetch of a connector for the department's fake sample person (or a named one). ADMIN. */
     trialConnector: (ref: string, personId?: string) =>
       client.post<TrialResult>(`/api/connector/trial/${enc(ref)}`, personId ? { personId } : {}),
-    /** Registered data sources with last-known connectivity health. OFFICER, ADMIN. */
-    listDataSources: () => client.get<DataSourceHealth[]>('/api/catalog/data-sources'),
     /** Live connectivity check for one data source; records and returns GREEN/RED/UNKNOWN. ADMIN. */
     probeDataSource: (code: string) => client.post<DataSourceHealth>(`/api/catalog/data-sources/${enc(code)}/probe`),
     /** Publish a ready DRAFT journey (make it live to citizens); 400 if a required connector is missing. ADMIN. */

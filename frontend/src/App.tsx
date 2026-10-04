@@ -12,7 +12,7 @@ import { StaffApp } from './surfaces/staff/StaffApp'
  */
 export function App({ manager }: { manager: OidcManager }) {
   return (
-    <AuthProvider manager={manager} realm="staff">
+    <AuthProvider manager={manager}>
       <ApiProvider>
         <HashRouter>
           <StaffApp />
