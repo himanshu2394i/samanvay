@@ -213,7 +213,7 @@ class RestAuth {
     private Applied oauth(String source, String code, AuthSpec spec, Map<String, String> secret, String origin) {
         String clientId = require(source, code, secret, "client_id");
         String clientSecret = require(source, code, secret, "client_secret");
-        if (spec.tokenUrl() == null || !spec.tokenUrl().startsWith("/")) {
+        if (spec.tokenUrl() == null || com.samanvay.shared.EndpointPath.problem(spec.tokenUrl(), true).isPresent()) {
             // Only a path on the department's own host: never an absolute URL from a manifest (SSRF).
             throw new IllegalConnectorConfigurationException("REST source '" + source + "' needs an OAuth2 tokenUrl that is a path on its host");
         }
@@ -232,7 +232,7 @@ class RestAuth {
         if (!spec.scopes().isEmpty()) {
             form.append("&scope=").append(enc(String.join(" ", spec.scopes())));
         }
-        String raw = http.post(URI.create(origin + spec.tokenUrl()), form.toString(), "application/x-www-form-urlencoded");
+        String raw = http.post(EndpointCheck.assertSameOrigin(URI.create(origin + spec.tokenUrl()), origin), form.toString(), "application/x-www-form-urlencoded");
         JsonNode n;
         try {
             n = JSON.readTree(raw == null ? "{}" : raw);

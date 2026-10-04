@@ -41,6 +41,9 @@ import org.springframework.web.client.ResourceAccessException;
 @Component
 public class DeadlineHttp {
 
+    /** A department answers with a document, not a download: more than this is refused. ponytail: fixed; make it a property if a real source needs more. */
+    static final int MAX_RESPONSE_BYTES = 1024 * 1024;
+
     private final HttpClient client;
     private final Duration connectTimeout;
     private final Duration totalTimeout;
@@ -110,9 +113,8 @@ public class DeadlineHttp {
         if (left.isZero() || left.isNegative()) {
             throw new ExchangeDeadlineExceededException("connector deadline already passed before calling " + uri.getHost());
         }
-        CompletableFuture<HttpResponse<String>> exchange =
-                client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        HttpResponse<String> response;
+        CompletableFuture<HttpResponse<byte[]>> exchange = client.sendAsync(request, com.samanvay.shared.CappedBody.upTo(MAX_RESPONSE_BYTES));
+        HttpResponse<byte[]> response;
         try {
             response = exchange.get(left.toNanos(), TimeUnit.NANOSECONDS);
         } catch (TimeoutException e) {
@@ -142,6 +144,10 @@ public class DeadlineHttp {
             throw HttpClientErrorException.create(
                     HttpStatusCode.valueOf(status), "department refused", new HttpHeaders(), null, null);
         }
-        return response.body();
+        byte[] body = response.body();
+        if (body != null && body.length > MAX_RESPONSE_BYTES) {
+            throw new ResponseTooLargeException("the department of " + uri.getHost() + " answered with more than " + MAX_RESPONSE_BYTES / 1024 + " KB");
+        }
+        return body == null ? null : new String(body, StandardCharsets.UTF_8);
     }
 }

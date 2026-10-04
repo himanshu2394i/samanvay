@@ -23,8 +23,9 @@ public record OpsOverviewView(Instant generatedAt, List<Department> departments)
 
     /**
      * @param connectorStatus DRAFT or PUBLISHED
-     * @param working the connector is published and its source is not RED
+     * @param working the connector is published and its source is GREEN or AMBER (an SFTP or JDBC source, always UNKNOWN, counts when its last trial succeeded)
      * @param unmappedRequired required central fields no mapping rule fills
+     * @param pendingUpdateRef the ref of a newer DRAFT connector version waiting to be published (the published one keeps serving), else null
      */
     public record Document(
             String category,
@@ -37,7 +38,8 @@ public record OpsOverviewView(Instant generatedAt, List<Department> departments)
             boolean working,
             String centralSchemaRef,
             List<Mapping> mappings,
-            List<String> unmappedRequired) {}
+            List<String> unmappedRequired,
+            String pendingUpdateRef) {}
 
     public record Trial(Instant at, String outcome) {}
 

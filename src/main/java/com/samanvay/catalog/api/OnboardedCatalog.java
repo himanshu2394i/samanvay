@@ -15,7 +15,8 @@ public interface OnboardedCatalog {
      * @param pinnedKeyThumbprint the manifest signing key pinned at onboarding, null when none
      * @param loginUrl the department's own login address from its identity spec, null when it publishes none
      * @param dataSources its onboarded data sources with their last known health
-     * @param documents per category, its onboarded connector with the highest version
+     * @param documents per category, its onboarded connector with the highest PUBLISHED version (the one serving), or the highest
+     *     DRAFT when none is published yet; a newer DRAFT is carried as the document's {@code pendingUpdate}
      * @param journeys onboarded journeys whose requester is this department
      */
     record OnboardedDepartment(
@@ -31,7 +32,17 @@ public interface OnboardedCatalog {
      * @param centralSchemaRef the central schema the connector's output follows, null when it names none
      * @param requiredFields the central schema's required fields
      * @param rules the connector's saved mapping, department field to central field; empty when none is saved
+     * @param pendingUpdate a DRAFT version newer than the serving one (the live version keeps serving until it is published), else null
      */
     record OnboardedDocument(
-            ConnectorDefinition connector, String centralSchemaRef, List<String> requiredFields, List<FieldMapping> rules) {}
+            ConnectorDefinition connector,
+            String centralSchemaRef,
+            List<String> requiredFields,
+            List<FieldMapping> rules,
+            ConnectorDefinition pendingUpdate) {
+
+        public OnboardedDocument(ConnectorDefinition connector, String centralSchemaRef, List<String> requiredFields, List<FieldMapping> rules) {
+            this(connector, centralSchemaRef, requiredFields, rules, null);
+        }
+    }
 }

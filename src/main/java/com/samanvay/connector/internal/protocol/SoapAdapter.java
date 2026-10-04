@@ -91,9 +91,9 @@ class SoapAdapter implements ProtocolAdapter {
             raw = mocks.soapMarks();
         } else {
             envelope = withAuth(request, envelope);
-            String endpoint = request.endpoint() == null ? "" : request.endpoint();
+            String endpoint = EndpointCheck.requireSafe(request.dataSourceCode(), request.endpoint());
             String origin = overrides.baseUrl(request.dataSourceCode()).orElse(scheme + "://" + request.host());
-            raw = http.post(URI.create(origin + endpoint), envelope, CONTENT_TYPE, soapActionHeader(request));
+            raw = http.post(EndpointCheck.assertSameOrigin(URI.create(origin + endpoint), origin), envelope, CONTENT_TYPE, soapActionHeader(request));
             if (raw == null) {
                 raw = "";
             }

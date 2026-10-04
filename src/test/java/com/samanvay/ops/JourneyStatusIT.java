@@ -134,7 +134,8 @@ class JourneyStatusIT extends PostgresIntegrationTest {
         Map<String, Object> connected = categories.get(0);
         assertThat(connected).containsEntry("category", "BANK_ACCOUNT").containsEntry("department", DEPT)
                 .containsEntry("connectorRef", connectorRef).containsEntry("connectorStatus", "PUBLISHED")
-                .containsEntry("dataSourceCode", SOURCE).containsEntry("sourceHealth", "UNKNOWN").containsEntry("working", true);
+                .containsEntry("dataSourceCode", SOURCE).containsEntry("sourceHealth", "UNKNOWN")
+                .containsEntry("working", false); // a REST source nobody has probed is not known to work
         assertThat(connected.get("lastTrial")).isNull();
         Map<String, Object> unconnected = categories.get(1);
         assertThat(unconnected).containsEntry("category", "OPS_UNCONNECTED").containsEntry("connectorStatus", "NONE")

@@ -180,6 +180,10 @@ class DemoRehearsalIT extends RealDepartmentsIT {
             if ("POLLUTION".equals(dept) && "PREMISE".equals(type)) {
                 RealDepartments.seedPremise(localId);
             }
+            // likewise the municipal property file: a property that is not on file is NotFound, not an answer
+            if ("MUNICIPAL".equals(dept) && "PROPERTY".equals(type)) {
+                RealDepartments.seedProperty(localId);
+            }
             out.add(new String[] {dept, type, localId});
         }
         return List.copyOf(out);

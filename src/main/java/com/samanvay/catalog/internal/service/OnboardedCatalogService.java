@@ -93,20 +93,26 @@ class OnboardedCatalogService implements OnboardedCatalog {
                 .toList();
     }
 
-    /** Per category, the highest-version onboarded connector served from one of the department's own sources. */
+    /**
+     * Per category, the onboarded connector (from one of the department's own sources) that is SERVING: the highest PUBLISHED
+     * version, since that is the one resolution uses; when none is published yet, the highest DRAFT. A DRAFT newer than the serving
+     * version is not shown as the document but carried as its pending update.
+     */
     private List<OnboardedDocument> documents(List<ConnectorEntity> all, Set<String> sourceCodes) {
-        Map<String, ConnectorEntity> best = new LinkedHashMap<>();
+        Map<String, List<ConnectorEntity>> byCategory = new LinkedHashMap<>();
         all.stream().filter(c -> sourceCodes.contains(c.getDataSourceCode()))
                 .sorted(Comparator.comparing(ConnectorEntity::getDataCategory).thenComparingInt(ConnectorEntity::getVersion))
-                .forEach(c -> best.put(c.getDataCategory(), c));
+                .forEach(c -> byCategory.computeIfAbsent(c.getDataCategory(), k -> new ArrayList<>()).add(c));
         List<OnboardedDocument> out = new ArrayList<>();
-        for (ConnectorEntity c : best.values()) {
+        for (List<ConnectorEntity> versions : byCategory.values()) {
+            ConnectorEntity c = versions.stream().filter(v -> "PUBLISHED".equals(v.getStatus())).reduce((a, b) -> b).orElse(versions.get(versions.size() - 1));
+            ConnectorEntity pending = versions.stream().filter(v -> "DRAFT".equals(v.getStatus()) && v.getVersion() > c.getVersion()).reduce((a, b) -> b).orElse(null);
             JsonNode fetch = fetch(c);
             String schemaRef = text(fetch, "output_schema");
             String mappingRef = text(fetch, "mapping_ref");
             List<FieldMapping> rules = mappingRef == null ? List.of() : mappings.findById(mappingRef)
                     .map(m -> CatalogMappingParser.parse(m.getRef(), m.getConnectorRef(), m.getRules()).rules()).orElse(List.of());
-            out.add(new OnboardedDocument(definition(c), schemaRef, required(schemaRef), rules));
+            out.add(new OnboardedDocument(definition(c), schemaRef, required(schemaRef), rules, pending == null ? null : definition(pending)));
         }
         return out;
     }

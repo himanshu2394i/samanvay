@@ -41,6 +41,7 @@ public final class RealDepartments {
     private static String sftpFingerprint;
     private static String jdbcUrl;
     private static Connection h2KeepAlive;
+    private static Path sftpRoot;
 
     private RealDepartments() {}
 
@@ -66,6 +67,17 @@ public final class RealDepartments {
                     + premiseId.replace("'", "''") + "', 'clear', 'Fixture Holder')");
         } catch (Exception e) {
             throw new IllegalStateException("could not seed premise " + premiseId, e);
+        }
+    }
+
+    /** Registers a property record for a property id in the municipal SFTP file, as a real department would hold it on file. */
+    public static synchronized void seedProperty(String propertyId) {
+        ensureStarted();
+        try {
+            Files.writeString(sftpRoot.resolve("outbound/property.csv"), propertyId + ",WARD-00-0,Fixture Ward\n", StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new IllegalStateException("could not seed property " + propertyId, e);
         }
     }
 
@@ -123,6 +135,7 @@ public final class RealDepartments {
 
     private static void startSftp() throws Exception {
         Path root = Files.createTempDirectory("real-dept-sftp");
+        sftpRoot = root;
         Files.createDirectories(root.resolve("outbound"));
         Files.writeString(root.resolve("outbound/property.csv"), PROPERTY_CSV, StandardCharsets.UTF_8);
         SshServer server = SshServer.setUpDefaultServer();

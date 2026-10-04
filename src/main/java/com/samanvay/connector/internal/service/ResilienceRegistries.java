@@ -36,7 +36,7 @@ class ResilienceRegistries {
         this.retries = RetryRegistry.of(RetryConfig.custom()
                 .maxAttempts(maxAttempts)
                 .waitDuration(wait)
-                .ignoreExceptions(ExchangeDeadlineExceededException.class)
+                .ignoreExceptions(ExchangeDeadlineExceededException.class, com.samanvay.connector.internal.protocol.ResponseTooLargeException.class)
                 .build());
     }
 

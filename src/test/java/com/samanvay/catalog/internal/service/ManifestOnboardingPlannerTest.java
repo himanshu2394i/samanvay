@@ -180,6 +180,66 @@ class ManifestOnboardingPlannerTest {
         assertThat(connector(p, "CROP_RECORD").capabilities().get("FETCH").get("key_column").asString()).isEqualTo("agriPersonId");
     }
 
+    // --- endpoint paths from a manifest must stay on the registered host -----------------------------------------
+
+    static final List<String> RETARGETING = List.of(".evil.com/x", "@169.254.169.254/", "//evil.com", "https://evil.com", "/a/../b", "/a b", "/a\\b", "/a?x=1", "/a#frag");
+
+    private static String resource(String name) throws IOException {
+        return new String(ManifestOnboardingPlannerTest.class.getResourceAsStream("/manifests/" + name + ".json").readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    private static String jsonEscape(String s) {
+        return s.replace("\\", "\\\\");
+    }
+
+    @Test
+    void a_document_path_that_could_retarget_the_call_is_a_plan_problem_and_not_ready() throws IOException {
+        for (String bad : RETARGETING) {
+            String json = resource("revenue").replace("\"path\":\"/v1/caste/{key}\"", "\"path\":\"" + jsonEscape(bad) + "\"");
+            var doc = new ManifestOnboardingPlanner().plan(CatalogServices.parseManifest(json), "https://revenue.example.gov", null, env())
+                    .plan().documents().stream().filter(d -> d.category().equals("CASTE_CERTIFICATE")).findFirst().orElseThrow();
+            assertThat(doc.ready()).as(bad).isFalse();
+            assertThat(doc.problems()).as(bad).anyMatch(p -> p.contains("path"));
+        }
+    }
+
+    @Test
+    void a_resolve_path_that_could_retarget_the_call_is_a_plan_problem() throws IOException {
+        for (String bad : RETARGETING) {
+            String json = resource("revenue").replace("\"path\":\"/v1/persons/{personId}/documents\"", "\"path\":\"" + jsonEscape(bad) + "\"");
+            var doc = new ManifestOnboardingPlanner().plan(CatalogServices.parseManifest(json), "https://revenue.example.gov", null, env())
+                    .plan().documents().stream().filter(d -> d.category().equals("INCOME_CERTIFICATE")).findFirst().orElseThrow();
+            assertThat(doc.ready()).as(bad).isFalse();
+            assertThat(doc.problems()).as(bad).anyMatch(p -> p.contains("resolve"));
+        }
+    }
+
+    @Test
+    void a_soap_endpoint_that_could_retarget_the_call_is_a_plan_problem() throws IOException {
+        for (String bad : RETARGETING) {
+            String json = resource("education").replace("\"endpoint\":\"/marks/service\"", "\"endpoint\":\"" + jsonEscape(bad) + "\"");
+            var doc = new ManifestOnboardingPlanner().plan(CatalogServices.parseManifest(json), "https://education.example.gov", null, env())
+                    .plan().documents().get(0);
+            assertThat(doc.ready()).as(bad).isFalse();
+            assertThat(doc.problems()).as(bad).anyMatch(p -> p.contains("endpoint"));
+        }
+    }
+
+    @Test
+    void an_oauth_token_url_that_could_retarget_the_call_is_a_plan_problem() throws IOException {
+        String json = resource("dbt").replace("\"tokenUrl\":\"/oauth/token\"", "\"tokenUrl\":\"//evil.com/token\"");
+        var doc = new ManifestOnboardingPlanner().plan(CatalogServices.parseManifest(json), "https://dbt.example.gov", null, env()).plan().documents().get(0);
+        assertThat(doc.ready()).isFalse();
+        assertThat(doc.problems()).anyMatch(p -> p.contains("tokenUrl"));
+    }
+
+    @Test
+    void a_base_url_with_a_user_name_cannot_hide_the_real_host_in_the_registered_one() throws IOException {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new ManifestOnboardingPlanner()
+                .plan(manifest("dbt"), "https://dept.example.gov@169.254.169.254", null, env()))
+                .isInstanceOf(com.samanvay.shared.InvalidRequestException.class).hasMessageContaining("user name");
+    }
+
     // --- readiness and mapping -----------------------------------------------------------------------------
 
     @Test

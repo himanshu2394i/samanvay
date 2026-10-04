@@ -46,6 +46,7 @@ class SignedManifestOnboardingIT extends PostgresIntegrationTest {
     volatile String served;
     volatile ECKey signWith;
     volatile String forcedSignature;
+    volatile String signAud; // null = the host the manifest is served from
     volatile String requireDiscoveryKey;
 
     @AfterEach
@@ -71,7 +72,7 @@ class SignedManifestOnboardingIT extends PostgresIntegrationTest {
             if (forcedSignature != null) {
                 ex.getResponseHeaders().add("X-Samanvay-Signature", forcedSignature);
             } else if (signWith != null) {
-                ex.getResponseHeaders().add("X-Samanvay-Signature", ManifestSigningFixture.sign(out, signWith, Instant.now()));
+                ex.getResponseHeaders().add("X-Samanvay-Signature", ManifestSigningFixture.sign(out, signWith, Instant.now(), signAud == null ? "http://127.0.0.1:" + server.getAddress().getPort() : signAud));
             }
             ex.sendResponseHeaders(200, out.length);
             ex.getResponseBody().write(out);
@@ -131,7 +132,9 @@ class SignedManifestOnboardingIT extends PostgresIntegrationTest {
         assertThat(changed.manifestKeyThumbprint()).isEqualTo(newThumb);
         assertThat(changed.pinnedKeyThumbprint()).isEqualTo(first.manifestKeyThumbprint());
         assertThatThrownBy(() -> onboarding.onboard(request(changed, url, null))).isInstanceOf(InvalidRequestException.class).hasMessageContaining("changed");
-        onboarding.onboard(request(changed, url, newThumb));
+        // approving the new key is not enough: a changed signing key is an identity change and needs its own acknowledgement
+        assertThatThrownBy(() -> onboarding.onboard(request(changed, url, newThumb))).isInstanceOf(com.samanvay.catalog.api.IdentityChangeNotAcknowledgedException.class);
+        onboarding.onboard(new OnboardRequest(url, changed.manifestDigest(), List.of("BANK_ACCOUNT"), true, Map.of(), newThumb, true));
         assertThat(onboarding.plan(url).pinnedKeyThumbprint()).isEqualTo(newThumb);
 
         signWith = null; // the department stops signing: refused, even though a key is pinned
@@ -141,7 +144,7 @@ class SignedManifestOnboardingIT extends PostgresIntegrationTest {
     @Test
     void a_signature_that_does_not_match_the_content_is_refused() throws IOException {
         signWith = null;
-        forcedSignature = ManifestSigningFixture.sign("some other manifest", ManifestSigningFixture.newKey(), Instant.now());
+        forcedSignature = ManifestSigningFixture.sign("some other manifest", ManifestSigningFixture.newKey(), Instant.now(), "http://127.0.0.1");
         String url = serve(code("SGT"));
         assertThatThrownBy(() -> onboarding.plan(url)).isInstanceOf(InvalidRequestException.class).hasMessageContaining("signature");
     }
@@ -151,7 +154,7 @@ class SignedManifestOnboardingIT extends PostgresIntegrationTest {
         signWith = ManifestSigningFixture.newKey();
         requireDiscoveryKey = "discovery-secret-1";
         String url = serve(code("SGD"));
-        String secretKey = "manifest-127-0-0-1-" + server.getAddress().getPort() + "-credential";
+        String secretKey = "manifest-127-0-0-1---" + server.getAddress().getPort() + "-credential";
 
         assertThatThrownBy(() -> onboarding.plan(url)).isInstanceOf(InvalidRequestException.class).hasMessageContaining(secretKey);
 
@@ -159,6 +162,25 @@ class SignedManifestOnboardingIT extends PostgresIntegrationTest {
         assertThatThrownBy(() -> onboarding.plan(url)).isInstanceOf(InvalidRequestException.class).hasMessageContaining(secretKey);
 
         catalogServices.discoveryCredentials(key -> key.equals(secretKey) ? Optional.of("discovery-secret-1") : Optional.empty());
+        assertThat(onboarding.plan(url).manifestKeyThumbprint()).isEqualTo(ManifestSigningFixture.thumbprint(signWith));
+    }
+
+    @Test
+    void a_manifest_signed_for_another_host_is_refused_even_though_the_signature_is_otherwise_valid() throws IOException {
+        signWith = ManifestSigningFixture.newKey();
+        signAud = "https://some-other-department.example.gov";
+        String url = serve(code("SGH"));
+        assertThatThrownBy(() -> onboarding.plan(url)).isInstanceOf(InvalidRequestException.class)
+                .hasMessageContaining("some-other-department.example.gov").hasMessageContaining("127.0.0.1");
+    }
+
+    @Test
+    void the_discovery_key_named_before_the_encoding_was_made_unambiguous_is_still_accepted_for_a_host_with_a_port() throws IOException {
+        signWith = ManifestSigningFixture.newKey();
+        requireDiscoveryKey = "discovery-secret-2";
+        String url = serve(code("SGL"));
+        String legacy = "manifest-127-0-0-1-" + server.getAddress().getPort() + "-credential";
+        catalogServices.discoveryCredentials(key -> key.equals(legacy) ? Optional.of("discovery-secret-2") : Optional.empty());
         assertThat(onboarding.plan(url).manifestKeyThumbprint()).isEqualTo(ManifestSigningFixture.thumbprint(signWith));
     }
 }

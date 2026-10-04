@@ -8,8 +8,16 @@ the stand-in scholarship journey, the schemas with no document category) are NOT
 
 A row created or adopted by manifest onboarding. Migration V211 adds `onboarded BOOLEAN NOT NULL DEFAULT FALSE` to `catalog_data_source`,
 `catalog_connector` and `catalog_journey` (every existing row stays FALSE). `ManifestOnboardingService.onboard` sets it TRUE on every data source,
-connector and journey it creates, and on a journey that already existed with a code the manifest declares (it is adopted, so the seeded
-`FARMER_SUBSIDY` becomes visible once Agriculture is onboarded). A department is onboarded when `catalog_department.manifest_digest` is not null.
+connector and journey it creates, and on rows it ADOPTS: a data source that already exists with the same code and the same department, and a
+journey that already existed with a code the manifest declares (the seeded `FARMER_SUBSIDY` becomes visible once Agriculture is onboarded).
+It never adopts another department's rows: a data source code that belongs to another department, or a journey whose requester is another
+department, refuses the onboarding (and a journey's requester must be the manifest's own department). A department is onboarded when
+`catalog_department.manifest_digest` is not null.
+
+**No backfill (V213 was deliberately not written).** Rows onboarded before V211 stay FALSE. A backfill needs either the time the department's
+manifest was onboarded (not stored: only the digest is) or the manifest host (not stored either); guessing from "the host is not a seeded
+one" would flag hand-made rows. To make such a department visible, onboard it again: the same data sources and journeys are adopted and the
+new connector versions are created flagged.
 
 ## `GET /api/ops/overview` (OFFICER, ADMIN)
 
@@ -40,7 +48,8 @@ connector and journey it creates, and on a journey that already existed with a c
             { "source": "percentage", "target": "percentage", "required": true },
             { "source": "board", "target": "board", "required": false }
           ],
-          "unmappedRequired": []
+          "unmappedRequired": [],
+          "pendingUpdateRef": null
         }
       ],
       "journeys": [
@@ -58,13 +67,20 @@ connector and journey it creates, and on a journey that already existed with a c
 }
 ```
 
-- `departments`: onboarded departments only, ordered by code. `documents`: the categories its onboarded connectors serve (a connector that is
-  still a DRAFT has `connectorStatus` DRAFT and `working` false). `connectorStatus` is DRAFT or PUBLISHED. `working` = published connector and
-  source health not RED (the same rule as the journey status page).
+- `departments`: onboarded departments only, ordered by code. `documents`: per category, the onboarded connector that is SERVING: the highest
+  PUBLISHED version (the one resolution uses), or the highest DRAFT when none is published yet (`connectorStatus` DRAFT, `working` false).
+  A DRAFT newer than the serving version does not replace it: its ref is `pendingUpdateRef` (null when there is none), a "pending update".
+  `connectorStatus` is DRAFT or PUBLISHED.
+- **`working`** (documents, journey `needs`, and the journey page `categories`): the connector is PUBLISHED and its data source's health is
+  GREEN or AMBER. `sourceHealth` is always exposed. A source nobody has probed is `UNKNOWN` and is **not working**; RED is not working.
+  SFTP and JDBC sources cannot be probed, so they are always `UNKNOWN`; for those only, `working` is true when the connector's last durable
+  trial (`lastTrial`, table `connector_trial`) has outcome `SUCCESS`. A REST or SOAP source that is UNKNOWN is not working whatever its trial
+  said: probe it.
 - `mappings`: the connector's saved mapping rules (department field to central field), `required` taken from the central schema.
   `unmappedRequired`: required central fields no rule fills.
-- `journeys`: onboarded journeys whose requester is this department. `ready`: every required category has a published connector (the rule
-  used to allow publishing). `needs[].working`: that category's connector is published and its source is not RED. `counts` as on the journey
+- `journeys`: onboarded journeys whose requester is this department. `ready`: every required category has a PUBLISHED connector **that
+  manifest onboarding created for the named provider department**; a seeded or hand-made connector of that department never makes an onboarded
+  journey ready or working. `needs[].working`: that onboarded connector is published and working by the rule above. `counts` as on the journey
   status page. A journey is listed under its requester only; the journey page (`/api/ops/journeys/{code}`) has the full detail and log.
 - Nothing secret and no citizen value.
 

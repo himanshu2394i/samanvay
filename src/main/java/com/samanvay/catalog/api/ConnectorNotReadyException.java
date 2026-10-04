@@ -7,6 +7,11 @@ public class ConnectorNotReadyException extends SamanvayException {
         super("Connector is not ready to publish: " + ref);
     }
 
+    /** @param why what is missing, for the admin to act on */
+    public ConnectorNotReadyException(String ref, String why) {
+        super("Connector " + ref + " is not ready to publish: " + why);
+    }
+
     @Override
     public int status() {
         return 409;

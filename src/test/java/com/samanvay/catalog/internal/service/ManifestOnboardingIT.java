@@ -409,4 +409,16 @@ class ManifestOnboardingIT extends PostgresIntegrationTest {
             server = null;
         }
     }
+
+    @Test
+    void a_mapping_that_uses_the_removed_lookup_transform_is_refused_before_anything_is_written() throws IOException {
+        String dept = code("DBTT");
+        String url = serve("dbt", dept);
+        OnboardingPlan plan = onboarding.plan(url);
+        var withLookup = List.of(new FieldMapping("accountRef", "accountRef", List.of(new com.samanvay.catalog.api.TransformCall("lookup", List.of("banks")))));
+
+        assertThatThrownBy(() -> onboarding.onboard(new OnboardRequest(url, plan.manifestDigest(), List.of("BANK_ACCOUNT"), false, Map.of("BANK_ACCOUNT", withLookup))))
+                .isInstanceOf(InvalidRequestException.class).hasMessageContaining("lookup");
+        assertThat(departments.byCode(dept)).isEmpty();
+    }
 }

@@ -49,8 +49,7 @@ class SftpCsvAdapter implements ProtocolAdapter {
         }
         ObjectNode body = json.createObjectNode();
         if (row == null) {
-            body.put("propertyRef", "UNKNOWN");
-            return new AdapterResponse(body, 0);
+            return new AdapterResponse(body, 0); // an empty object: no such record (the runtime reads it as NotFound, never as a row)
         }
         for (int i = 0; i < row.headers().length && i < row.cols().length; i++) {
             body.put(row.headers()[i], row.cols()[i]);
