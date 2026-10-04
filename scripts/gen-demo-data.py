@@ -214,7 +214,7 @@ def sql_agriculture(cs, passwords, sec):
         pid = f"AG-{1000 + c['i']}"
         land, crops, note = farm(c)
         village, taluka = c["place"][2], c["place"][1]
-        lines.append(f"INSERT INTO farmer VALUES ({q(pid)}, {q(c['name'])}, {q(village)}, {q(taluka)}, {land:.2f}, {q(note)});")
+        lines.append(f"INSERT INTO farmer VALUES ({q(pid)}, {q(c['name'])}, {q(village)}, {q(taluka)}, {land:.2f}, {q(note)}, {q(c['dob'])});")
         for season, crop, area in crops:
             lines.append(f"INSERT INTO crop_sowing VALUES ({q(pid)}, {q(season)}, {q(crop)}, {area:.2f});")
         lines.append(f"INSERT INTO citizen_login VALUES ({q(c['mobile'])}, crypt({q(passwords[c['mobile']])}, gen_salt('bf')), {q(pid)});")
@@ -223,6 +223,8 @@ def sql_agriculture(cs, passwords, sec):
         f"CREATE ROLE agriculture_app LOGIN PASSWORD {q(sec['app_password'])};",
         "GRANT CONNECT ON DATABASE agridb TO agriculture_app;", "GRANT USAGE ON SCHEMA public TO agriculture_app;",
         "GRANT SELECT ON citizen_login TO agriculture_app;",
+        "-- Name and date of birth only (for the login assertion), never the internal notes.",
+        "GRANT SELECT (agri_person_id, farmer_name, date_of_birth) ON farmer TO agriculture_app;",
         "-- The read-only login Samanvay uses over JDBC: the VIEW only (no base table, no internal notes, no logins).",
         f"CREATE ROLE agri_ro LOGIN PASSWORD {q(sec['ro_password'])};",
         "GRANT CONNECT ON DATABASE agridb TO agri_ro;", "GRANT USAGE ON SCHEMA public TO agri_ro;",

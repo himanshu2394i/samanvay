@@ -10,6 +10,8 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import in.samanvay.departments.kit.HomeAssertions;
+import in.samanvay.departments.kit.Person;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -25,7 +27,7 @@ import org.springframework.stereotype.Component;
  * {@code kid}); load a persistent key when assertions must survive restarts.
  */
 @Component
-class AssertionSigner {
+class AssertionSigner implements HomeAssertions {
 
     static final String ISSUER = "dept:AGRICULTURE";
     static final String DEPT_CODE = "AGRICULTURE";
@@ -39,15 +41,28 @@ class AssertionSigner {
         this.ttl = ttl;
     }
 
-    String sign(String personId, String state, String nonce) {
+    /** The assertion for a citizen who signed in on this department's own portal: a fresh state and nonce, nobody to bind them to. */
+    @Override
+    public String issue(Person person) {
+        return sign(person, UUID.randomUUID().toString(), UUID.randomUUID().toString());
+    }
+
+    String sign(Person person, String state, String nonce) {
         Instant now = Instant.now();
-        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+        String personId = person.personId();
+        JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
                 .issuer(ISSUER).audience("samanvay").subject(personId)
                 .claim("person_id_type", PERSON_ID_TYPE).claim("dept_code", DEPT_CODE)
                 .claim("auth_time", now.getEpochSecond())
                 .issueTime(Date.from(now)).expirationTime(Date.from(now.plus(ttl)))
-                .jwtID(UUID.randomUUID().toString()).claim("nonce", nonce).claim("state", state)
-                .build();
+                .jwtID(UUID.randomUUID().toString()).claim("nonce", nonce).claim("state", state);
+        if (person.name() != null) {
+            builder.claim("name", person.name());
+        }
+        if (person.dob() != null) {
+            builder.claim("dob", person.dob().toString());
+        }
+        JWTClaimsSet claims = builder.build();
         try {
             SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256).keyID(key.getKeyID()).build(), claims);
             jwt.sign(new ECDSASigner(key));

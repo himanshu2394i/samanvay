@@ -96,6 +96,17 @@ class GeneratedData(unittest.TestCase):
         self.assertEqual((self.out / "education" / "seed.sql").read_text(encoding="utf-8").count("INSERT INTO marks_statement"), 20)
         self.assertEqual((self.out / "agriculture" / "seed.sql").read_text(encoding="utf-8").count("INSERT INTO farmer"), 20)
 
+    def test_every_farmer_has_the_same_date_of_birth_as_the_same_citizen_in_education(self):
+        agri = (self.out / "agriculture" / "seed.sql").read_text(encoding="utf-8")
+        edu = (self.out / "education" / "seed.sql").read_text(encoding="utf-8")
+        edu_dob = {m[0][4:]: m[1] for m in re.findall(r"INSERT INTO student VALUES \('(EDU-\d+)', '[^']*', '[0-9]+', '(\d{4}-\d{2}-\d{2})'", edu)}
+        farmers = re.findall(r"INSERT INTO farmer VALUES \('AG-(\d+)'.*, '(\d{4}-\d{2}-\d{2})'\);", agri)
+        self.assertEqual(len(farmers), 20)
+        for num, dob in farmers:
+            self.assertEqual(dob, edu_dob[num], num)
+        schema = (ROOT / "departments" / "agriculture" / "db" / "schema.sql").read_text(encoding="utf-8")
+        self.assertIn("ADD COLUMN IF NOT EXISTS date_of_birth DATE", schema)
+
     def test_rerunning_keeps_passwords_and_secrets_and_rotate_changes_them(self):
         before = (self.out / "credentials.csv").read_text(encoding="utf-8")
         env_before = (self.out / "revenue" / "revenue.env").read_text(encoding="utf-8")

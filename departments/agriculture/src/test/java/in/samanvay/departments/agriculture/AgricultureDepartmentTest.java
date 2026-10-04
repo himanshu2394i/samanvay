@@ -69,6 +69,7 @@ class AgricultureDepartmentTest {
         assertThat(j.get(0).get("code").asString()).isEqualTo("FARMER_SUBSIDY");
         assertThat(j.get(0).get("referencePrefix").asString()).isEqualTo("FAR");
         assertThat(j.get(0).get("consentPurpose").asString()).isEqualTo("FARMER_SUBSIDY");
+        assertThat(j.get(0).get("portalUrl").asString()).startsWith("http://localhost:8094/portal/");
         assertThat(j.get(0).get("requester").asString()).isEqualTo("AGRICULTURE");
         java.util.Set<String> needs = new java.util.TreeSet<>();
         j.get(0).get("requiredCategories").forEach(c -> needs.add(c.get("department").asString() + ":" + c.get("category").asString()));
