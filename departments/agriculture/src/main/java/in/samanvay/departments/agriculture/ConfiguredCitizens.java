@@ -24,7 +24,12 @@ class ConfiguredCitizens implements CitizenStore {
 
     private final List<User> users;
 
-    ConfiguredCitizens(@Value("${agriculture.login.users}") List<String> users) {
+    ConfiguredCitizens(@Value("${agriculture.login.users}") List<String> users, @Value("${department.demo-mode:false}") boolean demoMode) {
+        if (!demoMode) {
+            // These accounts and their passwords are published in the repository: outside demo mode a department must use its own database.
+            throw new IllegalStateException("Refusing to start: the built-in demo accounts (agriculture.login.users) are only for demo mode. "
+                    + "Configure the department's database (agriculture.db.url), or set department.demo-mode=true for a throwaway demo.");
+        }
         this.users = users.stream().map(String::trim).filter(u -> !u.isEmpty()).map(u -> {
             String[] p = u.split("\\|");
             return new User(p[0], p[1].getBytes(StandardCharsets.UTF_8), p[2], p.length > 3 ? p[3] : "Farmer " + p[2],

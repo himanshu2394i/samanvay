@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class PortalSessionTest {
 
     static final Instant NOW = Instant.parse("2026-10-04T10:00:00Z");
-    final PortalSession sessions = new PortalSession("test-secret");
+    final PortalSession sessions = new PortalSession("test-secret", "EDUCATION");
     final PortalSession.Session who = new PortalSession.Session("EDU-1001", UUID.randomUUID(), "Asha | Patil");
 
     @Test
@@ -30,7 +30,7 @@ class PortalSessionTest {
         String[] parts = cookie.split("\\.");
         parts[2] = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("EDU-9999".getBytes());
         assertThat(sessions.read(String.join(".", parts), NOW)).isEmpty();
-        assertThat(new PortalSession("other-secret").read(cookie, NOW)).isEmpty();
+        assertThat(new PortalSession("other-secret", "EDUCATION").read(cookie, NOW)).isEmpty();
         assertThat(sessions.readTicket(cookie, NOW)).isEmpty();
         assertThat(sessions.read(sessions.issueTicket("EDU-1001", NOW), NOW)).isEmpty();
         assertThat(sessions.read(null, NOW)).isEmpty();
@@ -47,21 +47,30 @@ class PortalSessionTest {
     @Test
     void without_a_configured_secret_the_secret_is_kept_in_a_file_so_a_restart_does_not_sign_everyone_out() throws Exception {
         java.nio.file.Path file = java.nio.file.Files.createTempDirectory("session").resolve("portal-session.secret");
-        String cookie = PortalSession.withSecretFile("", file).issue(who, NOW);
+        String cookie = PortalSession.withSecretFile("", "EDUCATION", file).issue(who, NOW);
 
-        PortalSession afterRestart = PortalSession.withSecretFile("", file); // a new process reads the same file
+        PortalSession afterRestart = PortalSession.withSecretFile("", "EDUCATION", file); // a new process reads the same file
         assertThat(afterRestart.read(cookie, NOW.plusSeconds(60))).contains(who);
         assertThat(java.nio.file.Files.size(file)).isGreaterThanOrEqualTo(32);
 
         java.nio.file.Path other = java.nio.file.Files.createTempDirectory("session").resolve("portal-session.secret");
-        assertThat(PortalSession.withSecretFile(null, other).read(cookie, NOW)).as("another server's secret differs").isEmpty();
+        assertThat(PortalSession.withSecretFile(null, "EDUCATION", other).read(cookie, NOW)).as("another server's secret differs").isEmpty();
     }
 
     @Test
     void a_configured_secret_wins_and_no_file_is_made() throws Exception {
         java.nio.file.Path file = java.nio.file.Files.createTempDirectory("session").resolve("portal-session.secret");
-        PortalSession configured = PortalSession.withSecretFile("from-config", file);
-        assertThat(new PortalSession("from-config").read(configured.issue(who, NOW), NOW)).contains(who);
+        PortalSession configured = PortalSession.withSecretFile("from-config", "EDUCATION", file);
+        assertThat(new PortalSession("from-config", "EDUCATION").read(configured.issue(who, NOW), NOW)).contains(who);
         assertThat(java.nio.file.Files.exists(file)).isFalse();
+    }
+
+    @Test
+    void a_session_or_ticket_made_by_one_department_is_worthless_at_another_even_with_the_same_secret() {
+        PortalSession revenue = new PortalSession("test-secret", "REVENUE");
+        assertThat(revenue.read(sessions.issue(who, NOW), NOW)).isEmpty();
+        assertThat(revenue.readTicket(sessions.issueTicket("EDU-1001", NOW), NOW)).isEmpty();
+        assertThat(sessions.read(revenue.issue(who, NOW), NOW)).isEmpty();
+        assertThat(new PortalSession("test-secret", "education").read(sessions.issue(who, NOW), NOW)).as("the code is not case folded").isEmpty();
     }
 }

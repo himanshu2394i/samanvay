@@ -42,4 +42,29 @@ class ConsentSignerTest {
         assertThat(c.getJWTID()).isNotBlank();
         assertThat(Duration.between(c.getIssueTime().toInstant(), c.getExpirationTime().toInstant())).isLessThanOrEqualTo(Duration.ofMinutes(5));
     }
+
+    @Test
+    void a_wording_without_a_request_id_or_nonce_is_refused_instead_of_signing_the_text_null() throws Exception {
+        ECKey key = new ECKeyGenerator(Curve.P_256).keyID("k").generate();
+        ConsentSigner signer = new ConsentSigner(key, "EDUCATION");
+        Instant now = Instant.parse("2026-10-04T10:00:00Z");
+        java.util.function.BiFunction<Object, Object, Map<String, Object>> wording = (id, nonce) -> {
+            Map<String, Object> m = new java.util.HashMap<>();
+            m.put("requestId", id);
+            m.put("purposeCode", "DEMO_PURPOSE");
+            m.put("nonce", nonce);
+            m.put("categories", List.of("INCOME_CERTIFICATE"));
+            return m;
+        };
+        for (Object bad : new Object[] {null, "", "   "}) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> signer.sign(wording.apply(bad, "n-1"), UUID.randomUUID(), now))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("requestId");
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> signer.sign(wording.apply("r-1", bad), UUID.randomUUID(), now))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("nonce");
+        }
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> signer.sign(wording.apply("r-1", "n-1"), null, now)).isInstanceOf(IllegalArgumentException.class);
+        Map<String, Object> noCategories = wording.apply("r-1", "n-1");
+        noCategories.remove("categories");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> signer.sign(noCategories, UUID.randomUUID(), now)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

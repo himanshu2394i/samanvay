@@ -52,7 +52,12 @@ class RevenueController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("key", d.key());
         body.put("issuedOn", d.issuedOn().toString());
-        body.putAll(d.fields());
+        // Only what the manifest declares for this kind of certificate, not every key the stored row happens to hold.
+        for (RevenueManifestController.Field f : RevenueManifestController.DECLARED.getOrDefault(d.type(), List.of())) {
+            if (d.fields().containsKey(f.name())) {
+                body.put(f.name(), d.fields().get(f.name()));
+            }
+        }
         return body;
     }
 

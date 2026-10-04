@@ -59,4 +59,13 @@ class LoginTicketTest {
         assertThat(tickets.verify("a.b.c", "s", "n", NOW)).isEmpty();
         assertThat(tickets.verify("!!!.???", "s", "n", NOW)).isEmpty();
     }
+
+    @Test
+    void every_ticket_is_unique_so_a_ticket_can_be_used_once_even_for_two_logins_in_the_same_second() {
+        String a = tickets.issue("X-1001", "s", "n", NOW);
+        String b = tickets.issue("X-1001", "s", "n", NOW);
+        assertThat(a).isNotEqualTo(b);
+        assertThat(tickets.verify(a, "s", "n", NOW)).contains("X-1001");
+        assertThat(tickets.verify(b, "s", "n", NOW)).contains("X-1001");
+    }
 }

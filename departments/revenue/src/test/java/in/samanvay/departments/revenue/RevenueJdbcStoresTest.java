@@ -120,4 +120,20 @@ class RevenueJdbcStoresTest {
         assertThat(citizens.authenticate("9100000001", "' OR '1'='1")).isEmpty();
         assertThat(citizens.authenticate("9100000001' OR '1'='1", "right-password")).isEmpty();
     }
+
+    @Test
+    void an_unregistered_mobile_costs_one_bcrypt_check_like_a_wrong_password_so_timing_does_not_reveal_registered_mobiles() {
+        JdbcClient spy = org.mockito.Mockito.spy(jdbc);
+        JdbcCitizens citizens = new JdbcCitizens(spy);
+        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
+
+        assertThat(citizens.authenticate("9100000001", "wrong")).isEmpty();
+        org.mockito.Mockito.verify(spy, org.mockito.Mockito.times(1)).sql(sql.capture());
+        assertThat(sql.getAllValues().getFirst()).contains("crypt(");
+
+        org.mockito.Mockito.clearInvocations(spy);
+        assertThat(citizens.authenticate("9199999999", "wrong")).isEmpty();
+        org.mockito.Mockito.verify(spy, org.mockito.Mockito.times(2)).sql(sql.capture());
+        assertThat(sql.getAllValues().getLast()).contains("crypt(");
+    }
 }

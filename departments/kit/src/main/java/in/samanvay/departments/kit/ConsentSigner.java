@@ -35,13 +35,23 @@ public final class ConsentSigner {
 
     /** @param wording the map Samanvay returned from {@code POST /api/department/consents/requests} */
     public String sign(Map<String, Object> wording, UUID citizenId, Instant confirmedAt) {
+        // A statement is only worth signing if it repeats exactly what was shown: never sign the text "null" for a missing field.
+        if (citizenId == null) {
+            throw new IllegalArgumentException("citizenId is required");
+        }
+        String requestId = required(wording, "requestId");
+        String purpose = required(wording, "purposeCode");
+        String nonce = required(wording, "nonce");
+        if (!(wording.get("categories") instanceof List<?> categories) || categories.isEmpty()) {
+            throw new IllegalArgumentException("categories is required in the consent wording");
+        }
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .issuer("dept:" + deptCode).claim("dept_code", deptCode).jwtID(UUID.randomUUID().toString())
                 .claim("citizen_id", citizenId.toString())
-                .claim("request_id", String.valueOf(wording.get("requestId")))
-                .claim("purpose", String.valueOf(wording.get("purposeCode")))
-                .claim("nonce", String.valueOf(wording.get("nonce")))
-                .claim("categories", (List<?>) wording.get("categories"))
+                .claim("request_id", requestId)
+                .claim("purpose", purpose)
+                .claim("nonce", nonce)
+                .claim("categories", categories)
                 .claim("method", "dept-otp")
                 .claim("confirmed_at", confirmedAt.getEpochSecond())
                 .issueTime(Date.from(confirmedAt)).expirationTime(Date.from(confirmedAt.plus(LIFETIME)))
@@ -54,5 +64,13 @@ public final class ConsentSigner {
         } catch (JOSEException e) {
             throw new IllegalStateException("could not sign the consent statement", e);
         }
+    }
+
+    private static String required(Map<String, Object> wording, String field) {
+        Object v = wording.get(field);
+        if (!(v instanceof String s) || s.isBlank()) {
+            throw new IllegalArgumentException(field + " is required in the consent wording");
+        }
+        return s;
     }
 }

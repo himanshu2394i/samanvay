@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -26,12 +27,16 @@ public class SamanvayClient {
     private static final ParameterizedTypeReference<List<Map<String, Object>>> LIST = new ParameterizedTypeReference<>() {};
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SamanvayClient.class);
     private static final Duration EARLY = Duration.ofSeconds(30);
+    /** The identity provider is a login step, not a batch job: if it does not answer in this time, the citizen is told it is unreachable. */
+    static final Duration TOKEN_TIMEOUT = Duration.ofSeconds(10);
+
+    private record Token(String value, Instant expires) {}
 
     private final PortalProperties.Samanvay config;
     private final Clock clock;
     private final RestClient http;
-    private String token;
-    private Instant tokenExpires = Instant.EPOCH;
+    private final RestClient tokenHttp;
+    private volatile Token token;
 
     public SamanvayClient(PortalProperties.Samanvay config, Clock clock) {
         this.config = config;
@@ -41,6 +46,10 @@ public class SamanvayClient {
                 new JdkClientHttpRequestFactory(java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
         factory.setReadTimeout(Duration.ofSeconds(60));
         this.http = RestClient.builder().requestFactory(factory).build();
+        java.net.http.HttpClient tokenClient = java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        JdkClientHttpRequestFactory tokenFactory = new JdkClientHttpRequestFactory(tokenClient);
+        tokenFactory.setReadTimeout(TOKEN_TIMEOUT);
+        this.tokenHttp = RestClient.builder().requestFactory(tokenFactory).build();
     }
 
     // --- identity ----------------------------------------------------------------------------------------------
@@ -65,11 +74,11 @@ public class SamanvayClient {
     // --- journeys and consent --------------------------------------------------------------------------------
 
     public Map<String, Object> readiness(String journey, UUID citizenId) {
-        return get("/api/department/journeys/" + journey + "/readiness?citizenId=" + citizenId, MAP);
+        return get("/api/department/journeys/" + journey(journey) + "/readiness?citizenId=" + citizenId, MAP);
     }
 
     public Map<String, Object> consentRequest(UUID citizenId, String journey) {
-        return post("/api/department/consents/requests", Map.of("citizenId", citizenId, "journeyCode", journey));
+        return post("/api/department/consents/requests", Map.of("citizenId", citizenId, "journeyCode", journey(journey)));
     }
 
     public Map<String, Object> grantConsent(String statement) {
@@ -77,7 +86,7 @@ public class SamanvayClient {
     }
 
     public Map<String, Object> start(String journey, UUID citizenId, Map<String, Object> submission) {
-        return post("/api/journeys/" + journey + "/start", Map.of("citizenId", citizenId, "submission", submission));
+        return post("/api/journeys/" + journey(journey) + "/start", Map.of("citizenId", citizenId, "submission", submission));
     }
 
     // --- tracking ----------------------------------------------------------------------------------------------
@@ -87,37 +96,70 @@ public class SamanvayClient {
     }
 
     public Map<String, Object> application(String reference) {
-        return get("/api/applications/" + reference, MAP);
+        return get("/api/applications/" + reference(reference), MAP);
     }
 
     public List<Map<String, Object>> steps(String reference) {
-        return get("/api/applications/" + reference + "/steps", LIST);
+        return get("/api/applications/" + reference(reference) + "/steps", LIST);
     }
 
     public List<Map<String, Object>> issuedRecords(String reference) {
-        return get("/api/applications/" + reference + "/issued-records", LIST);
+        return get("/api/applications/" + reference(reference) + "/issued-records", LIST);
     }
 
     // --- plumbing ----------------------------------------------------------------------------------------------
 
+    private static final Pattern REFERENCE = Pattern.compile("[A-Za-z0-9._@-]{1,100}");
+    private static final Pattern JOURNEY = Pattern.compile("[A-Za-z0-9_-]{1,80}");
+
+    /** An application reference goes into a URL path: only the characters a reference has, and never "." or "..". */
+    private static String reference(String ref) {
+        if (ref == null || !REFERENCE.matcher(ref).matches() || ref.equals(".") || ref.equals("..")) {
+            throw new SamanvayException(404, "No such application.");
+        }
+        return ref;
+    }
+
+    private static String journey(String code) {
+        if (code == null || !JOURNEY.matcher(code).matches()) {
+            throw new SamanvayException(404, "No such service.");
+        }
+        return code;
+    }
+
     private Map<String, Object> post(String path, Object body) {
-        return call(() -> http.post().uri(config.baseUrl() + path).header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer())
+        return call(path, bearer -> http.post().uri(config.baseUrl() + path).header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer)
                 .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(MAP));
     }
 
     private <T> T get(String path, ParameterizedTypeReference<T> type) {
-        return call(() -> http.get().uri(config.baseUrl() + path).header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer()).retrieve().body(type));
+        return call(path, bearer -> http.get().uri(config.baseUrl() + path).header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer).retrieve().body(type));
     }
 
-    private <T> T call(java.util.function.Supplier<T> request) {
+    /**
+     * Runs a request with the cached token. A 401 that is only "your token is not good" (no reason, or UNAUTHENTICATED) means the
+     * token was revoked or the identity provider was reset: the cached one is dropped and the call is tried ONCE more with a fresh
+     * one. Any other 401 (for example LINK_PROOF_INVALID) is an answer, and is not repeated.
+     */
+    private <T> T call(String path, java.util.function.Function<String, T> request) {
         try {
-            return request.get();
+            try {
+                return request.apply(bearer());
+            } catch (RestClientResponseException e) {
+                String reason = field(e, "reason");
+                if (e.getStatusCode().value() != 401 || (reason != null && !"UNAUTHENTICATED".equals(reason))) {
+                    throw e;
+                }
+                token = null;
+                return request.apply(bearer());
+            }
         } catch (RestClientResponseException e) {
             throw new SamanvayException(e.getStatusCode().value(), detail(e), field(e, "reason"));
         } catch (SamanvayException e) {
             throw e;
         } catch (RuntimeException e) {
-            log.warn("a call to Samanvay failed: {}", e.toString()); // the exception text never holds the token or the request body
+            // The exception text of a failed request holds its full URL, which carries a citizen ID: log the path (no query) and the kind only.
+            log.warn("a call to Samanvay ({}) failed: {}", path.split("\\?", 2)[0], e.getClass().getSimpleName());
             throw new SamanvayException(503, "Samanvay could not be reached.");
         }
     }
@@ -136,23 +178,36 @@ public class SamanvayClient {
         }
     }
 
-    private synchronized String bearer() {
+    /**
+     * The cached token, or a new one. The identity provider is called WITHOUT holding any lock, and with a short timeout: a slow or hung
+     * identity provider delays the callers that need a token, but never blocks those that arrive meanwhile from trying themselves
+     * (two callers may fetch a token at the same moment; the last one wins and both work).
+     */
+    private String bearer() {
+        Token t = token;
         Instant now = clock.instant();
-        if (token != null && now.isBefore(tokenExpires.minus(EARLY))) {
-            return token;
+        if (t != null && now.isBefore(t.expires().minus(EARLY))) {
+            return t.value();
         }
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
         form.add("client_id", config.clientId());
         form.add("client_secret", config.clientSecret());
         try {
-            Map<String, Object> reply = http.post().uri(config.tokenUrl()).contentType(MediaType.APPLICATION_FORM_URLENCODED).body(form)
+            Map<String, Object> reply = tokenHttp.post().uri(config.tokenUrl()).contentType(MediaType.APPLICATION_FORM_URLENCODED).body(form)
                     .retrieve().body(MAP);
-            token = (String) reply.get("access_token");
-            tokenExpires = now.plusSeconds(((Number) reply.getOrDefault("expires_in", 60)).longValue());
-            return token;
+            Object access = reply == null ? null : reply.get("access_token");
+            if (!(access instanceof String value) || value.isBlank()) {
+                log.warn("the identity provider's token reply has no access_token");
+                throw new SamanvayException(503, "Samanvay could not be reached.");
+            }
+            long seconds = reply.get("expires_in") instanceof Number n ? Math.max(1, n.longValue()) : 60;
+            token = new Token(value, now.plusSeconds(seconds));
+            return value;
+        } catch (SamanvayException e) {
+            throw e;
         } catch (RuntimeException e) {
-            log.warn("the token request to Samanvay's identity provider failed: {}", e.toString());
+            log.warn("the token request to Samanvay's identity provider failed: {}", e.getClass().getSimpleName());
             throw new SamanvayException(503, "Samanvay could not be reached.");
         }
     }

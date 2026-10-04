@@ -355,6 +355,9 @@ def main():
                 ("SAMANVAY_CLIENT_SECRET", sec[d]["client_secret"]),
                 (f"{d.upper()}_LOGIN_HINT", ""),  # empty hides the demo hint box: citizens are given their own credentials
                 (f"{d.upper()}_LOGIN_CODE", CODE),
+                # This is a DEMO deployment (one fixed code, 123456, and possibly plain http). A department refuses to start with those
+                # unless it is told, on purpose, that it is a demo. A real deployment must NOT set this: it needs its own code and https.
+                ("DEPARTMENT_DEMO_MODE", "true"),
                 (f"{d.upper()}_DB_URL", f"jdbc:postgresql://db:5432/{'agridb' if d == 'agriculture' else d}"), (f"{d.upper()}_DB_USER", f"{d}_app"),
                 (f"{d.upper()}_DB_PASSWORD", db_password),
                 (f"{d.upper()}_MANIFEST_KEY_FILE", "/data/manifest-signing-key.jwk"),

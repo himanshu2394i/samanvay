@@ -1,5 +1,6 @@
 package in.samanvay.departments.revenue;
 
+import in.samanvay.departments.kit.GuardedPathFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,11 +11,12 @@ import java.security.MessageDigest;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Revenue's security scheme: every {@code /v1} call must carry the shared API key in {@code X-Api-Key}.
- * The manifest is public. The comparison is constant-time so the key cannot be guessed by timing.
+ * Revenue's security scheme: every request that is not on the kit's explicit public list (the citizen portal, login, the manifest
+ * and health) must carry the shared API key in {@code X-Api-Key}, so a new endpoint is protected the day it is added. The decision is
+ * made on the normalised path, and a path with {@code ;} parameters or other tricks is refused with 400 ({@link GuardedPathFilter}),
+ * so {@code /v1;x=1/...} cannot slip past. The comparison is constant-time so the key cannot be guessed by timing.
  *
  * <p>If {@code revenue.allowed-ips} is set, the caller's address must also be on that list (403 otherwise);
  * empty means no IP restriction. The address is the socket peer, never {@code X-Forwarded-For} (spoofable).
@@ -23,7 +25,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * allow-list must be applied at the proxy instead.
  */
 @Component
-class ApiKeyFilter extends OncePerRequestFilter {
+class ApiKeyFilter extends GuardedPathFilter {
 
     static final String HEADER = "X-Api-Key";
 
@@ -36,12 +38,7 @@ class ApiKeyFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/v1/");
-    }
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    protected void check(HttpServletRequest request, String path, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         if (!allowedIps.isEmpty() && !allowedIps.contains(request.getRemoteAddr())) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);

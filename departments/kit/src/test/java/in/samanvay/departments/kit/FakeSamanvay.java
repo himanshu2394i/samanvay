@@ -22,10 +22,14 @@ final class FakeSamanvay implements AutoCloseable {
     final List<Call> calls = new CopyOnWriteArrayList<>();
     private final Map<String, Function<Call, Reply>> routes = new ConcurrentHashMap<>();
     volatile int tokenRequests;
+    /** What the token endpoint answers for the n-th request (1-based); a test replaces it to make a bad or slow token endpoint. */
+    volatile java.util.function.IntFunction<Reply> token = n -> new Reply(200, "{\"access_token\":\"tok-" + n + "\",\"expires_in\":300}");
+    volatile long tokenDelayMillis;
 
     FakeSamanvay() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", this::handle);
+        server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool()); // a slow token call must not stop other requests arriving
         server.start();
     }
 
@@ -52,8 +56,12 @@ final class FakeSamanvay implements AutoCloseable {
         Call call = new Call(ex.getRequestMethod(), ex.getRequestURI().toString(), ex.getRequestHeaders().getFirst("Authorization"), body);
         Reply reply;
         if (path.equals("/token")) {
-            tokenRequests++;
-            reply = new Reply(200, "{\"access_token\":\"tok-" + tokenRequests + "\",\"expires_in\":300}");
+            int n;
+            synchronized (this) {
+                n = ++tokenRequests;
+            }
+            sleep(tokenDelayMillis);
+            reply = token.apply(n);
         } else {
             calls.add(call);
             Function<Call, Reply> f = routes.get(call.method() + " " + path);
@@ -64,6 +72,14 @@ final class FakeSamanvay implements AutoCloseable {
         ex.sendResponseHeaders(reply.status(), out.length);
         ex.getResponseBody().write(out);
         ex.close();
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Override
