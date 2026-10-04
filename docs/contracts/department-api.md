@@ -29,3 +29,19 @@ All JSON, all under `/api/department` unless noted. A department acts only as it
 
 `400` bad input, `401` no token or a proof that does not verify (one generic message), `403` the caller's department does not run
 that journey, `404` not found (including "not your citizen"), `409` the link or merge is not allowed.
+
+## Withdrawing a consent
+
+A citizen who gave consent on a department's portal can withdraw it there too.
+
+| Call | Does |
+|---|---|
+| `POST /api/department/consents/{id}/revoke` `{reason?}` | Withdraws a consent the calling department collected. Same effect and audit entry as the citizen's own withdrawal: later fetches under it are refused. Returns `200` with no body; withdrawing a consent that already ended changes nothing. |
+
+Scope: the consent must have been requested by the calling department, and the citizen must still be linked to it. Anything else
+(another department's consent, an unknown ID, a citizen no longer linked) is `404`, so the answer reveals nothing. Only the
+`department` role may call it (`403` for others).
+
+Granting is once per request: a grant for a request that was already answered is `409` (`CONSENT_REQUEST_NOT_PENDING`), and a
+grant after the catalog changed the purpose's wording, categories, data types or validity since the request was made is `409`
+(`CONSENT_TERMS_CHANGED`): ask for consent again.

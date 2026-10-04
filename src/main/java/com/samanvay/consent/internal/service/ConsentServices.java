@@ -24,7 +24,9 @@ import com.samanvay.consent.api.ConsentNotFoundException;
 import com.samanvay.consent.api.ConsentRequest;
 import com.samanvay.consent.api.ConsentRequestDraft;
 import com.samanvay.consent.api.ConsentRequested;
+import com.samanvay.consent.api.ConsentRequestNotPendingException;
 import com.samanvay.consent.api.ConsentRevoked;
+import com.samanvay.consent.api.ConsentTermsChangedException;
 import com.samanvay.consent.api.ConsentService;
 import com.samanvay.consent.api.DenialReason;
 import com.samanvay.consent.api.UnsignedGrant;
@@ -158,9 +160,25 @@ class ConsentServices implements ConsentService, AccessAuthority {
         e.setPurposeCode(purpose.code());
         e.setPurposeText(purpose.text());
         e.setDataCategories(purpose.dataCategories().toArray(String[]::new));
+        e.setDataTypes(purpose.dataTypes().toArray(String[]::new));
+        e.setValidityDays(validityDays(purpose));
         e.setStatus("PENDING");
         e.setCreatedAt(clock.instant());
         requests.save(e);
+        PrincipalRef by = draft.principal();
+        audit.record(new AuditEntry(
+                by == null ? ActorType.SYSTEM : actorType(by),
+                by == null ? draft.requesterId() : by.id(),
+                "CONSENT_REQUESTED",
+                e.getSubjectCitizenId().toString(),
+                "consent",
+                e.getRequesterId(),
+                null,
+                null,
+                Outcome.ALLOWED,
+                null,
+                Map.of("purpose", e.getPurposeCode(), "requestId", e.getId().toString(),
+                        "principalType", by == null ? ActorType.SYSTEM.name() : by.kind().name())));
         events.publishEvent(new ConsentRequested(
                 e.getId(),
                 e.getSubjectCitizenId(),
@@ -257,17 +275,22 @@ class ConsentServices implements ConsentService, AccessAuthority {
         if (!req.getSubjectCitizenId().equals(citizenId)) {
             throw new ConsentNotFoundException();
         }
+        if (!"PENDING".equals(req.getStatus())) {
+            throw new ConsentRequestNotPendingException();
+        }
         // Data types and the lifetime cap are read from the catalog now, at grant time.
         Purpose purpose = purposes.byCode(req.getPurposeCode())
                 .filter(Purpose::active)
                 .orElseThrow(() -> new UnknownPurposeException(req.getPurposeCode()));
+        requireTermsUnchanged(req, purpose);
         Instant now = clock.instant();
         Duration lifetime = purpose.maxDurationDays() == null
                 ? DEFAULT_MAX_DURATION
                 : min(DEFAULT_MAX_DURATION, Duration.ofDays(purpose.maxDurationDays()));
-        req.setStatus("GRANTED");
-        req.setRespondedAt(clock.instant());
-        requests.save(req);
+        // The conditional update is the lock: a concurrent grant of this request waits here, then finds it no longer PENDING.
+        if (requests.markGranted(requestId, now) != 1) {
+            throw new ConsentRequestNotPendingException();
+        }
         ConsentArtifactEntity a = new ConsentArtifactEntity();
         a.setId(UUID.randomUUID());
         a.setSubjectCitizenId(citizenId);
@@ -294,6 +317,29 @@ class ConsentServices implements ConsentService, AccessAuthority {
         }
         events.publishEvent(new ConsentGranted(a.getId(), citizenId, a.getRequesterId(), Arrays.asList(a.getDataCategories())));
         return toArtifact(a);
+    }
+
+    /** Days a consent for this purpose lasts: the catalog cap, never more than {@link #DEFAULT_MAX_DURATION}. */
+    static int validityDays(Purpose purpose) {
+        Duration d = purpose.maxDurationDays() == null
+                ? DEFAULT_MAX_DURATION
+                : min(DEFAULT_MAX_DURATION, Duration.ofDays(purpose.maxDurationDays()));
+        return (int) d.toDays();
+    }
+
+    /**
+     * What the citizen agreed to is what the request said then. If the catalog's wording, categories, data types or validity moved
+     * since, the grant is refused (409) and the request must be made again. A request from before V212 has no snapshot of the last two.
+     */
+    private static void requireTermsUnchanged(ConsentRequestEntity req, Purpose purpose) {
+        boolean same = java.util.Objects.equals(req.getPurposeText(), purpose.text())
+                && new java.util.HashSet<>(Arrays.asList(req.getDataCategories())).equals(new java.util.HashSet<>(purpose.dataCategories()))
+                && (req.getDataTypes() == null
+                        || new java.util.HashSet<>(Arrays.asList(req.getDataTypes())).equals(new java.util.HashSet<>(purpose.dataTypes())))
+                && (req.getValidityDays() == null || req.getValidityDays() == validityDays(purpose));
+        if (!same) {
+            throw new ConsentTermsChangedException();
+        }
     }
 
     @Override
@@ -346,7 +392,7 @@ class ConsentServices implements ConsentService, AccessAuthority {
 
     /**
      * Deletes consent records that ended (revoked or expired) more than {@code retention} ago,
-     * with their events, access grants and usage claims. Audit rows are never touched: they are
+     * with their events, access grants, usage claims and department-signed evidence. Audit rows are never touched: they are
      * the permanent record. Returns the number of consents deleted.
      *
      * <p>Refuses a retention below {@link #MIN_RETENTION}: with a zero or negative window the cutoff
@@ -362,6 +408,8 @@ class ConsentServices implements ConsentService, AccessAuthority {
         artifacts.deleteUsageOfEndedBefore(cutoff);
         artifacts.deleteGrantsOfEndedBefore(cutoff);
         artifacts.deleteEventsOfEndedBefore(cutoff);
+        artifacts.deleteEvidenceOfEndedBefore(cutoff);
+        artifacts.deleteStatementNoncesExpiredBefore(cutoff);
         return artifacts.deleteEndedBefore(cutoff);
     }
 

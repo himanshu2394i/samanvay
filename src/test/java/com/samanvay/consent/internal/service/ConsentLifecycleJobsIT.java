@@ -87,6 +87,28 @@ class ConsentLifecycleJobsIT extends PostgresIntegrationTest {
         assertThat(count("audit.audit_entry WHERE consent_id", revokedOld)).isEqualTo(1);
     }
 
+    @Test
+    void purgeSucceedsForADepartmentGrantedConsentWithEvidenceAndItsStatementNonce() {
+        // A consent granted on a department portal keeps its signed statement in consent_evidence (V206, FK to the artifact);
+        // the request keeps a one-time nonce row. Both must go with the consent, or the purge fails on the FK.
+        UUID dept = seed("EXPIRED", years(-9), years(-8), null);
+        UUID request = UUID.randomUUID();
+        jdbc.update("INSERT INTO consent_request (id, subject_citizen_id, requester_id, purpose_code, purpose_text, data_categories,"
+                + " status, created_at, responded_at) VALUES (?, ?, 'SCHOLARSHIP', 'SCHOLARSHIP_ELIGIBILITY', 'text',"
+                + " ARRAY['INCOME_CERTIFICATE'], 'GRANTED', ?, ?)", request, UUID.randomUUID(),
+                java.sql.Timestamp.from(years(-9)), java.sql.Timestamp.from(years(-9)));
+        jdbc.update("INSERT INTO consent_statement_nonce (request_id, nonce, expires_at, used_at) VALUES (?, 'n', ?, ?)", request,
+                java.sql.Timestamp.from(years(-9)), java.sql.Timestamp.from(years(-9)));
+        jdbc.update("INSERT INTO consent_evidence (consent_id, statement, jti, department_code, key_thumbprint, created_at)"
+                + " VALUES (?, 'a.b.c', ?, 'SCHOLARSHIP', 'thumb', ?)", dept, "jti-" + dept, java.sql.Timestamp.from(years(-9)));
+
+        assertThat(consents.purgeEndedRecords(SEVEN_YEARS)).isGreaterThanOrEqualTo(1);
+
+        assertThat(count("consent_artifact WHERE id", dept)).isZero();
+        assertThat(count("consent_evidence WHERE consent_id", dept)).isZero();
+        assertThat(count("consent_statement_nonce WHERE request_id", request)).isZero();
+    }
+
     private static Instant days(int offset) {
         return Instant.now().plus(Duration.ofDays(offset));
     }

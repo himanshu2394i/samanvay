@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Builds the redirect that sends a citizen to a department's own login. The return address must start with an
+ * Builds the redirect that sends a citizen to a department's own login. The return address must lie under an
  * allow-listed Samanvay prefix ({@code samanvay.identity.department-assertion.allowed-return-prefixes}); with none
  * configured every address is refused (fail closed). Nothing is issued when a request is refused.
  */
@@ -40,7 +40,44 @@ class DepartmentLoginService implements DepartmentLogin {
     @Override
     @Transactional
     public String startLogin(UUID citizenId, String departmentCode, String returnTo) {
-        return start(citizenId, departmentCode, returnTo, allowedReturnPrefixes.stream().anyMatch(prefix -> returnTo != null && returnTo.startsWith(prefix)));
+        return start(citizenId, departmentCode, returnTo, allowedReturnPrefixes.stream().anyMatch(prefix -> isUnder(returnTo, prefix)));
+    }
+
+    /**
+     * Same scheme, host and port as the allow-listed prefix, and a path equal to the prefix's path or below it on a {@code /}
+     * boundary (so {@code /shared} allows {@code /shared/cb} but not {@code /shared-evil}). Dot segments and encoded slashes or dots
+     * are refused outright; a string prefix match is never enough.
+     */
+    static boolean isUnder(String returnTo, String prefix) {
+        try {
+            if (returnTo == null || returnTo.isBlank() || returnTo.contains("\\")) {
+                return false;
+            }
+            URI r = URI.create(returnTo.trim());
+            URI p = URI.create(prefix.trim());
+            if (r.getScheme() == null || r.getHost() == null || p.getScheme() == null || p.getHost() == null || r.getRawUserInfo() != null) {
+                return false;
+            }
+            if (!r.getScheme().equalsIgnoreCase(p.getScheme()) || !r.getHost().equalsIgnoreCase(p.getHost()) || port(r) != port(p)) {
+                return false;
+            }
+            String path = r.getRawPath() == null ? "" : r.getRawPath();
+            String lower = path.toLowerCase(java.util.Locale.ROOT);
+            if (lower.contains("%2e") || lower.contains("%2f") || lower.contains("%5c") || !path.equals(r.normalize().getRawPath() == null ? "" : r.normalize().getRawPath())) {
+                return false;
+            }
+            String base = p.getRawPath() == null ? "" : p.getRawPath();
+            while (base.endsWith("/")) {
+                base = base.substring(0, base.length() - 1);
+            }
+            return path.equals(base) || path.startsWith(base + "/");
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static int port(URI u) {
+        return u.getPort() >= 0 ? u.getPort() : "https".equalsIgnoreCase(u.getScheme()) ? 443 : 80;
     }
 
     @Override

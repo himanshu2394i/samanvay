@@ -161,6 +161,53 @@ class HttpJwksSourceTest {
     }
 
     @Test
+    void https_is_required_unless_the_dev_override_is_on() {
+        assertThatThrownBy(() -> source(false).keys("http://93.184.216.34/jwks.json", false)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("https");
+        source(false).validate("https://93.184.216.34/jwks.json"); // a public https address is acceptable
+        source(true).validate("http://127.0.0.1:9/jwks.json"); // dev override: plain http to a local department
+    }
+
+    @Test
+    void ipv6_unique_local_link_local_cgnat_and_other_internal_ranges_are_private() {
+        for (String host : new String[] {"[fd00::1]", "[fc12:3456::1]", "[fe80::1]", "[::1]", "[::ffff:10.0.0.1]", "100.64.0.1", "100.127.255.254",
+            "169.254.169.254", "10.0.0.1", "172.16.0.1", "192.168.1.1", "127.0.0.1", "0.0.0.0", "198.18.0.1", "224.0.0.1"}) {
+            assertThatThrownBy(() -> source(false).validate("https://" + host + "/jwks.json")).as(host)
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("private");
+        }
+        source(false).validate("https://100.128.0.1/jwks.json"); // just past CGNAT
+        source(false).validate("https://100.63.255.255/jwks.json"); // just before CGNAT
+    }
+
+    @Test
+    void every_address_a_host_resolves_to_is_checked_not_just_the_first() {
+        var mixed = new HttpJwksSource(clock, Duration.ofSeconds(3), 64 * 1024, Duration.ofMinutes(5), Duration.ofSeconds(30), false) {
+            @Override
+            java.net.InetAddress[] resolve(String host) throws java.net.UnknownHostException {
+                return new java.net.InetAddress[] {java.net.InetAddress.getByName("93.184.216.34"), java.net.InetAddress.getByName("10.1.2.3")};
+            }
+        };
+        assertThatThrownBy(() -> mixed.validate("https://keys.example.gov/jwks.json")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void a_cached_key_set_is_served_without_checking_the_host_again_so_a_dns_blip_does_not_block_logins() {
+        AtomicInteger validations = new AtomicInteger();
+        var s = new HttpJwksSource(clock, Duration.ofSeconds(3), 64 * 1024, Duration.ofMinutes(5), Duration.ofSeconds(30), true) {
+            @Override
+            java.net.URI validate(String jwksUrl) {
+                validations.incrementAndGet();
+                return super.validate(jwksUrl);
+            }
+        };
+        s.keys(url(), false);
+        s.keys(url(), false);
+        s.keys(url(), false);
+        assertThat(validations.get()).as("validated once, when it was fetched").isEqualTo(1);
+        assertThat(hits.get()).isEqualTo(1);
+    }
+
+    @Test
     void secret_or_private_key_material_in_the_published_set_is_never_returned() throws Exception {
         OctetSequenceKey secret = new OctetSequenceKeyGenerator(256).keyID("hmac").generate();
         body = new JWKSet(java.util.List.of(key, secret)).toString(false); // includes the private EC key and an HMAC secret

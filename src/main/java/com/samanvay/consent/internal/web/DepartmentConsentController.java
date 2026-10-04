@@ -8,6 +8,7 @@ import com.samanvay.shared.security.Caller;
 import com.samanvay.shared.security.Callers;
 import java.util.UUID;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,6 +45,13 @@ class DepartmentConsentController {
         return service.grant(caller.department(), body.statement(), caller.principal());
     }
 
+    /** The department withdraws a consent it collected; another department's consent, or a citizen no longer linked to it, is a 404. */
+    @PostMapping("/{id}/revoke")
+    void revoke(@PathVariable UUID id, @RequestBody(required = false) RevokeBody body) {
+        Caller caller = caller();
+        service.revoke(caller.department(), id, body == null ? null : body.reason(), caller.principal());
+    }
+
     private static Caller caller() {
         Caller caller = Callers.require();
         if (caller.department() == null || caller.department().isBlank()) {
@@ -55,4 +63,6 @@ class DepartmentConsentController {
     record AskBody(UUID citizenId, String journeyCode) {}
 
     record StatementBody(String statement) {}
+
+    record RevokeBody(String reason) {}
 }

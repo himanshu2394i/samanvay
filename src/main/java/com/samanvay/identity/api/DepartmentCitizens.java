@@ -21,7 +21,7 @@ public interface DepartmentCitizens {
      * Saves the link proven by {@code departmentCode}'s assertion (it must carry the state issued to this citizen). If the
      * person is already linked to another citizen and this citizen is an empty record made by a home sign in, the two are merged
      * (one session just proved both identities) and the surviving citizen ID is returned. Any other collision is a
-     * {@link DuplicateLocalIdException}.
+     * {@link DuplicateLocalIdException}, including a citizen who is already linked at that department to a DIFFERENT person.
      */
     UUID link(UUID citizenId, String departmentCode, String assertion, String actorId);
 }

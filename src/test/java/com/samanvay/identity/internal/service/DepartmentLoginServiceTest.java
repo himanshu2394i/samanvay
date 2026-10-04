@@ -98,6 +98,21 @@ class DepartmentLoginServiceTest {
     }
 
     @Test
+    void a_path_prefix_matches_only_on_a_path_boundary_not_as_a_string_prefix() {
+        var s = service("https://rev.example.gov/login", "http://localhost:8080/shared");
+        assertThat(s.startLogin(UUID.randomUUID(), "REVENUE", "http://localhost:8080/shared/cb")).contains("return_to=");
+        assertThat(s.startLogin(UUID.randomUUID(), "REVENUE", "http://localhost:8080/shared")).contains("return_to=");
+        for (String bad : new String[] {"http://localhost:8080/shared-evil/cb", "http://localhost:8080/sharedx", "http://localhost:8080/shared/../admin",
+            "http://localhost:8080/shared/%2e%2e/admin", "http://localhost:8080/shared/%2E%2E%2Fadmin", "http://localhost:8080@evil.example/shared/cb",
+            "https://localhost:8080/shared/cb", "http://localhost:80/shared/cb", "http://localhost:8080/shared\\..\\admin"}) {
+            assertThatThrownBy(() -> s.startLogin(UUID.randomUUID(), "REVENUE", bad)).as("returnTo=" + bad).isInstanceOf(InvalidRequestException.class);
+        }
+        var bare = service("https://rev.example.gov/login", "http://localhost:8080");
+        assertThat(bare.startLogin(UUID.randomUUID(), "REVENUE", "http://localhost:8080/any/where")).contains("return_to=");
+        assertThatThrownBy(() -> bare.startLogin(UUID.randomUUID(), "REVENUE", "http://localhost:80801/cb")).isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
     void with_no_allow_list_configured_every_return_address_is_refused_fail_closed() {
         assertThatThrownBy(() -> service("https://rev.example.gov/login").startLogin(UUID.randomUUID(), "REVENUE", RETURN_TO))
                 .isInstanceOf(InvalidRequestException.class);

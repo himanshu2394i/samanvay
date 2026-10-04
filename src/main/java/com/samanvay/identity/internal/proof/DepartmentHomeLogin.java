@@ -22,12 +22,22 @@ public class DepartmentHomeLogin {
         this.uses = uses;
     }
 
-    public VerifiedAssertion verify(String token, String departmentCode) {
-        VerifiedAssertion a = verifier.verify(token, departmentCode);
-        if (!uses.firstUse(departmentCode, a.jti(), a.expiresAt())) {
+    /** Checks the assertion's signature and claims only. It may fetch the department's keys over the network and writes nothing. */
+    public VerifiedAssertion check(String token, String departmentCode) {
+        return verifier.verify(token, departmentCode);
+    }
+
+    /** Marks a checked assertion used; a second use is refused. Call it inside the transaction that acts on the assertion. */
+    public void markUsed(VerifiedAssertion a) {
+        if (!uses.firstUse(a.departmentCode(), a.jti(), a.expiresAt())) {
             log.info("department assertion refused: already used");
             throw new LinkProofInvalidException();
         }
+    }
+
+    public VerifiedAssertion verify(String token, String departmentCode) {
+        VerifiedAssertion a = check(token, departmentCode);
+        markUsed(a);
         return a;
     }
 }

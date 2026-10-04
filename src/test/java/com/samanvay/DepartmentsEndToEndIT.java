@@ -96,8 +96,7 @@ import tools.jackson.databind.json.JsonMapper;
         webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
         properties = {
             "samanvay.catalog.allowed-private-hosts=127.0.0.1,localhost",
-            "samanvay.identity.department-assertion.allow-private-hosts=true",
-            "samanvay.identity.department-assertion.allowed-return-prefixes=http://127.0.0.1:"
+            "samanvay.identity.department-assertion.allow-private-hosts=true"
         })
 @Import(DepartmentsEndToEndIT.ProvisionedSecrets.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -311,6 +310,9 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
             return;
         }
         r.add("server.port", () -> samanvayPort);
+        // A return address must lie under an allow-listed prefix on the same scheme, host AND port: list each department portal's origin.
+        r.add("samanvay.identity.department-assertion.allowed-return-prefixes",
+                () -> PORT.values().stream().map(port -> "http://127.0.0.1:" + port + "/").collect(java.util.stream.Collectors.joining(",")));
         // REST/SOAP go over HTTPS in production; in a test runtime a source may be pointed at the plain-HTTP stand-in.
         r.add("samanvay.sources.department-service.urls.revenue-rest", () -> base("revenue"));
         r.add("samanvay.sources.department-service.urls.dbt-rest", () -> base("dbt"));
