@@ -3,5 +3,8 @@
   "consentPurpose":"DEMO_PURPOSE",
   "requiredCategories":[{"category":"INCOME_CERTIFICATE","department":"REVENUE"},{"category":"BANK_ACCOUNT","department":"DBT"}],
   "form":[{"name":"course","label":"Course","type":"text","required":true,"options":[]},
-          {"name":"year","label":"Year","type":"select","required":false,"options":["FIRST","SECOND"]}]}
+          {"name":"year","label":"Year","type":"select","required":false,"options":["FIRST","SECOND"]}]},
+ {"code":"OTHER_SERVICE","name":"Other service","description":"A second service, to check a consent is tied to its own journey.","referencePrefix":"OTH","slaHours":24,
+  "consentPurpose":"OTHER_PURPOSE","requiredCategories":[{"category":"INCOME_CERTIFICATE","department":"REVENUE"}],
+  "form":[{"name":"note","label":"Note","type":"text","required":false,"options":[]}]}
 ]}

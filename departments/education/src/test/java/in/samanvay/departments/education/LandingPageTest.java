@@ -37,7 +37,7 @@ class LandingPageTest {
 
     @Test
     void a_wrong_address_gets_a_friendly_not_found_page_instead_of_the_framework_error() throws Exception {
-        HttpResponse<String> r = get("/no-such-page", "text/html");
+        HttpResponse<String> r = get("/portal/no-such-page", "text/html");
         assertThat(r.statusCode()).isEqualTo(404);
         assertThat(r.body()).contains(NAME).contains("does not exist");
         assertThat(r.body()).doesNotContain("Whitelabel").doesNotContain("no explicit mapping");
@@ -45,7 +45,7 @@ class LandingPageTest {
 
     @Test
     void api_clients_that_ask_for_json_still_get_json_errors() throws Exception {
-        HttpResponse<String> r = get("/no-such-page", "application/json");
+        HttpResponse<String> r = get("/portal/no-such-page", "application/json");
         assertThat(r.statusCode()).isEqualTo(404);
         assertThat(r.headers().firstValue("Content-Type").orElse("")).contains("json");
         assertThat(r.body()).doesNotContain("<html");

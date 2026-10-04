@@ -11,27 +11,22 @@ import java.util.UUID;
 
 /**
  * The department's manifest signing key, kept in a file and created on first start. Samanvay pins its thumbprint when an admin
- * approves the signed manifest, and later accepts consent statements only if they are signed with this same key. The department's
- * ManifestSigningFilter reads the same file, so both always use one key.
+ * approves the signed manifest, and later accepts consent statements only if they are signed with this same key. The manifest signer
+ * ({@link SignedManifestFilter}) and the consent signer both read it from here, so both always use one key. The file is created
+ * owner-only and moved into place atomically ({@link SecretFiles}).
  */
 public final class ManifestKey {
 
     private ManifestKey() {}
 
-    public static ECKey loadOrCreate(Path file) {
+    /** Synchronized so the manifest filter and the consent signer, built at the same moment, cannot each make a different key. */
+    public static synchronized ECKey loadOrCreate(Path file) {
         try {
             if (Files.exists(file)) {
                 return ECKey.parse(Files.readString(file, StandardCharsets.UTF_8));
             }
             ECKey created = new ECKeyGenerator(Curve.P_256).keyID(UUID.randomUUID().toString()).generate();
-            if (file.getParent() != null) {
-                Files.createDirectories(file.getParent());
-            }
-            Files.writeString(file, created.toJSONString(), StandardCharsets.UTF_8);
-            file.toFile().setReadable(false, false);
-            file.toFile().setReadable(true, true);
-            file.toFile().setWritable(false, false);
-            file.toFile().setWritable(true, true);
+            SecretFiles.writeOwnerOnly(file, created.toJSONString());
             return created;
         } catch (IOException | java.text.ParseException | com.nimbusds.jose.JOSEException e) {
             throw new IllegalStateException("cannot load or create the manifest signing key " + file, e);

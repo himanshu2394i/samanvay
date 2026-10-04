@@ -88,6 +88,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>-Duser.timezone=UTC</argLine>
+                    <!-- The dev profile (application-dev.yml) switches demo mode on, as a local run does. Tests of the refusal itself switch it off again. -->
+                    <systemPropertyVariables>
+                        <spring.profiles.active>dev</spring.profiles.active>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>

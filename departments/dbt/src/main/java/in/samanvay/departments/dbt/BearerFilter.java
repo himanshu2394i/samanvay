@@ -1,5 +1,6 @@
 package in.samanvay.departments.dbt;
 
+import in.samanvay.departments.kit.GuardedPathFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -8,15 +9,17 @@ import java.io.IOException;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * DBT's security scheme: every {@code /v1} call needs a valid, unexpired bearer token from {@code /oauth/token}. If
- * {@code dbt.allowed-ips} is set, the caller's socket address must also be on that list for {@code /v1} and {@code /oauth}
- * (403 otherwise; the public manifest is never restricted). The address is the socket peer, never {@code X-Forwarded-For}.
+ * DBT's security scheme: every request that is not on the kit's explicit public list (the citizen portal, login, the manifest and
+ * health) needs a valid, unexpired bearer token from {@code /oauth/token}; the token endpoint itself authenticates the client. The
+ * decision is made on the normalised path, and a path with {@code ;} parameters or other tricks is refused with 400
+ * ({@link GuardedPathFilter}). If {@code dbt.allowed-ips} is set, the caller's socket address must also be on that list for everything
+ * that is not public (403 otherwise; the public manifest is never restricted). The address is the socket peer, never
+ * {@code X-Forwarded-For}.
  */
 @Component
-class BearerFilter extends OncePerRequestFilter {
+class BearerFilter extends GuardedPathFilter {
 
     private final TokenService tokens;
     private final List<String> allowedIps;
@@ -27,13 +30,7 @@ class BearerFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return !(path.startsWith("/v1/") || path.startsWith("/oauth/"));
-    }
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    protected void check(HttpServletRequest request, String path, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         if (!allowedIps.isEmpty() && !allowedIps.contains(request.getRemoteAddr())) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -41,7 +38,7 @@ class BearerFilter extends OncePerRequestFilter {
             response.getWriter().write("{\"error\":\"caller address not allowed\"}");
             return;
         }
-        if (request.getRequestURI().startsWith("/oauth/")) {
+        if (path.startsWith("/oauth/")) {
             chain.doFilter(request, response); // the token endpoint authenticates the client itself
             return;
         }

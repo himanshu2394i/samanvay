@@ -46,16 +46,9 @@ class RevenueManifestController {
                 new Identity(AssertionSigner.PERSON_ID_TYPE, publicBaseUrl + "/login", publicBaseUrl + "/.well-known/jwks.json", AssertionSigner.ISSUER),
                 new Sample("RV-1001"),
                 List.of(
-                        doc("INCOME_CERTIFICATE", "Income certificate", "/v1/income/{key}",
-                                new Field("annualIncome", "integer", true), new Field("annualIncomeDisplay", "string", true),
-                                new Field("holderName", "string", true), new Field("district", "string", false),
-                                new Field("issuerOffice", "string", false), new Field("financialYear", "string", false)),
-                        doc("CASTE_CERTIFICATE", "Caste certificate", "/v1/caste/{key}",
-                                new Field("holderName", "string", true), new Field("caste", "string", true),
-                                new Field("casteCategory", "string", true), new Field("issuerOffice", "string", false)),
-                        doc("DOMICILE_CERTIFICATE", "Domicile certificate", "/v1/domicile/{key}",
-                                new Field("holderName", "string", true), new Field("state", "string", false),
-                                new Field("district", "string", false), new Field("issuerOffice", "string", false)),
+                        doc("INCOME_CERTIFICATE", "Income certificate", "/v1/income/{key}"),
+                        doc("CASTE_CERTIFICATE", "Caste certificate", "/v1/caste/{key}"),
+                        doc("DOMICILE_CERTIFICATE", "Domicile certificate", "/v1/domicile/{key}"),
                         landRecord()),
                 journeys.manifestJourneys(publicBaseUrl));
     }
@@ -83,10 +76,23 @@ class RevenueManifestController {
         return new Resolve("GET", "/v1/persons/{personId}/documents", Map.of("type", category), "documents", "key", "latest");
     }
 
-    private static Document doc(String category, String title, String path, Field... fields) {
+    /**
+     * The fields each certificate type declares: the ONE list the manifest publishes and {@link RevenueController} answers with, so a
+     * column added to the database later is never sent to Samanvay until it is declared here.
+     */
+    static final Map<String, List<Field>> DECLARED = Map.of(
+            "INCOME_CERTIFICATE", List.of(new Field("annualIncome", "integer", true), new Field("annualIncomeDisplay", "string", true),
+                    new Field("holderName", "string", true), new Field("district", "string", false),
+                    new Field("issuerOffice", "string", false), new Field("financialYear", "string", false)),
+            "CASTE_CERTIFICATE", List.of(new Field("holderName", "string", true), new Field("caste", "string", true),
+                    new Field("casteCategory", "string", true), new Field("issuerOffice", "string", false)),
+            "DOMICILE_CERTIFICATE", List.of(new Field("holderName", "string", true), new Field("state", "string", false),
+                    new Field("district", "string", false), new Field("issuerOffice", "string", false)));
+
+    private static Document doc(String category, String title, String path) {
         return new Document(category, title, "REST", "GET", path,
                 List.of(new Input("key", "path", true, "The certificate key returned by the resolve step.")),
-                List.of(fields), new Lookup(resolve(category)), API_KEY, null);
+                DECLARED.get(category), new Lookup(resolve(category)), API_KEY, null);
     }
 
     record Manifest(int manifestVersion, Dept department, Identity identity, Sample sample, List<Document> documents, List<Map<String, Object>> journeys) {}

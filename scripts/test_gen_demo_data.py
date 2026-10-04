@@ -158,6 +158,15 @@ class GeneratedData(unittest.TestCase):
             self.assertGreaterEqual(len(e[f"{d.upper()}_SESSION_SECRET"]), 32)
         self.assertEqual(len({env(self.out / d / f"{d}.env")[f"{d.upper()}_SESSION_SECRET"] for d in DEPTS}), 4)
 
+    def test_every_department_runs_in_demo_mode_because_the_demo_uses_the_fixed_code_and_may_be_plain_http(self):
+        # Departments refuse to start with the fixed one-time code 123456, plain http or short secrets unless DEPARTMENT_DEMO_MODE=true;
+        # this generator makes a DEMO deployment (one-time code 123456 everywhere), so it must say so on purpose, in every department.
+        for d in DEPTS:
+            e = dict(l.split("=", 1) for l in (self.out / d / f"{d}.env").read_text(encoding="utf-8").splitlines() if l and not l.startswith("#"))
+            self.assertEqual(e["DEPARTMENT_DEMO_MODE"], "true", d)
+            self.assertGreaterEqual(len(e[f"{d.upper()}_SESSION_SECRET"].encode()), 32, d)
+            self.assertFalse(any(v.endswith("change-me") for v in e.values()), d)
+
     def test_the_middle_layer_has_no_citizen_realm_because_citizens_use_the_department_portals(self):
         env = dict(l.split("=", 1) for l in (self.out / "middle-layer" / "departments.env").read_text(encoding="utf-8").splitlines()
                    if l and not l.startswith("#"))

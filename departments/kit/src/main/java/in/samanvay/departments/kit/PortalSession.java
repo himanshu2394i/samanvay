@@ -15,7 +15,8 @@ import javax.crypto.spec.SecretKeySpec;
 /**
  * Stateless proof that this browser signed in at the portal: the cookie value is the signed person, citizen and expiry, so the
  * server keeps nothing. Also issues the short-lived ticket that carries "the password step passed" to the one-time-code step.
- * Both are HMAC-SHA256 over their fields with this process's secret; a changed field, a wrong secret or an old time fails.
+ * Both are HMAC-SHA256 over their fields with this process's secret AND the department's code, so a cookie or ticket made by one
+ * department is worthless at another even if two were ever given the same secret; a changed field, a wrong secret or an old time fails.
  */
 public final class PortalSession {
 
@@ -26,8 +27,10 @@ public final class PortalSession {
     public static final Duration TICKET_TTL = Duration.ofMinutes(5);
 
     private final byte[] secret;
+    private final String deptCode;
 
-    public PortalSession(String configuredSecret) {
+    public PortalSession(String configuredSecret, String deptCode) {
+        this.deptCode = java.util.Objects.requireNonNull(deptCode, "deptCode");
         if (configuredSecret == null || configuredSecret.isBlank()) {
             secret = new byte[32];
             new SecureRandom().nextBytes(secret);
@@ -40,29 +43,22 @@ public final class PortalSession {
      * The secret from configuration if there is one; otherwise one made on first start and kept in {@code file} (next to the manifest signing
      * key), so a restart or a re-created container does not sign every citizen out.
      */
-    public static PortalSession withSecretFile(String configuredSecret, java.nio.file.Path file) {
+    public static PortalSession withSecretFile(String configuredSecret, String deptCode, java.nio.file.Path file) {
         if (configuredSecret != null && !configuredSecret.isBlank()) {
-            return new PortalSession(configuredSecret);
+            return new PortalSession(configuredSecret, deptCode);
         }
         try {
             if (java.nio.file.Files.exists(file)) {
                 String kept = java.nio.file.Files.readString(file, StandardCharsets.UTF_8).trim();
                 if (kept.length() >= 32) {
-                    return new PortalSession(kept);
+                    return new PortalSession(kept, deptCode);
                 }
             }
             byte[] raw = new byte[32];
             new SecureRandom().nextBytes(raw);
             String made = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
-            if (file.getParent() != null) {
-                java.nio.file.Files.createDirectories(file.getParent());
-            }
-            java.nio.file.Files.writeString(file, made, StandardCharsets.UTF_8);
-            file.toFile().setReadable(false, false);
-            file.toFile().setReadable(true, true);
-            file.toFile().setWritable(false, false);
-            file.toFile().setWritable(true, true);
-            return new PortalSession(made);
+            SecretFiles.writeOwnerOnly(file, made);
+            return new PortalSession(made, deptCode);
         } catch (java.io.IOException e) {
             throw new IllegalStateException("cannot load or create the portal session secret " + file, e);
         }
@@ -76,12 +72,15 @@ public final class PortalSession {
         return open("S", cookie, now, 3).map(f -> new Session(f[0], UUID.fromString(f[1]), f[2].isEmpty() ? null : f[2]));
     }
 
+    /** Every ticket is unique (a random part is signed in), so "one ticket, one use" can be enforced even for two sign-ins in one second. */
     public String issueTicket(String personId, Instant now) {
-        return seal("T", now.plus(TICKET_TTL), personId);
+        byte[] nonce = new byte[12];
+        new SecureRandom().nextBytes(nonce);
+        return seal("T", now.plus(TICKET_TTL), personId, Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
     }
 
     public Optional<String> readTicket(String ticket, Instant now) {
-        return open("T", ticket, now, 1).map(f -> f[0]);
+        return open("T", ticket, now, 2).map(f -> f[0]);
     }
 
     private String seal(String kind, Instant expires, String... fields) {
@@ -123,7 +122,7 @@ public final class PortalSession {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret, "HmacSHA256"));
-            return mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return mac.doFinal((deptCode + "\n" + data).getBytes(StandardCharsets.UTF_8));
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException(e);
         }

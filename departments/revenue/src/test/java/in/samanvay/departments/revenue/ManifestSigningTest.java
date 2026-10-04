@@ -33,13 +33,15 @@ class ManifestSigningTest {
 
     static final String PATH = "/.well-known/samanvay/manifest";
     static final String BODY = "{\"manifestVersion\":2}";
+    static final String PUBLIC_URL = "https://Dept.Example.com:8443/";
+    static final String AUDIENCE = "https://dept.example.com:8443";
     static final JsonMapper JSON = JsonMapper.builder().build();
 
     @TempDir
     Path dir;
 
     ManifestSigningFilter filter(String file, String discoveryKey) throws Exception {
-        return new ManifestSigningFilter(dir.resolve(file).toString(), discoveryKey);
+        return new ManifestSigningFilter(dir.resolve(file).toString(), discoveryKey, PUBLIC_URL);
     }
 
     MockHttpServletResponse call(ManifestSigningFilter f, String path, String discoveryHeader) throws Exception {
@@ -68,6 +70,7 @@ class ManifestSigningTest {
         var claims = JSON.readTree(jws.getPayload().toString());
         assertThat(claims.get("sha256").asString()).isEqualTo(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(body)));
         assertThat(Instant.ofEpochSecond(claims.get("iat").asLong())).isBetween(Instant.now().minusSeconds(60), Instant.now().plusSeconds(5));
+        assertThat(claims.get("aud").asString()).as("aud is the origin of the department's public address").isNotBlank().doesNotEndWith("/");
         return pub.computeThumbprint().toString();
     }
 
@@ -77,6 +80,23 @@ class ManifestSigningTest {
         assertThat(res.getStatus()).isEqualTo(200);
         assertThat(res.getContentAsString()).isEqualTo(BODY);
         assertThat(verifiedThumbprint(BODY.getBytes(StandardCharsets.UTF_8), res.getHeader("X-Samanvay-Signature"))).isNotBlank();
+    }
+
+    @Test
+    void the_signed_audience_is_the_origin_of_the_configured_public_address() throws Exception {
+        MockHttpServletResponse res = call(filter("aud.jwk", ""), PATH, null);
+        String payload = JWSObject.parse(res.getHeader("X-Samanvay-Signature")).getPayload().toString();
+        assertThat(JSON.readTree(payload).get("aud").asString()).isEqualTo(AUDIENCE);
+    }
+
+    @Test
+    void a_path_parameter_on_the_manifest_path_is_refused_not_served_unsigned_or_without_the_discovery_key() throws Exception {
+        ManifestSigningFilter f = filter("p.jwk", "needed");
+        for (String uri : new String[] {PATH + ";x=1", PATH + "%3Bx=1", PATH + ";jsessionid=1"}) {
+            MockHttpServletResponse res = call(f, uri, null);
+            assertThat(res.getStatus()).as(uri).isEqualTo(400);
+            assertThat(res.getContentAsString()).as(uri).doesNotContain("manifestVersion");
+        }
     }
 
     @Test
@@ -125,6 +145,8 @@ class ManifestSigningTest {
                     HttpRequest.newBuilder(URI.create("http://localhost:" + port + PATH)).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
             assertThat(r.statusCode()).isEqualTo(200);
             assertThat(verifiedThumbprint(r.body(), r.headers().firstValue("X-Samanvay-Signature").orElseThrow())).isNotBlank();
+            String payload = JWSObject.parse(r.headers().firstValue("X-Samanvay-Signature").orElseThrow()).getPayload().toString();
+            assertThat(JSON.readTree(payload).get("aud").asString()).isEqualTo("http://localhost:8091");
         }
     }
 }

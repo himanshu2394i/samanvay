@@ -86,6 +86,7 @@ class PortalControllerTest {
             samanvay = new FakeSamanvay();
             keyFile = Files.createTempDirectory("kit").resolve("manifest-signing-key.jwk");
         }
+        r.add("department.demo-mode", () -> "true"); // http address, a short secret and the fixed demo code are fine for a test
         r.add("portal.dept-code", () -> "EDUCATION");
         r.add("portal.name", () -> "State Board of Education");
         r.add("portal.initial", () -> "E");
@@ -213,7 +214,7 @@ class PortalControllerTest {
     void the_journeys_are_the_ones_in_journeys_json() throws Exception {
         String cookie = signedIn();
         Res list = send("GET", "/portal-api/journeys", cookie, null);
-        assertThat(list.list()).hasSize(1);
+        assertThat(list.list()).hasSize(2);
         assertThat(send("GET", "/portal-api/journeys/DEMO_SERVICE", cookie, null).json()).containsEntry("name", "Demo service");
         assertThat(send("GET", "/portal-api/journeys/NOPE", cookie, null).status()).isEqualTo(404);
     }
@@ -352,5 +353,95 @@ class PortalControllerTest {
         assertThat(send("GET", "/portal-api/applications/MH-1/steps", cookie, null).status()).isEqualTo(404);
         assertThat(send("GET", "/portal-api/applications/MH-2", cookie, null).status()).isEqualTo(200);
         assertThat(send("GET", "/portal-api/applications/MH-2/steps", cookie, null).list()).hasSize(1);
+    }
+
+    // --- review fixes --------------------------------------------------------------------------------------
+
+    @Test
+    void a_ticket_works_once_so_a_stolen_code_page_cannot_open_a_second_session() throws Exception {
+        Res step1 = send("POST", "/portal-api/sign-in", null, "{\"mobile\":\"9000000001\",\"password\":\"asha-pass\"}");
+        String body = "{\"ticket\":\"" + step1.json().get("ticket") + "\",\"code\":\"123456\"}";
+        assertThat(send("POST", "/portal-api/verify", null, body).status()).isEqualTo(200);
+        assertThat(send("POST", "/portal-api/verify", null, body).status()).isEqualTo(401);
+    }
+
+    @Test
+    void portal_responses_carry_security_headers() throws Exception {
+        Res api = send("GET", "/portal-api/config", null, null);
+        assertThat(api.headers().first("Cache-Control").orElse("")).contains("no-store");
+        assertThat(api.headers().first("X-Frame-Options")).contains("DENY");
+        assertThat(api.headers().first("X-Content-Type-Options")).contains("nosniff");
+        Res page = send("GET", "/portal/", null, null);
+        assertThat(page.headers().first("Content-Security-Policy").orElse("")).contains("frame-ancestors 'none'");
+    }
+
+    @Test
+    void a_path_parameter_or_an_encoded_semicolon_is_refused_outright() throws Exception {
+        assertThat(send("GET", "/portal-api/me;x=1", signedIn(), null).status()).isEqualTo(400);
+        assertThat(send("GET", "/portal-api/me%3Bx=1", signedIn(), null).status()).isEqualTo(400);
+        assertThat(send("GET", "/portal-api/config", null, null).status()).isEqualTo(200);
+    }
+
+    @Test
+    void an_upstream_status_nobody_knows_is_mapped_not_a_server_error_of_our_own() throws Exception {
+        samanvay.on("POST", "/api/journeys/DEMO_SERVICE/start", 599, "{}");
+        assertThat(send("POST", "/portal-api/journeys/DEMO_SERVICE/submit", signedIn(), "{\"submission\":{\"course\":\"BSc\"}}").status()).isEqualTo(503);
+        samanvay.on("POST", "/api/journeys/DEMO_SERVICE/start", 499, "{\"detail\":\"odd\"}");
+        Res r = send("POST", "/portal-api/journeys/DEMO_SERVICE/submit", signedIn(), "{\"submission\":{\"course\":\"BSc\"}}");
+        assertThat(r.status()).isBetween(400, 499);
+    }
+
+    @Test
+    void upstream_wording_that_looks_internal_is_not_passed_to_the_browser() throws Exception {
+        String internal = "could not insert row " + UUID.randomUUID() + " into consent_request at jdbc:postgresql://db:5432/samanvay";
+        samanvay.on("POST", "/api/journeys/DEMO_SERVICE/start", 409, "{\"detail\":\"" + internal + "\",\"reason\":\"JOURNEY_BLOCKED\"}");
+        Res r = send("POST", "/portal-api/journeys/DEMO_SERVICE/submit", signedIn(), "{\"submission\":{\"course\":\"BSc\"}}");
+        assertThat(r.status()).isEqualTo(409);
+        assertThat((String) r.json().get("detail")).doesNotContain("jdbc").doesNotContain("consent_request").isNotBlank();
+        assertThat(r.json()).containsEntry("reason", "JOURNEY_BLOCKED");
+        samanvay.on("POST", "/api/journeys/DEMO_SERVICE/start", 409, "{\"detail\":\"" + "x".repeat(500) + "\"}");
+        assertThat((String) send("POST", "/portal-api/journeys/DEMO_SERVICE/submit", signedIn(), "{\"submission\":{\"course\":\"BSc\"}}").json().get("detail"))
+                .hasSizeLessThan(200);
+    }
+
+    @Test
+    void an_application_reference_with_odd_characters_is_not_found_and_never_sent_to_samanvay() throws Exception {
+        String cookie = signedIn();
+        for (String ref : new String[] {"a$b", "a:b", "a,b", "a%20b", "a%3Fb"}) {
+            assertThat(send("GET", "/portal-api/applications/" + ref, cookie, null).status()).as(ref).isEqualTo(404);
+            assertThat(send("GET", "/portal-api/applications/" + ref + "/steps", cookie, null).status()).as(ref).isEqualTo(404);
+        }
+        assertThat(samanvay.calls.stream().filter(c -> c.path().startsWith("/api/applications/a"))).isEmpty();
+    }
+
+    @Test
+    void a_consent_wording_is_tied_to_the_journey_it_was_asked_for() throws Exception {
+        samanvay.on("POST", "/api/department/consents/requests", 200, WORDING.replace("REQ-1", "REQ-TIED"));
+        samanvay.on("POST", "/api/department/consents", 200, "{\"id\":\"c-1\"}");
+        String cookie = signedIn();
+        send("GET", "/portal-api/journeys/DEMO_SERVICE/consent", cookie, null);
+        assertThat(send("POST", "/portal-api/journeys/OTHER_SERVICE/consent", cookie, "{\"requestId\":\"REQ-TIED\",\"code\":\"123456\"}").status()).isEqualTo(410);
+        assertThat(samanvay.callsTo("/api/department/consents")).isEmpty();
+        assertThat(send("POST", "/portal-api/journeys/DEMO_SERVICE/consent", cookie, "{\"requestId\":\"REQ-TIED\",\"code\":\"123456\"}").status()).isEqualTo(200);
+    }
+
+    @Test
+    void only_a_few_consent_wordings_wait_per_citizen_the_oldest_is_dropped() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger n = new java.util.concurrent.atomic.AtomicInteger();
+        samanvay.on("POST", "/api/department/consents/requests", c -> new FakeSamanvay.Reply(200, WORDING.replace("REQ-1", "REQ-N" + n.incrementAndGet())));
+        samanvay.on("POST", "/api/department/consents", 200, "{\"id\":\"c-1\"}");
+        String cookie = signedIn();
+        for (int i = 0; i < PortalController.PENDING_PER_CITIZEN + 2; i++) {
+            send("GET", "/portal-api/journeys/DEMO_SERVICE/consent", cookie, null);
+        }
+        assertThat(send("POST", "/portal-api/journeys/DEMO_SERVICE/consent", cookie, "{\"requestId\":\"REQ-N1\",\"code\":\"123456\"}").status()).isEqualTo(410);
+        assertThat(send("POST", "/portal-api/journeys/DEMO_SERVICE/consent", cookie,
+                "{\"requestId\":\"REQ-N" + n.get() + "\",\"code\":\"123456\"}").status()).isEqualTo(200);
+    }
+
+    @Test
+    void a_wording_without_a_request_id_or_nonce_is_a_bad_gateway_not_a_signed_null() throws Exception {
+        samanvay.on("POST", "/api/department/consents/requests", 200, WORDING.replace("\"nonce\":\"nonce-1\",", ""));
+        assertThat(send("GET", "/portal-api/journeys/DEMO_SERVICE/consent", signedIn(), null).status()).isEqualTo(502);
     }
 }

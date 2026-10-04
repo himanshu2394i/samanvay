@@ -74,9 +74,9 @@ class EducationController {
         String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
                 + "<soap:Envelope xmlns:soap=\"" + SOAP_NS + "\"><soap:Body><GetMarksResponse>"
                 + "<studentId>" + escape(marks.studentId()) + "</studentId>"
-                + "<percentage>" + marks.percentage() + "</percentage>"
-                + "<board>" + marks.board() + "</board>"
-                + "<exam>" + marks.exam() + "</exam>"
+                + "<percentage>" + escape(marks.percentage()) + "</percentage>"
+                + "<board>" + escape(marks.board()) + "</board>"
+                + "<exam>" + escape(marks.exam()) + "</exam>"
                 + "</GetMarksResponse></soap:Body></soap:Envelope>";
         return ResponseEntity.ok().contentType(xmlUtf8()).body(xml);
     }
@@ -110,7 +110,12 @@ class EducationController {
         return new MediaType("text", "xml", StandardCharsets.UTF_8);
     }
 
+    /** Text for an XML element: every value written into the reply goes through here, so stored data can never become markup. */
     private static String escape(String v) {
-        return v.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        if (v == null) {
+            return "";
+        }
+        return v.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
+                .replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]", ""); // control characters are not allowed in XML 1.0 at all
     }
 }

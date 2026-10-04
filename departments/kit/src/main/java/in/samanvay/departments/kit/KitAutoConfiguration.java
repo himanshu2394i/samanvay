@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.ClassPathResource;
 
 /**
@@ -26,9 +27,32 @@ public class KitAutoConfiguration {
         return Clock.systemUTC();
     }
 
+    /** Refuses to start on dev defaults or weak settings unless {@code department.demo-mode=true}. */
+    @Bean
+    StartupChecks startupChecks(PortalProperties p, Environment env) {
+        return new StartupChecks(p, env);
+    }
+
+    @Bean
+    RequestHygieneFilter requestHygieneFilter() {
+        return new RequestHygieneFilter();
+    }
+
+    @Bean
+    SecurityHeadersFilter securityHeadersFilter() {
+        return new SecurityHeadersFilter();
+    }
+
+    /** Shared by the portal and the department's own /login, so guessing at one is counted against the other. */
+    @Bean
+    @ConditionalOnMissingBean
+    SignInThrottle signInThrottle(Clock clock) {
+        return new SignInThrottle(clock);
+    }
+
     @Bean
     PortalSession portalSession(PortalProperties p) {
-        return PortalSession.withSecretFile(p.sessionSecret(), Path.of(p.manifestKeyFile()).toAbsolutePath().resolveSibling("portal-session.secret"));
+        return PortalSession.withSecretFile(p.sessionSecret(), p.deptCode(), Path.of(p.manifestKeyFile()).toAbsolutePath().resolveSibling("portal-session.secret"));
     }
 
     @Bean
@@ -54,7 +78,7 @@ public class KitAutoConfiguration {
 
     @Bean
     PortalController portalController(PortalProperties p, PortalSession sessions, SamanvayClient samanvay, JourneyCatalog catalog,
-            CitizenDirectory directory, HomeAssertions home, ConsentSigner signer, Clock clock) {
-        return new PortalController(p, sessions, samanvay, catalog, directory, home, signer, clock);
+            CitizenDirectory directory, HomeAssertions home, ConsentSigner signer, SignInThrottle throttle, Clock clock) {
+        return new PortalController(p, sessions, samanvay, catalog, directory, home, signer, throttle, clock);
     }
 }
