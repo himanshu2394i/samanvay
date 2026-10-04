@@ -25,7 +25,9 @@ services:
       retries: 20
 
   revenue:
-    build: ../../../departments/revenue
+    build:
+      context: ../../../departments
+      dockerfile: revenue/Dockerfile
     restart: unless-stopped
     env_file: ../../generated/revenue/revenue.env
     depends_on:

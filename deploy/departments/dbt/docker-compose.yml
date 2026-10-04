@@ -25,7 +25,9 @@ services:
       retries: 20
 
   dbt:
-    build: ../../../departments/dbt
+    build:
+      context: ../../../departments
+      dockerfile: dbt/Dockerfile
     restart: unless-stopped
     env_file: ../../generated/dbt/dbt.env
     depends_on:
