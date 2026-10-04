@@ -29,6 +29,9 @@ Nothing here is a PR yet; all PRs are opened together at the end.
 
 **Sections superseded by later ones:** §5 steps 1-3 (see §8, §11); §6's last "what this means" bullets (see §8).
 
+**STATUS (2026-10-04): the department work (sections 1-15) and the department-journeys redesign (Phase 8 in section 15) are built and
+deployed on branch `feat/department-journeys`; no PR yet.** The line below is the 2026-10-01 status, kept as history.
+
 **STATUS (2026-10-01): built on branch `feat/dept-revenue`, uncommitted, no PR.** Everything above is implemented and tested
 (see section 15 for the log and section 14 for what maps to what). The gaps this file once listed are closed: REST/SOAP now apply the
 declared credentials; REST honours path inputs; the optional `resolve` step exists; connectors bind `link.personId`; credentials are
@@ -823,7 +826,9 @@ What was built:
   caller runs (replaces the old "scoped for every data source" start rule). A person who starts at two departments ends up as ONE citizen: when a
   link collides with an existing citizen and the current one is an empty record made by a home sign in, the two are merged (audited
   `CITIZEN_MERGED`); any other collision stays a 409. Migrations V206 (consent evidence, nonce), V207 (assertion use), V208 (citizen origin),
-  V209 (Education's purpose, clearances for Education, Revenue, DBT).
+  V209 (Education's purpose, clearances for Education, Revenue, DBT), V210 (`connector_trial`: the last onboarding trial of each connector,
+  durable, shown on the staff journey page), V211 (`onboarded` flag on `catalog_data_source`, `catalog_connector`, `catalog_journey`: the staff
+  Departments and Journeys pages list only rows created or adopted by manifest onboarding; seeded demo and test rows stay FALSE).
 - **Consent statement:** ES256 JWS `typ=samanvay-consent` signed with the department's manifest key. Samanvay checks it against the key it PINNED from the
   signed manifest, the open request, citizen, purpose, categories, nonce (single use), recency, and `jti` (single use). One generic refusal.
 - **Manifest** `journeys[].portalUrl` (must be on the manifest's own host); the citizen realm is optional and switched off in the deployment;
@@ -843,8 +848,8 @@ Tests: `DepartmentIdentityIT`, `DepartmentConsentIT`, `DepartmentJourneyIT`, `St
 the portal and staff front-end tests, the generator tests, and `DepartmentsEndToEndIT` now runs all four journeys through the real department jars
 (sign in, link the others by their own logins, department-signed consent, apply, track) plus the two-home-sign-in merge.
 
-Honest limits: the last connector trial shown on the staff page is kept in memory (lost on restart); the log's latency is the step's duration and its
-connector is derived from what the instance pinned; the staff page has no Probe or Run-trial buttons (they are on the Catalog and Onboarding screens);
+Honest limits: the last connector trial is durable since V210; the log's latency is the step's duration and its
+connector is derived from what the instance pinned; the staff page has no Probe or Run-trial buttons (they are on the Onboarding screen; the old Catalog and Discover pages were removed);
 pending consent wordings and the portal session secret live in one process (a restart signs citizens out); the fixed codes remain demo back doors.
 
 ## Decisions closed from the open questions

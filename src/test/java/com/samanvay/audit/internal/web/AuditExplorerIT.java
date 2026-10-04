@@ -15,9 +15,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 @SpringBootTest(classes = SamanvayApplication.class)
 @ActiveProfiles("demo")
+@TestPropertySource(properties = {"samanvay.demo.tamper-endpoints=true", "samanvay.demo.chaos-endpoints=true"})
 class AuditExplorerIT extends PostgresIntegrationTest {
 
     @Autowired

@@ -20,7 +20,9 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule modules_only_touch_their_own_tables = classes()
             .that()
-            .resideInAPackage("..internal.repository..")
+            .resideInAPackage("..internal.domain..")
+            .and()
+            .areAnnotatedWith(jakarta.persistence.Table.class)
             .should(new TablePrefixMatchesModuleCondition());
 
     @ArchTest

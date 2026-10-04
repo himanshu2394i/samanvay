@@ -27,7 +27,7 @@ class AuditRolePrivilegeIT extends PostgresIntegrationTest {
                 ActorType.SYSTEM, "priv-it", "PING", "s", null, null, null, null, Outcome.ALLOWED, null, Map.of()));
 
         try (var conn = DriverManager.getConnection(
-                        POSTGRES.getJdbcUrl(), "samanvay_app", "samanvay_app_dev_password");
+                        POSTGRES.getJdbcUrl(), "samanvay_app", APP_PASSWORD);
                 var st = conn.createStatement()) {
             assertThatThrownBy(() -> st.executeUpdate("UPDATE audit.audit_entry SET reason = 'x'"))
                     .isInstanceOf(SQLException.class)

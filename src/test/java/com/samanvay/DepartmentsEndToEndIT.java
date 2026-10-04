@@ -156,6 +156,16 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
         return ROOT.resolve("departments/" + dept + "/target/samanvay-dept-" + dept + ".jar");
     }
 
+    /** Locally a missing jar skips the run; in CI (the CI variable is set) it is a failure, so the end-to-end proof cannot silently vanish. */
+    static void requireJars() {
+        String msg = "build the department jars first: scripts/build-departments.sh";
+        if (System.getenv("CI") != null) {
+            assertThat(jarsPresent).as(msg).isTrue();
+        } else {
+            assumeTrue(jarsPresent, msg);
+        }
+    }
+
     static int freePort() throws IOException {
         try (ServerSocket s = new ServerSocket(0)) {
             return s.getLocalPort();
@@ -387,7 +397,7 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
 
     @BeforeAll
     void onboardEveryDepartment() {
-        assumeTrue(jarsPresent, "build the department jars first: scripts/build-departments.sh");
+        requireJars();
         for (String d : PORT.keySet()) {
             OnboardingPlan plan = onboarding.plan(base(d));
             assertThat(plan.documents()).as(d).allSatisfy(doc -> assertThat(doc.ready()).as(doc.category()).isTrue());
@@ -404,7 +414,7 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
 
     @Test
     void revenue_shows_its_signed_manifest_only_to_a_caller_with_its_discovery_credential() throws Exception {
-        assumeTrue(jarsPresent, "build the department jars first: scripts/build-departments.sh");
+        requireJars();
         URI manifest = URI.create(base("revenue") + "/.well-known/samanvay/manifest");
         assertThat(HTTP.send(HttpRequest.newBuilder(manifest).GET().build(), HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(401);
         var shown = HTTP.send(HttpRequest.newBuilder(manifest).header("X-Discovery-Key", REVENUE_DISCOVERY_KEY).GET().build(),
@@ -679,7 +689,7 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
     @Test
     @Order(20)
     void every_journey_runs_on_its_own_departments_portal_from_sign_in_to_tracking() throws Exception {
-        assumeTrue(jarsPresent, "build the department jars first: scripts/build-departments.sh");
+        requireJars();
         Login asha = new Login("9000000001", "asha-demo-pass", null);
         for (String home : PORT.keySet()) {
             String cookie = portalSignIn(home, asha);
@@ -743,7 +753,7 @@ class DepartmentsEndToEndIT extends PostgresIntegrationTest {
     @Test
     @Order(21)
     void a_person_who_starts_at_two_departments_is_one_citizen_after_linking_them() throws Exception {
-        assumeTrue(jarsPresent, "build the department jars first: scripts/build-departments.sh");
+        requireJars();
         Login ravi = new Login("9000000002", "ravi-demo-pass", null);
         String atEducation = portalSignIn("education", ravi); // makes the citizen "Ravi at Education"
         String atDbt = portalSignIn("dbt", ravi); // makes a second, empty record "Ravi at DBT"

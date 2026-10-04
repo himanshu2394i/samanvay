@@ -67,7 +67,7 @@ Record against the deployed site. Total ~5–6 min; each scene stands alone, so 
 
 ## Scene 4 — "Is it ready?" is answered honestly  (~40s)
 
-- **Open:** `https://app.3.109.201.126.nip.io/app/#/staff/admin/catalog` — the **Journeys** table.
+- **Open:** `https://app.3.109.201.126.nip.io/app/#/staff/admin/journeys` — the **Journeys** table.
 - **Screen:** the new **Readiness** column. Existing services say **Live**; the one you just added
   says **Pending — needs …**.
 - **Say:** "This is the honest part. A service can't go live until the plumbing to fetch every record
@@ -76,20 +76,21 @@ Record against the deployed site. Total ~5–6 min; each scene stands alone, so 
 
 ## Scene 5 — These aren't fake buttons  (~40s)
 
-- **Open:** same Catalog page, scroll to **Connectors**.
+- **Open:** the **Departments** page (`/app/#/staff/admin/departments`) and a journey's status page (`/app/#/staff/admin/journeys/<code>`), which list each document's serving connector; the **Central schema** page (`/app/#/staff/admin/schemas`) shows what the fields map onto.
 - **Say:** "Behind the scenes this really talks to four completely different kinds of government
   systems: a modern REST web API, an old SOAP service, a file drop over SFTP, and a direct database
   query. Same middle layer, four real technologies."
 - **Do (optional, strongest proof):** go back and run a **scholarship** application end-to-end — that
   one really calls the live REST + SOAP department services — or a **business-NOC**, which really
   pulls a file over SFTP and runs a database query.
-- **Note for you:** ignore the **"Check"** buttons in the demo — those ping placeholder addresses and
-  show red; they don't reflect the real fetches. Don't click them on camera.
+- **Note for you:** the old placeholder connectors (host `mock.samanvay.test`) are not listed on the Departments page,
+  which shows only onboarded departments; do not open them on camera.
 
 ## Scene 6 — You can't quietly change the record  (~40s)
 
 - **Open:** `https://app.3.109.201.126.nip.io/app/#/staff/ops/audit` — the audit ledger.
-- **Do:** click **Verify** — the whole chain checks out. Then use the **tamper** demo button to alter
+- **Do:** click **Verify** — the whole chain checks out. Then use the **tamper** demo button (it exists only when the demo
+  server runs with `samanvay.demo.tamper-endpoints=true`; see `deploy/README.md`) to alter
   one past entry, and **Verify** again — it now **fails** and points at the exact broken link.
 - **Say:** "Every access is written to a tamper-evident chain. Change one old record and the whole
   thing screams. And note — the citizen's actual data was never *stored* here; it was fetched, used,

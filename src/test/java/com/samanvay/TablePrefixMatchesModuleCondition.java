@@ -27,11 +27,17 @@ final class TablePrefixMatchesModuleCondition extends ArchCondition<JavaClass> {
         Table table = javaClass.getAnnotationOfType(Table.class);
         boolean ok = !table.schema().isBlank()
                 ? module.equals(table.schema())
-                : table.name().startsWith(module + "_");
+                : ownsPrefix(module, table.name());
         events.add(new SimpleConditionEvent(
                 javaClass,
                 ok,
                 javaClass.getName() + " table " + qualified(table) + " must belong to module " + module));
+    }
+
+    /** The module name or its singular as prefix: module "notifications" owns notification_* (V-migrations predate the rule). */
+    private static boolean ownsPrefix(String module, String tableName) {
+        String singular = module.endsWith("s") ? module.substring(0, module.length() - 1) : module;
+        return tableName.startsWith(module + "_") || tableName.startsWith(singular + "_");
     }
 
     private static String qualified(Table table) {
