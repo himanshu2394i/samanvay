@@ -30,6 +30,19 @@ There is **no demo login**: everyone signs in through Keycloak.
   the first sign-in asks for a new password and for an authenticator code (TOTP) to be enrolled, as for any real staff
   account. A passkey also works.
 
+**The four department portals** (each is the department's own citizen front door; a service starts here, not on Samanvay):
+
+| Department | Portal | Service offered there | Protocol Samanvay uses to reach it |
+|---|---|---|---|
+| Revenue | <https://revenue.43.204.63.20.nip.io/portal/> | Income certificate renewal | REST + SFTP |
+| DBT | <https://dbt.13.127.73.197.nip.io/portal/> | DBT bank account seeding | REST + OAuth2 |
+| Education | <https://education.13.202.195.55.nip.io/portal/> | Post-matric scholarship | SOAP + WS-Security |
+| Agriculture | <https://agriculture.13.127.73.197.nip.io/portal/> | Farmer subsidy | JDBC (read-only view) + SFTP |
+
+Each portal signs in with a mobile number, that department's password and a one-time code. The demo citizens and their passwords are
+issued by the maintainers and are not published here. A department's services only work once an admin has onboarded that department
+(staff console, *Onboarding*), and a scholarship or farmer-subsidy application needs every department it draws from to be onboarded.
+
 | Open this | Sign in as | What to look at |
 |---|---|---|
 | [`/app/#/staff/admin/onboarding`](https://app.3.109.201.126.nip.io/app/#/staff/admin/onboarding) | `dev-admin` | Onboard a department from just its URL; it picks up the department's documents **and its services (journeys)**; "Run trial fetch" |
