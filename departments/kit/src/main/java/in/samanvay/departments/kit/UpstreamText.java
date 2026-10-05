@@ -16,6 +16,21 @@ final class UpstreamText {
 
     private UpstreamText() {}
 
+    /** What a known machine reason means for a citizen. These are fixed sentences, so nothing from the inside can leak through them. */
+    private static final java.util.Map<String, String> BY_REASON = java.util.Map.of(
+            "JOURNEY_NOT_PUBLISHED", "This service is not open for applications yet. Please try again later.",
+            "JOURNEY_ALREADY_OPEN", "You already have an application in progress for this service. Check your applications to follow it.",
+            "CONSENT_REQUEST_NOT_PENDING", "That consent has already been used. Refresh the page and start again.",
+            "CONSENT_TERMS_CHANGED", "The terms of this consent changed since you were shown them. Start again to review them.");
+
+    static String forCitizen(int status, String upstream, String reason) {
+        String known = reason == null ? null : BY_REASON.get(reason);
+        if (known != null) {
+            return known;
+        }
+        return forCitizen(status, upstream);
+    }
+
     static String forCitizen(int status, String upstream) {
         String text = upstream == null ? "" : upstream.trim();
         if (SENTENCE.matcher(text).matches() && !INTERNAL.matcher(text).find()) {

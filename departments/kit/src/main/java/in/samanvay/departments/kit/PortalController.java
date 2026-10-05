@@ -429,7 +429,7 @@ public class PortalController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
         }
         HttpStatus status = HttpStatus.resolve(s) == null ? HttpStatus.BAD_REQUEST : HttpStatus.resolve(s);
-        body.put("detail", UpstreamText.forCitizen(status.value(), e.getMessage()));
+        body.put("detail", UpstreamText.forCitizen(status.value(), e.getMessage(), e.reason()));
         if (e.reason() != null && e.reason().matches("[A-Z0-9_]{1,60}")) {
             body.put("reason", e.reason());
         }
