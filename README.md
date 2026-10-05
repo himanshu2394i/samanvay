@@ -378,7 +378,7 @@ Aadhaar integration need partner accounts.
 
 ## How it is deployed today
 
-A five-server demo on AWS (Mumbai), all with fake data and HTTPS through Caddy on `nip.io` names:
+A four-server demo on AWS (Mumbai): the middle layer, and one server each for Revenue, Education and DBT, with Agriculture sharing the DBT server, all with fake data and HTTPS through Caddy on `nip.io` names:
 
 ```mermaid
 flowchart TB
