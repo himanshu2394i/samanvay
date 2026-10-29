@@ -676,3 +676,11 @@ credential.
 1. Branch off `main`, work in your module's package (`com.samanvay.<module>.*`).
 2. Open a PR against `main`. CI must pass; the technical lead's review is required (enforced via [CODEOWNERS](CODEOWNERS) and branch protection — direct pushes to `main` are blocked).
 3. Read your module's charter in [`docs/architecture/hld/`](docs/architecture/hld/README.md) before writing code — it defines what your module owns, its public interface, and its acceptance criteria.
+
+## Team Members
+
+- [Himanshu](linkedin.com/in/himanshu-mann-143834316)
+- [Jaivardhan](www.linkedin.com/in/jaivardhan-singh-878183372)
+- [Dev Girdhar](linkedin.com/in/devgirdhar)
+- [Priyanshi Sharma](linkedin.com/in/priyanshi-sharma-aa2538340)
+
